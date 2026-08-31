@@ -1,0 +1,13 @@
+chapter_id:
+chapter_name:
+purpose:
+required_facts:
+  - fact_id:
+    description:
+    context_fields: []
+optional_facts: []
+output_structure: []
+generation_rules:
+  must_include: []
+  forbidden: []
+quality_checks: []

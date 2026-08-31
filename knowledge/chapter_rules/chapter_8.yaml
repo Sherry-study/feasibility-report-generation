@@ -1,0 +1,51 @@
+contract_version: '1.0'
+rule_id: chapter_8
+rule_status: active
+plan_section: '8.1'
+sections:
+- section_id: '8.1'
+  title: 公用工程方案
+  coverage_class: deterministic_only
+  required_facts:
+  - fact_id: utility_capacity
+    description: 企业现有公用工程能力和当前负荷
+    source_paths:
+    - enterprise.utility_system
+    - user.utility_system_capacity
+    - energy.utility_capacity
+    responsibility:
+    - U
+    - PA
+    required: true
+    missing_action: allow_open_item
+  context_paths:
+  - project.project_name
+  - equipment.reactor.utility_requirements
+  - equipment.tower.utility_requirements
+  - energy.consumption
+  - enterprise.utility_system
+  - user.utility_system_capacity
+  output:
+    allowed_headings:
+    - 8.1 公用工程方案
+    required_structure:
+    - heading: 8.1 公用工程方案
+      requirements:
+      - 结合项目公用工程需求与企业系统能力。
+      - 外部公开供应条件只能作为背景。
+      - 不得用园区公开能力替代企业当前负荷或可用余量。
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+  generation_rules:
+    must_include: []
+    forbidden:
+    - 无依据提出扩容方案
+    - 园区能力替代企业系统余量
+  quality_checks:
+  - 供需校核缺口是否保留
+  deterministic_tables:
+  - 8.1-1

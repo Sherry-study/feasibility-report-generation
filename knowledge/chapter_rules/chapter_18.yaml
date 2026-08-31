@@ -1,0 +1,18 @@
+contract_version: "1.0"
+rule_id: chapter_18
+rule_status: active
+plan_section: "18"
+sections:
+  - section_id: "18.2"
+    title: 实施进度计划
+    coverage_class: llm_narrative
+    required_facts: []
+    context_paths: [implementation_schedule, equipment, adopted_scheme]
+    output:
+      allowed_headings: ["18.2 实施进度计划"]
+      required_structure:
+        - heading: "18.2 实施进度计划"
+          requirements: ["按项目前期、基础设计、施工图设计、设备采购、土建施工、安装工程、试生产等工作包组织。", "结合设备清单与改造类型估算各工作包工期与总工期。", "可参考公开化工装置改造项目的常规工期基准，但最终计划以项目设备清单、施工窗口和企业正式计划值为准。"]
+    research: {mode: required, task_templates: [], condition_key: null, policy_hook: implementation_schedule_benchmark_182, target_sections: ["18.2"]}
+    generation_rules: {must_include: [], forbidden: ["要求用户补充实施进度后才起草"]}
+    quality_checks: ["工期估算是否基于设备改造量"]

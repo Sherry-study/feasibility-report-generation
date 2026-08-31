@@ -1,0 +1,147 @@
+contract_version: '1.0'
+rule_id: chapter_10
+rule_status: active
+plan_section: 10.1-10.6
+sections:
+- section_id: '10.1'
+  title: 编制依据
+  coverage_class: deterministic_only
+  required_facts: []
+  context_paths:
+  - energy.conversion_rules
+  - energy.accounting_standard
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+- section_id: '10.2'
+  title: 项目用能概况
+  coverage_class: deterministic_only
+  required_facts:
+  - fact_id: energy_boundary
+    description: 能耗核算边界和介质实物量
+    source_paths:
+    - energy.consumption
+    - energy.accounting_media
+    - user.energy_accounting_media
+    responsibility:
+    - U
+    - PA
+    required: true
+    missing_action: allow_open_item
+  context_paths:
+  - energy.consumption
+  - energy.accounting_media
+  - energy.accounting_standard
+  - equipment
+  output:
+    allowed_headings:
+    - 10.2 项目用能概况
+    required_structure:
+    - heading: 10.2 项目用能概况
+      requirements:
+      - 概述装置用能介质构成。
+      - 说明能耗核算边界，同一能耗计算表不混用折标准煤与折标准油。
+      - 设备级热负荷与实物量口径严格区分。
+      - 仅使用项目事实与报告内已有数据。
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+  generation_rules:
+    must_include: []
+    forbidden:
+    - 虚构能源实物量
+  quality_checks:
+  - 能耗边界是否清楚
+- section_id: '10.3'
+  title: 能源供应状况
+  coverage_class: template_rendered
+  required_facts: []
+  context_paths:
+  - energy
+  - enterprise.utility_system
+  - user.utility_system_capacity
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+  generation_rules:
+    must_include: []
+    forbidden:
+    - 公开园区能力替代企业供应能力
+  quality_checks:
+  - 供应能力条件是否保留
+- section_id: '10.4'
+  title: 项目节能分析与措施
+  coverage_class: deterministic_only
+  required_facts: []
+  context_paths:
+  - project.project_type
+  - project.objectives
+  - project.changes
+  - adopted_scheme
+  - energy
+  - equipment
+  output:
+    allowed_headings:
+    - 10.4 项目节能分析与措施
+    required_structure:
+    - heading: 10.4 项目节能分析与措施
+      requirements:
+      - 结合推荐方案改造内容说明节能分析重点。
+      - 节能量由改造前后统一能耗边界和实物量计算确定，不得宣称未测算的节能量。
+      - 仅使用项目事实与报告内已有数据，设备级数据不重复罗列。
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+  generation_rules:
+    must_include: []
+    forbidden:
+    - 未测算节能量
+  quality_checks:
+  - 节能措施是否未超出事实
+- section_id: '10.5'
+  title: 项目能耗指标
+  coverage_class: deterministic_only
+  required_facts: []
+  context_paths:
+  - energy.conversion_rules
+  - energy.consumption
+  - user.energy_accounting_media
+  research:
+    mode: conditional
+    task_templates: []
+    condition_key: null
+    policy_hook: missing_energy_conversion_factor_105
+    target_sections:
+    - '10.5'
+- section_id: '10.6'
+  title: 能耗分析
+  coverage_class: template_rendered
+  required_facts: []
+  context_paths:
+  - energy.consumption
+  - energy.conversion_rules
+  - process
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+  generation_rules:
+    must_include: []
+    forbidden:
+    - 实物量缺失时给出能耗指标
+  quality_checks:
+  - 能耗指标是否有实物量基础

@@ -1,0 +1,8 @@
+{
+  "tool":"report_generation",
+  "contract_version":"1.0",
+  "stage":"4_report_generation",
+  "input":{"facts":"confirmed_project_facts.json (required)","profile":"file (required)","chapter_plan":"chapter_plan.json (required)","output_dir":"dir (required)","section_drafts":"file","strict_consistency":"bool"},
+  "output":{"process_topology_analysis":"process_topology_analysis.json","report_tables":"report_tables.json","report_model":"report_model.json","consistency_check":"consistency_check.json","docx":"可行性研究报告_初稿.docx","markdown":"可行性研究报告_初稿.md","report_trace":"report_trace.json"},
+  "exit_codes":{"0":"generated","3":"consistency_blocked"}
+}

@@ -1,0 +1,48 @@
+contract_version: '1.0'
+rule_id: chapter_5
+rule_status: active
+plan_section: '5'
+sections:
+- section_id: '5.1'
+  title: 主要原材料、辅助材料、燃料的种类、规格、年需用量
+  coverage_class: deterministic_only
+  required_facts: []
+  context_paths:
+  - process.design.feed_streams
+  - process.retrofit.feed_streams
+  - user.annual_operating_hours
+  - fa
+  output:
+    allowed_headings:
+    - 5.1 主要原材料、辅助材料、燃料的种类、规格、年需用量
+    required_structure:
+    - heading: 5.1 主要原材料、辅助材料、燃料的种类、规格、年需用量
+      requirements:
+      - 公开标准仅补规格或合规依据。
+      - 年需用量由专业事实和年操作时间派生。
+      - 供应商、价格、合同规格必须由企业确认。
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+  generation_rules:
+    must_include: []
+    forbidden:
+    - 公开资料替代企业供应合同
+  quality_checks:
+  - 年需用量是否来自确定性事实
+- section_id: '5.4'
+  title: 水、电、汽和其他动力供应
+  coverage_class: deterministic_only
+  required_facts: []
+  context_paths:
+  - energy
+  - equipment
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []

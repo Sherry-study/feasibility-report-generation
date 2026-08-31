@@ -1,0 +1,38 @@
+meta:
+  version: 1.0
+  rule: 所有条件模板均要求触发条件具有已确认/可追溯项目事实
+blocks:
+  raw_material_route_unchanged:
+    type: CONDITIONAL_TEMPLATE
+    trigger: changes.raw_material_route_changed == false
+    text: 本项目不涉及原料路线调整，沿用现有原料路线。
+    sections:
+    - 4.1.1
+  process_route_unchanged:
+    type: CONDITIONAL_TEMPLATE
+    trigger: changes.process_route_changed == false
+    text: 本项目不涉及工艺路线调整，沿用现有工艺路线。
+    sections:
+    - 4.1.2
+  production_scheme_unchanged:
+    type: CONDITIONAL_TEMPLATE
+    trigger: changes.capacity_changed == false and changes.product_changed == false
+    text: 本项目不改变现有生产规模和产品方案，相关生产组织及产品方案沿用现状。
+    sections:
+    - '3.1'
+    note: 使用前仍需U/C确认现状规模和产品口径
+  utility_rely_existing:
+    type: CONDITIONAL_TEMPLATE
+    trigger: utility_margin_check == pass and changes.utility_system_changed == false
+    text: 改造后新增公用工程负荷在现有系统可用余量范围内，相关公用工程依托现有系统。
+    sections:
+    - '5.4'
+    - '8.1'
+    note: 禁止仅因为是改造项目就自动触发
+  no_layout_impact:
+    type: CONDITIONAL_TEMPLATE
+    trigger: C.layout_impact_confirmed == false
+    text: 本项目在现有装置范围内实施，不改变现有总图总体格局；新增或改造设备的布置满足现有装置工程条件。
+    sections:
+    - '7.1'
+    note: 需要总图/专业确认，不可由LLM自行判断

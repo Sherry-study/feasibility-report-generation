@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "AI for Redesign Feasibility Study Project Facts Contract",
+  "type": "object",
+  "required": ["meta","project","sources","process","equipment","adopted_scheme","scheme_state","gaps","consistency_issues"],
+  "properties": {
+    "meta": {
+      "type":"object",
+      "required":["schema_version","scope","adapter_mode"],
+      "properties":{
+        "schema_version":{"const":"1.1"},
+        "scope":{"const":"feasibility_report_project_facts"},
+        "adapter_mode":{"enum":["legacy_fullstack","generic_partial"]}
+      }
+    },
+    "project": {
+      "type":"object",
+      "required":["project_id","project_name","project_level","project_type"],
+      "properties":{
+        "project_id":{"type":"string"},
+        "project_name":{"type":"string"},
+        "project_level":{"enum":["equipment","unit","system","plant"]},
+        "project_type":{"type":"string"},
+        "construction_unit":{"type":["string","null"]},
+        "project_location":{"type":["string","null"]},
+        "raw_material_route_changed":{"type":["boolean","null"]},
+        "process_route_changed":{"type":["boolean","null"]},
+        "changes":{"type":"object"},
+        "target_component_codes":{"type":"array","items":{"type":"string"}}
+      },
+      "additionalProperties":true
+    },
+    "sources":{"type":"array"},
+    "component_catalog":{"type":"array"},
+    "process":{"type":"object"},
+    "diagnosis":{"type":"object"},
+    "equipment":{"type":"object"},
+    "user":{"type":"object"},
+    "fa":{"type":"object"},
+    "gaps":{"type":"array"},
+    "consistency_issues":{"type":"array"},
+    "scheme_analysis":{"type":"object"},
+    "adopted_scheme":{"type":"object"},
+    "scheme_state":{"type":"object"},
+    "enterprise":{"type":"object"},
+    "energy":{"type":"object"},
+    "implementation_schedule":{"type":"object"}
+  },
+  "additionalProperties":true
+}

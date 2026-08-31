@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Feasibility LLM Jobs",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "project_id",
+    "jobs"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1.0"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "jobs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "job_id",
+          "rule_id",
+          "rule_version",
+          "section_id",
+          "title",
+          "chapter_context",
+          "required_structure",
+          "allowed_headings",
+          "output_contract"
+        ],
+        "properties": {
+          "job_id": {
+            "type": "string"
+          },
+          "rule_id": {
+            "type": "string"
+          },
+          "rule_version": {
+            "type": "string"
+          },
+          "section_id": {
+            "type": "string"
+          },
+          "title": {
+            "type": "string"
+          },
+          "chapter_context": {
+            "type": "object"
+          },
+          "research_task_ids": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "required_structure": {
+            "type": "array"
+          },
+          "allowed_headings": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "output_contract": {
+            "type": "object"
+          }
+        }
+      }
+    }
+  }
+}

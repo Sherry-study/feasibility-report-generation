@@ -1,0 +1,46 @@
+contract_version: '1.0'
+rule_id: chapter_3
+rule_status: active
+plan_section: '3.1'
+sections:
+- section_id: '3.1'
+  title: 生产规模和产品方案
+  coverage_class: deterministic_only
+  required_facts:
+  - fact_id: annual_operating_hours
+    description: 年运行时长
+    source_paths:
+    - user.annual_operating_hours
+    - process.annual_operating_hours
+    responsibility:
+    - U
+    required: true
+    missing_action: ask_user
+  context_paths:
+  - project.project_name
+  - process.design
+  - process.retrofit
+  - user.annual_operating_hours
+  - fa
+  output:
+    allowed_headings:
+    - 3.1 生产规模和产品方案
+    required_structure:
+    - heading: 3.1 生产规模和产品方案
+      requirements:
+      - 概述本项目扩能改造前后的生产规模变化。
+      - 说明产品方案保持不变。
+      - 数字仅使用表3.1-1已列数据，不得引入其他数字。
+      - 表格由系统自动渲染，正文以引导性文字为主。
+  research:
+    mode: none
+    task_templates: []
+    condition_key: null
+    policy_hook: null
+    target_sections: []
+  generation_rules:
+    must_include: []
+    forbidden:
+    - 新增未确认产能数字
+  quality_checks:
+  - 规模数字是否来自确定性表格或事实

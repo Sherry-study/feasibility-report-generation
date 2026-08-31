@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Feasibility Research Tasks",
+  "type": "object",
+  "required": [
+    "contract_version",
+    "project_id",
+    "tasks"
+  ],
+  "properties": {
+    "contract_version": {
+      "const": "1.0"
+    },
+    "project_id": {
+      "type": "string"
+    },
+    "project_name": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "tasks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+          "required": [
+            "task_id",
+            "rule_id",
+            "section_id",
+            "research_type",
+            "subject",
+          "questions",
+          "minimum_sources"
+        ],
+          "properties": {
+          "rule_id": {
+            "type": "string"
+          },
+          "task_id": {
+            "type": "string"
+          },
+          "section_id": {
+            "type": "string"
+          },
+          "target_sections": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "research_type": {
+            "type": "string"
+          },
+          "purpose": {
+            "type": "string"
+          },
+          "subject": {
+            "type": "string"
+          },
+          "questions": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "suggested_queries": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "preferred_sources": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "minimum_sources": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "requires_official_source": {
+            "type": "boolean"
+          },
+          "time_scope": {
+            "type": "string"
+          },
+          "geography": {
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "prohibited": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          }
+        }
+      }
+    }
+  }
+}

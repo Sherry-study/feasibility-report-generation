@@ -1,0 +1,16 @@
+{
+  "$schema":"https://json-schema.org/draft/2020-12/schema",
+  "title":"Feasibility Skill Source Registry",
+  "type":"object",
+  "required":["contract_version","project","selected_sources","capability_coverage","ambiguities","ready_for_fact_resolution"],
+  "properties":{
+    "contract_version":{"const":"1.1"},
+    "project":{"type":"object","required":["project_id","project_name","project_level","project_type"]},
+    "mode":{"enum":["workspace_auto","explicit","hybrid"]},
+    "selected_sources":{"type":"object"},
+    "capability_coverage":{"type":"object"},
+    "missing_required_sources":{"type":"array","maxItems":0},
+    "ambiguities":{"type":"array"},
+    "ready_for_fact_resolution":{"type":"boolean"}
+  }
+}

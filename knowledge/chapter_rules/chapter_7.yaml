@@ -1,0 +1,29 @@
+contract_version: "1.0"
+rule_id: chapter_7
+rule_status: active
+plan_section: "7"
+sections:
+  - section_id: "7.1"
+    title: 总图运输
+    coverage_class: template_rendered
+    required_facts: []
+    context_paths: [project.changes, user.layout_condition, equipment]
+    research: {mode: none, task_templates: [], condition_key: null, policy_hook: null, target_sections: []}
+    generation_rules: {must_include: [], forbidden: ["用规范替代现场校核"]}
+    quality_checks: ["现场条件缺口是否明确"]
+  - section_id: "7.2"
+    title: 储运
+    coverage_class: template_rendered
+    required_facts: []
+    context_paths: [project.changes, user.storage_condition, process]
+    research: {mode: none, task_templates: [], condition_key: null, policy_hook: null, target_sections: []}
+    generation_rules: {must_include: [], forbidden: ["虚构罐容或物流量"]}
+    quality_checks: ["储运工程量是否来自事实"]
+  - section_id: "7.3"
+    title: 厂区外管网
+    coverage_class: template_rendered
+    required_facts: []
+    context_paths: [project.changes, user.pipe_network_condition, energy]
+    research: {mode: none, task_templates: [], condition_key: null, policy_hook: null, target_sections: []}
+    generation_rules: {must_include: [], forbidden: ["虚构接口、路由、管径或工程量"]}
+    quality_checks: ["外管条件缺口是否明确"]

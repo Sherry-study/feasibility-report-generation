@@ -1,0 +1,527 @@
+# 算法输出字段结构化词典（机器可读）
+# 权威语义见同目录 algorithm_output_semantics.md；两者冲突时以该文件为准。
+# 路径模式约定：[] 匹配数组元素（下标已归一化）；* 匹配任意单段动态键（组分名/设备ID/流股ID等）；
+# ** 作为末段匹配该前缀下任意深度（用于映射表未逐项列明的容器分支）。
+# 注意：实际 JSON 顶层可能有单根包装（如 plant_info.json 顶层仅 plant_info 一个键，
+# design_case/retrofit_case 嵌套其下），pattern 一律按实际结构书写。
+version: "1.2"
+algorithm_output_versions: [v3, v7]
+policy: |
+  表内字段照表确定性提取；表外字段由 mapping_coverage 显式记录（unmapped_paths），
+  不静默丢弃、不阻断流程、不由 LLM 自动推断进正文。unmapped 清单仅供词典维护时
+  人工/agent 复核：有报告价值则补入本词典，无决策价值可忽略。
+source_types:
+  reactor_result:
+    description: 反应器算法输出（plant_reactor_result）
+    patterns:
+      - {path: "reactors[].id", meaning: 反应器唯一编号}
+      - {path: "reactors[].tag", meaning: 反应器位号；空=新反应器无位号}
+      - {path: "reactors[].name", meaning: 反应器名称}
+      - {path: "reactors[].type", meaning: 设备类型 reactor}
+      - {path: "reactors[].form", meaning: 固定床/列管式}
+      - {path: "reactors[].is_new_reactor", meaning: 是否新增反应器}
+      - {path: "reactors[].has_heat_transfer", meaning: 是否有换热}
+      - {path: "reactors[].utility_medium", meaning: 公用工程介质 HO/CW；空=无换热}
+      - {path: "reactors[].flow_pattern", meaning: 换热流动方式；空=无换热}
+      - {path: "reactors[].evaluation.space_velocity.available", meaning: 空速指标是否可用}
+      - {path: "reactors[].evaluation.space_velocity.status", meaning: 空速评估状态 pass/fail}
+      - {path: "reactors[].evaluation.space_velocity.exceeded", meaning: 新工况空速是否超参考}
+      - {path: "reactors[].evaluation.space_velocity.reference_LHSV_h1", meaning: 参考液时空速 h-1}
+      - {path: "reactors[].evaluation.space_velocity.new_LHSV_h1", meaning: 新工况液时空速 h-1}
+      - {path: "reactors[].evaluation.space_velocity.LHSV_ratio", meaning: 新/参考空速比}
+      - {path: "reactors[].evaluation.space_velocity.conclusion", meaning: 空速评估结论}
+      - {path: "reactors[].evaluation.heat_load.available", meaning: 热负荷指标是否可用}
+      - {path: "reactors[].evaluation.heat_load.status", meaning: 热负荷评估状态}
+      - {path: "reactors[].evaluation.heat_load.exceeded", meaning: 热负荷是否超换热能力}
+      - {path: "reactors[].evaluation.heat_load.has_heat_transfer", meaning: 是否有换热}
+      - {path: "reactors[].evaluation.heat_load.new_heat_load_abs_W", meaning: 新工况热负荷绝对值 W}
+      - {path: "reactors[].evaluation.heat_load.Q_max_W", meaning: 设备最大换热能力 W}
+      - {path: "reactors[].evaluation.heat_load.heat_load_ratio", meaning: 热负荷/换热能力比}
+      - {path: "reactors[].evaluation.heat_load.heat_capacity_sufficient", meaning: 换热能力是否充足}
+      - {path: "reactors[].evaluation.heat_load.conclusion", meaning: 热负荷评估结论}
+      - {path: "reactors[].evaluation.adiabatic_temperature.available", meaning: 绝热温度指标是否可用}
+      - {path: "reactors[].evaluation.adiabatic_temperature.status", meaning: 绝热温度评估状态}
+      - {path: "reactors[].evaluation.adiabatic_temperature.exceeded", meaning: 是否超温}
+      - {path: "reactors[].evaluation.adiabatic_temperature.bottleneck_type", meaning: 温度瓶颈类型}
+      - {path: "reactors[].evaluation.adiabatic_temperature.known_target_outlet_temperature_c", meaning: 已知目标出口温度}
+      - {path: "reactors[].evaluation.adiabatic_temperature.equipment_process_design_temperature_c", meaning: 设备工艺设计温度}
+      - {path: "reactors[].evaluation.adiabatic_temperature.equipment_temperature_sufficient", meaning: 设计温度是否满足}
+      - {path: "reactors[].evaluation.adiabatic_temperature.process_temperature_limits_c.min", meaning: 工艺温度下限}
+      - {path: "reactors[].evaluation.adiabatic_temperature.process_temperature_limits_c.max", meaning: 工艺温度上限}
+      - {path: "reactors[].evaluation.adiabatic_temperature.process_temperature_sufficient", meaning: 工艺温度是否满足}
+      - {path: "reactors[].evaluation.adiabatic_temperature.adiabatic_temperature_change_C", meaning: 绝热温度变化}
+      - {path: "reactors[].evaluation.adiabatic_temperature.adiabatic_temperature_rise_C", meaning: 绝热温升}
+      - {path: "reactors[].evaluation.adiabatic_temperature.adiabatic_temperature_drop_C", meaning: 绝热温降}
+      - {path: "reactors[].evaluation.adiabatic_temperature.adiabatic_metric_used_as_outlet_temperature", meaning: 绝热指标是否被用作出口温度}
+      - {path: "reactors[].evaluation.adiabatic_temperature.conclusion", meaning: 绝热温度评估结论}
+      - {path: "reactors[].evaluation_status", meaning: 该反应器评估总状态}
+      - {path: "reactors[].retrofit_required", meaning: 该反应器是否需要改造}
+      - {path: "reactors[].volumetric_flow_m3_h", meaning: 新增反应器入口体积流量}
+      - {path: "reactors[].target_LHSV_h1", meaning: 目标液时空速}
+      - {path: "reactors[].required_volume_m3", meaning: 所需有效体积}
+      - {path: "reactors[].conclusion", meaning: 该反应器评估汇总结论}
+      - {path: "reactors[].validation", meaning: 改造工况出口组成验证是否通过}
+      - {path: "reactors[].operating_conditions.design.**", meaning: 设计工况操作条件（温度/压力/体积流量的 value+unit）}
+      - {path: "reactors[].operating_conditions.retrofit.**", meaning: 改造工况操作条件（温度/压力/体积流量的 value+unit）}
+      - {path: "reactors[].operating_conditions.run.**", meaning: 运行工况操作条件（温度/压力/体积流量的 value+unit）}
+      - {path: "reactors[].retrofit.required_effective_volume_m3", meaning: 满足新工况所需有效体积}
+      - {path: "reactors[].retrofit.current_effective_volume_per_unit_m3", meaning: 单台当前有效体积}
+      - {path: "reactors[].retrofit.current_operating_quantity", meaning: 当前运行台数}
+      - {path: "reactors[].retrofit.current_operating_total_effective_volume_m3", meaning: 当前总有效体积}
+      - {path: "reactors[].retrofit.volume_increase_m3", meaning: 需增加的有效体积}
+      - {path: "reactors[].retrofit.schemes[].scheme_type", meaning: add_parallel/increase_volume/reuse/new_reactor}
+      - {path: "reactors[].retrofit.schemes[].scheme_index", meaning: 方案序号}
+      - {path: "reactors[].retrofit.schemes[].description", meaning: 方案描述}
+      - {path: "reactors[].retrofit.schemes[].reused_from", meaning: 利旧来源反应器ID}
+      - {path: "reactors[].retrofit.schemes[].total_volume", meaning: 单台总容积; null=沿用原规格或未定规格}
+      - {path: "reactors[].retrofit.schemes[].diameter", meaning: 设备直径 mm}
+      - {path: "reactors[].retrofit.schemes[].cylinder_height", meaning: 筒体高度 mm}
+      - {path: "reactors[].retrofit.schemes[].catalyst_volume", meaning: 催化剂装填有效体积}
+      - {path: "reactors[].retrofit.schemes[].heat_exchange_area", meaning: 换热面积; null=无换热}
+      - {path: "reactors[].retrofit.schemes[].tube_count", meaning: 列管数; null=无换热}
+      - {path: "reactors[].retrofit.schemes[].quantity", meaning: 设备数量 台}
+      - {path: "reactors[].retrofit.schemes[].total_effective_volume_m3", meaning: 方案总有效体积}
+      - {path: "reactors[].retrofit.schemes[].total_weight", meaning: 设备总重量 kg; null=未定规格}
+      - {path: "reactors[].retrofit.schemes[].operating_conditions.inlet_temperature_c", meaning: 入口温度}
+      - {path: "reactors[].retrofit.schemes[].operating_conditions.inlet_pressure_mpag", meaning: 入口压力 MPaG}
+      - {path: "reactors[].retrofit.schemes[].operating_conditions.mass_flow_kg_h", meaning: 入口质量流量}
+      - {path: "reactors[].retrofit.schemes[].operating_conditions.utility.medium", meaning: 公用工程介质}
+      - {path: "reactors[].retrofit.schemes[].operating_conditions.utility.inlet_temperature_c", meaning: 公用工程入口温度}
+      - {path: "reactors[].retrofit.schemes[].operating_conditions.utility.outlet_temperature_c", meaning: 公用工程出口温度}
+      - {path: "reactors[].retrofit.schemes[].operating_conditions.utility.mass_flow_kg_h", meaning: 公用工程质量流量}
+      - {path: "retrofit_required", meaning: 装置是否需要改造}
+      - {path: "conclusion", meaning: 装置级汇总结论}
+      - {path: "combined_schemes[].total_new_equipment_volume_m3", meaning: 组合方案新增有效体积合计}
+      - {path: "combined_schemes[].conclusion", meaning: 组合方案结论}
+      - {path: "combined_schemes[].scheme_index", meaning: 组合方案序号}
+      - {path: "combined_schemes[].reuse[].id", meaning: 利旧设备ID}
+      - {path: "combined_schemes[].reuse[].name", meaning: 利旧设备名称}
+      - {path: "combined_schemes[].reuse[].scheme_type", meaning: 利旧方案类型}
+      - {path: "combined_schemes[].reuse[].reused_from", meaning: 利旧来源ID}
+      - {path: "combined_schemes[].reuse[].**", meaning: 利旧方案设备列表字段；空=无}
+      - {path: "combined_schemes[].addition[].**", meaning: 新增/扩容方案设备列表}
+      - {path: "combined_schemes[].parallel[].**", meaning: 并联方案设备列表}
+      - {path: "combined_schemes[].heat_transfer[].**", meaning: 换热改造设备列表}
+      - {path: "combined_schemes[].no_retrofit[].**", meaning: 无需改造设备列表}
+      - {path: "combined_schemes[].scheme_id", meaning: 组合方案唯一标识 combined_N}
+      - {path: "selected_combined_scheme.total_new_equipment_volume_m3", meaning: 用户选定组合方案新增有效体积合计}
+      - {path: "selected_combined_scheme.conclusion", meaning: 用户选定组合方案结论}
+      - {path: "selected_combined_scheme.scheme_index", meaning: 用户选定组合方案序号}
+      - {path: "selected_combined_scheme.scheme_id", meaning: 用户选定组合方案唯一标识 combined_N}
+      - {path: "selected_combined_scheme.reuse[].id", meaning: 用户选定方案利旧设备ID}
+      - {path: "selected_combined_scheme.reuse[].name", meaning: 用户选定方案利旧设备名称}
+      - {path: "selected_combined_scheme.reuse[].scheme_type", meaning: 用户选定方案利旧方案类型}
+      - {path: "selected_combined_scheme.reuse[].reused_from", meaning: 用户选定方案利旧来源ID}
+      - {path: "selected_combined_scheme.reuse[].**", meaning: 用户选定方案利旧设备列表字段；空=无}
+      - {path: "selected_combined_scheme.addition[].**", meaning: 用户选定方案新增/扩容设备列表}
+      - {path: "selected_combined_scheme.parallel[].**", meaning: 用户选定方案并联设备列表}
+      - {path: "selected_combined_scheme.heat_transfer[].**", meaning: 用户选定方案换热改造设备列表}
+      - {path: "selected_combined_scheme.no_retrofit[].**", meaning: 用户选定方案无需改造设备列表}
+  tower_result:
+    description: 塔器算法输出（v7 为主，含 v3 差异字段）
+    patterns:
+      - {path: "separator[].id", meaning: 塔唯一编号}
+      - {path: "separator[].name", meaning: 塔名称}
+      - {path: "separator[].type", meaning: separator/extractor/reactor_separator}
+      - {path: "separator[].detail.success", meaning: 塔核算是否成功}
+      - {path: "separator[].detail.optimal.require", meaning: 分离要求校核结果 布尔}
+      - {path: "separator[].detail.optimal.hydraulic", meaning: 水力学校核结果 布尔}
+      - {path: "separator[].detail.optimal.N_trays", meaning: 塔板数}
+      - {path: "separator[].detail.optimal.feed_tray", meaning: 进料板位置}
+      - {path: "separator[].detail.optimal.reflux_ratio", meaning: 回流比}
+      - {path: "separator[].detail.optimal.P_top", meaning: 塔顶压力（注意单位口径见注意事项1）}
+      - {path: "separator[].detail.optimal.P_bottom", meaning: 塔釜压力 MPa}
+      - {path: "separator[].detail.optimal.QB_kW", meaning: 再沸器热负荷 kW（实际语义为热负荷）}
+      - {path: "separator[].detail.optimal.T_top_C", meaning: 塔顶温度}
+      - {path: "separator[].detail.optimal.impurity_info[].**", meaning: 杂质信息列表}
+      - {path: "separator[].detail.state", meaning: 萃取塔超限方向}
+      - {path: "separator[].detail.current_value", meaning: 萃取塔当前水力学指标值}
+      - {path: "separator[].detail.upper_limit", meaning: 水力学指标上限}
+      - {path: "separator[].detail.lower_limit", meaning: 水力学指标下限}
+      - {path: "separator[].detail.hydro_limit.*", meaning: 对应流股水力学极限流量 kg/h}
+      - {path: "separator[].detail.output.top.mass_flow", meaning: 塔顶产品质量流量 kg/h}
+      - {path: "separator[].detail.output.top.mass_fraction.*", meaning: 塔顶产品各组分质量分数}
+      - {path: "separator[].detail.output.bottom.mass_flow", meaning: 塔釜产品质量流量 kg/h}
+      - {path: "separator[].detail.output.bottom.mass_fraction.*", meaning: 塔釜产品各组分质量分数}
+      - {path: "separator[].detail.output.middle[].mass_flow", meaning: 侧线产品质量流量 kg/h}
+      - {path: "separator[].detail.output.middle[].mass_fraction.*", meaning: 侧线产品组成}
+      - {path: "separator[].detail.separator_limit.top.*.recovery_rate", meaning: 组分塔顶回收率}
+      - {path: "separator[].detail.separator_limit.top.*.mass_fraction", meaning: 组分塔顶质量分数}
+      - {path: "separator[].detail.separator_limit.bottom.*.recovery_rate", meaning: 组分塔釜回收率}
+      - {path: "separator[].detail.separator_limit.bottom.*.mass_fraction", meaning: 组分塔釜质量分数}
+      - {path: "separator[].detail.separator_limit._best_score", meaning: 最优分离综合得分}
+      - {path: "separator[].retrofit.route", meaning: optimal/side/structure/parallel/series}
+      - {path: "separator[].retrofit.success", meaning: 改造求解是否成功}
+      - {path: "retrofit_required", meaning: 装置是否需要改造}
+      - {path: "conclusion", meaning: 装置级塔器汇总结论}
+      - {path: "combined_schemes.optimal[].**", meaning: 操作优化塔列表}
+      - {path: "combined_schemes.parallel[].**", meaning: 并联塔列表（v3 为原塔新塔成对数组）}
+      - {path: "combined_schemes.series[].**", meaning: 串联塔列表（v3为成对数组）}
+      - {path: "combined_schemes.other[].**", meaning: 其他（改造失败/萃取塔）塔列表}
+      # v3 plan_detail.optimal_ori（含 2.3 v3 补充字段；retrofit 下与顶层均可能出现）
+      - {path: "separator[].plan_detail.optimal_ori.top_feed_direction", meaning: 上进料方向标志}
+      - {path: "separator[].plan_detail.optimal_ori.bottom_feed_direction", meaning: 下进料方向标志}
+      - {path: "separator[].plan_detail.optimal_ori.N_trays", meaning: 塔板数}
+      - {path: "separator[].plan_detail.optimal_ori.feed_tray", meaning: 进料板位置}
+      - {path: "separator[].plan_detail.optimal_ori.reflux_ratio", meaning: 回流比}
+      - {path: "separator[].plan_detail.optimal_ori.P_top", meaning: 塔顶压力（疑似 bar，注意单位）}
+      - {path: "separator[].plan_detail.optimal_ori.P_bottom", meaning: 塔釜压力}
+      - {path: "separator[].plan_detail.optimal_ori.QB_kW", meaning: 再沸器热负荷 kW}
+      - {path: "separator[].plan_detail.optimal_ori.T_top_C", meaning: 塔顶温度}
+      - {path: "separator[].plan_detail.optimal_ori.feed", meaning: 进料量 kg/h}
+      - {path: "separator[].plan_detail.optimal_ori.require[].position", meaning: 分离要求位置}
+      - {path: "separator[].plan_detail.optimal_ori.require[]._site", meaning: 分离要求位置（下划线变量）}
+      - {path: "separator[].plan_detail.optimal_ori.require[].tray_id", meaning: 侧线要求塔板号}
+      - {path: "separator[].plan_detail.optimal_ori.require[].index", meaning: 指标类型 质量分数/回收率}
+      - {path: "separator[].plan_detail.optimal_ori.require[].target", meaning: 目标值}
+      - {path: "separator[].plan_detail.optimal_ori.require[].requirement", meaning: 要求方向 高于/低于}
+      - {path: "separator[].plan_detail.optimal_ori.require[].stream", meaning: 要求对应流股}
+      - {path: "separator[].plan_detail.optimal_ori.require[].current_value", meaning: 当前实际值}
+      - {path: "separator[].plan_detail.optimal_ori.require[].reforce", meaning: 是否强制要求}
+      - {path: "separator[].plan_detail.optimal_ori.require[]._pass", meaning: 是否达标}
+      - {path: "separator[].plan_detail.optimal_ori.output.top.temperature", meaning: 塔顶温度 v3}
+      - {path: "separator[].plan_detail.optimal_ori.output.top.pressure", meaning: 塔顶压力 v3}
+      - {path: "separator[].retrofit.plan_detail.optimal_ori.**", meaning: 原塔操作参数（字段同上）}
+      - {path: "separator[].retrofit.plan_detail.optimal_retrofit.**", meaning: 新塔操作参数（含feed_ratio；空对象=操作优化）}
+      - {path: "separator[].retrofit.plan_detail.side_draws[].tray", meaning: 侧线采出塔板号}
+      - {path: "separator[].retrofit.plan_detail.side_draws[].component", meaning: 目标组分名称}
+      - {path: "separator[].retrofit.plan_detail.side_draws[].site", meaning: 采出位置 top/bottom/side}
+      - {path: "separator[].retrofit.plan_detail.side_draws[].value", meaning: 组分浓度}
+      - {path: "separator[].retrofit.plan_detail.side_draws[].requirement", meaning: 原始分离要求}
+      - {path: "separator[].retrofit.plan_detail.device_paras.struct_info.[]", meaning: 塔体分段结构容器}
+      - {path: "separator[].retrofit.plan_detail.device_paras.struct_info.[].[]", meaning: 塔径与板间距或填料高度数组}
+      - {path: "separator[].retrofit.plan_detail.device_paras.tray_num", meaning: 塔板数}
+      - {path: "separator[].retrofit.plan_detail.device_paras.feed_tray", meaning: 进料板}
+      - {path: "separator[].retrofit.plan_detail.device_paras.feed_tray.[]", meaning: 进料板嵌套数组}
+      - {path: "separator[].retrofit.plan_detail.device_paras.feed_tray.[].[]", meaning: 进料板嵌套数组元素}
+      - {path: "separator[].retrofit.plan_detail.device_paras.tray_type", meaning: F1/seieve/BX等}
+      - {path: "separator[].retrofit.plan_detail.device_paras.P_design", meaning: 设计压力 MPa}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].lw", meaning: 堰长 m}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].hw", meaning: 堰高 m}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].h0", meaning: 降液管底隙高度 m}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].Wd", meaning: 弓形降液管宽度 m}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].n", meaning: 浮阀/开孔数量}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].An", meaning: 单孔面积 m2}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].Af_AT", meaning: 降液管面积/塔截面积比}
+      - {path: "separator[].retrofit.plan_detail.device_paras.plate_paras[].fluent_shape", meaning: 液流型式; 空对象=填料段}
+      - {path: "separator[].detail.impurity_info.**", meaning: 杂质信息列表（detail 直挂结构）}
+      - {path: "separator[].detail.separator_limit.**", meaning: 最优分离限制完整容器（含 N_trays 等扩展字段）}
+      - {path: "separator[].detail.output.**", meaning: 塔顶塔釜侧线产出完整容器}
+      - {path: "separator[].retrofit.plan_detail.**", meaning: 改造方案操作参数完整容器（覆盖未逐项列明字段）}
+  plant_info:
+    description: 装置基础信息（plant_info.json，实际顶层仅 plant_info 单键包装）
+    patterns:
+      - {path: "plant_info.plant_name", meaning: 装置名称}
+      - {path: "plant_info.plant_type", meaning: 装置类型}
+      - {path: "plant_info.annual_operating_hours", meaning: 年运行时长 h}
+      - {path: "plant_info.unit", meaning: 产能单位 吨/年}
+      - {path: "plant_info.stream_mapping_notes", meaning: 流股匹配说明（不进正文）}
+      - {path: "plant_info.design_case.case_name", meaning: 设计工况名称}
+      - {path: "plant_info.design_case.capacity_ratio", meaning: 处理能力倍数}
+      - {path: "plant_info.retrofit_case.case_name", meaning: 改造工况名称}
+      - {path: "plant_info.retrofit_case.capacity_ratio", meaning: 扩产倍数}
+      - {path: "plant_info.design_case.feeds[].name", meaning: 进料名称}
+      - {path: "plant_info.design_case.feeds[].stream_id", meaning: 进料流股编号}
+      - {path: "plant_info.design_case.feeds[].is_main_feed", meaning: 是否主进料}
+      - {path: "plant_info.design_case.feeds[].annual_capacity.value", meaning: 年进料量}
+      - {path: "plant_info.design_case.feeds[].annual_capacity.unit", meaning: 年进料量单位}
+      - {path: "plant_info.design_case.feeds[].hourly_rate.value", meaning: 小时进料量}
+      - {path: "plant_info.design_case.feeds[].hourly_rate.unit", meaning: 小时进料量单位}
+      - {path: "plant_info.design_case.feeds[].flow_rate.value", meaning: 流股质量流量}
+      - {path: "plant_info.design_case.feeds[].flow_rate.unit", meaning: 流量单位}
+      - {path: "plant_info.retrofit_case.feeds[].name", meaning: 进料名称}
+      - {path: "plant_info.retrofit_case.feeds[].stream_id", meaning: 进料流股编号}
+      - {path: "plant_info.retrofit_case.feeds[].is_main_feed", meaning: 是否主进料}
+      - {path: "plant_info.retrofit_case.feeds[].annual_capacity.value", meaning: 年进料量}
+      - {path: "plant_info.retrofit_case.feeds[].annual_capacity.unit", meaning: 年进料量单位}
+      - {path: "plant_info.retrofit_case.feeds[].hourly_rate.value", meaning: 小时进料量}
+      - {path: "plant_info.retrofit_case.feeds[].hourly_rate.unit", meaning: 小时进料量单位}
+      - {path: "plant_info.retrofit_case.feeds[].flow_rate.value", meaning: 流股质量流量}
+      - {path: "plant_info.retrofit_case.feeds[].flow_rate.unit", meaning: 流量单位}
+      - {path: "plant_info.design_case.products[].name", meaning: 产品名称}
+      - {path: "plant_info.design_case.products[].is_main_product", meaning: 是否主产品}
+      - {path: "plant_info.design_case.products[].stream_id", meaning: 产品流股编号}
+      - {path: "plant_info.design_case.products[].annual_capacity.value", meaning: 产品年产能}
+      - {path: "plant_info.design_case.products[].annual_capacity.unit", meaning: 年产能单位}
+      - {path: "plant_info.design_case.products[].hourly_rate.value", meaning: 产品小时产量}
+      - {path: "plant_info.design_case.products[].hourly_rate.unit", meaning: 年产量单位}
+      - {path: "plant_info.retrofit_case.products[].name", meaning: 产品名称}
+      - {path: "plant_info.retrofit_case.products[].is_main_product", meaning: 是否主产品}
+      - {path: "plant_info.retrofit_case.products[].stream_id", meaning: 产品流股编号}
+      - {path: "plant_info.retrofit_case.products[].annual_capacity.value", meaning: 产品年产能}
+      - {path: "plant_info.retrofit_case.products[].annual_capacity.unit", meaning: 年产能单位}
+      - {path: "plant_info.retrofit_case.products[].hourly_rate.value", meaning: 产品小时产量}
+      - {path: "plant_info.retrofit_case.products[].hourly_rate.unit", meaning: 年产量单位}
+      - {path: "plant_info.design_case.streams[].id", meaning: 流股编号}
+      - {path: "plant_info.design_case.streams[].name", meaning: 流股名称}
+      - {path: "plant_info.design_case.streams[].source", meaning: 起点设备编号; 空串=边界入}
+      - {path: "plant_info.design_case.streams[].target", meaning: 终点设备编号; 空串=边界出}
+      - {path: "plant_info.design_case.streams[].flow_rate.value", meaning: 质量流量 kg/h}
+      - {path: "plant_info.design_case.streams[].flow_rate.unit", meaning: 流量单位}
+      - {path: "plant_info.design_case.streams[].composition[].component", meaning: 组分代码}
+      - {path: "plant_info.design_case.streams[].composition[].mole_fraction", meaning: 摩尔分数}
+      - {path: "plant_info.design_case.streams[].composition[].mass_fraction", meaning: 质量分数}
+      - {path: "plant_info.design_case.streams[].temperature.value", meaning: 温度}
+      - {path: "plant_info.design_case.streams[].temperature.unit", meaning: 温度单位}
+      - {path: "plant_info.design_case.streams[].pressure.value", meaning: 压力}
+      - {path: "plant_info.design_case.streams[].pressure.unit", meaning: 压力单位}
+      - {path: "plant_info.design_case.streams[].phase", meaning: Liq/Vap}
+      - {path: "plant_info.design_case.streams[].target_product_stream", meaning: 是否目标产品流股}
+      - {path: "plant_info.design_case.streams[].is_top", meaning: 是否塔顶出料}
+      - {path: "plant_info.design_case.streams[].is_middle", meaning: 是否侧线出料}
+      - {path: "plant_info.design_case.streams[].is_bottom", meaning: 是否塔釜出料}
+      - {path: "plant_info.design_case.streams[].position", meaning: 图面位置（不进正文）}
+      - {path: "plant_info.retrofit_case.streams[].id", meaning: 流股编号}
+      - {path: "plant_info.retrofit_case.streams[].name", meaning: 流股名称}
+      - {path: "plant_info.retrofit_case.streams[].source", meaning: 起点设备编号; 空串=边界入}
+      - {path: "plant_info.retrofit_case.streams[].target", meaning: 终点设备编号; 空串=边界出}
+      - {path: "plant_info.retrofit_case.streams[].flow_rate.value", meaning: 质量流量 kg/h}
+      - {path: "plant_info.retrofit_case.streams[].flow_rate.unit", meaning: 流量单位}
+      - {path: "plant_info.retrofit_case.streams[].composition[].component", meaning: 组分代码}
+      - {path: "plant_info.retrofit_case.streams[].composition[].mole_fraction", meaning: 摩尔分数}
+      - {path: "plant_info.retrofit_case.streams[].composition[].mass_fraction", meaning: 质量分数}
+      - {path: "plant_info.retrofit_case.streams[].temperature.value", meaning: 温度}
+      - {path: "plant_info.retrofit_case.streams[].temperature.unit", meaning: 温度单位}
+      - {path: "plant_info.retrofit_case.streams[].pressure.value", meaning: 压力}
+      - {path: "plant_info.retrofit_case.streams[].pressure.unit", meaning: 压力单位}
+      - {path: "plant_info.retrofit_case.streams[].phase", meaning: Liq/Vap}
+      - {path: "plant_info.retrofit_case.streams[].target_product_stream", meaning: 是否目标产品流股}
+      - {path: "plant_info.retrofit_case.streams[].is_top", meaning: 是否塔顶出料}
+      - {path: "plant_info.retrofit_case.streams[].is_middle", meaning: 是否侧线出料}
+      - {path: "plant_info.retrofit_case.streams[].is_bottom", meaning: 是否塔釜出料}
+      - {path: "plant_info.retrofit_case.streams[].position", meaning: 图面位置（不进正文）}
+      - {path: "plant_info.retrofit_case.target_alignment.mode", meaning: 对齐模式}
+      - {path: "plant_info.retrofit_case.target_alignment.target_product_annual_capacity", meaning: 目标产品年产能}
+      - {path: "plant_info.retrofit_case.target_alignment.target_product_annual_unit", meaning: 目标年产能单位}
+      - {path: "plant_info.retrofit_case.target_alignment.target_product_flow", meaning: 目标产品流量 kg/h}
+      - {path: "plant_info.retrofit_case.target_alignment.target_product_flow_unit", meaning: 目标流量单位}
+      - {path: "plant_info.retrofit_case.target_alignment.yield_used", meaning: 采用的收率}
+      - {path: "plant_info.retrofit_case.target_alignment.yield_applied", meaning: 收率是否已应用}
+      - {path: "plant_info.retrofit_case.target_alignment.operating_hours", meaning: 年运行小时数}
+      - {path: "plant_info.retrofit_case.target_alignment.design_main_feed_flow", meaning: 设计主进料流量}
+      - {path: "plant_info.retrofit_case.target_alignment.design_main_product_flow", meaning: 设计主产品流量}
+      - {path: "plant_info.retrofit_case.target_alignment.design_main_product_annual_capacity", meaning: 设计主产品年产能}
+      - {path: "plant_info.retrofit_case.target_alignment.target_main_feed_flow", meaning: 目标主进料流量}
+      - {path: "plant_info.retrofit_case.target_alignment.product_scale_factor", meaning: 扩产倍数}
+      - {path: "plant_info.retrofit_case.target_alignment.annual_scale_factor", meaning: 年化扩产倍数}
+      - {path: "plant_info.retrofit_case.target_alignment.scale_factor", meaning: 扩产倍数}
+      - {path: "plant_info.retrofit_case.target_alignment.total_reactant_flow", meaning: 总反应物流量}
+      - {path: "plant_info.retrofit_case.target_alignment.total_feed_flow", meaning: 总进料流量}
+      - {path: "plant_info.retrofit_case.target_alignment.retrofit_feed_matched_stream_ids.[]", meaning: 已匹配改造进料流股}
+      - {path: "plant_info.retrofit_case.target_alignment.unmatched_stream_ids.[]", meaning: 未匹配流股}
+      - {path: "plant_info.retrofit_case.target_alignment.main_feed_stream_id", meaning: 主进料流股编号}
+      - {path: "plant_info.retrofit_case.target_alignment.main_product_stream_id", meaning: 主产品流股编号}
+      - {path: "plant_info.design_case.feeds[].stream.**", meaning: 进料对应流股完整对象（组成/温压/相态等）}
+      - {path: "plant_info.retrofit_case.feeds[].stream.**", meaning: 改造进料对应流股完整对象}
+      - {path: "plant_info.retrofit_case.target_alignment.retrofit_feed_unmatched_stream_ids.[]", meaning: 未匹配改造进料流股}
+  plant_level:
+    description: 装置级衡算与配置（plant_level_result_v3.json）
+    patterns:
+      - {path: "components[].name", meaning: 组分中文名}
+      - {path: "components[].formula", meaning: 组分代码}
+      - {path: "components[].molecular_weight", meaning: 分子量 g/mol}
+      - {path: "components[].unit", meaning: 单位}
+      - {path: "design_case.case_name", meaning: 设计工况}
+      - {path: "retrofit_case.case_name", meaning: 改造工况}
+      - {path: "design_case.separator_config[].condenser", meaning: 是否设冷凝器}
+      - {path: "design_case.separator_config[].reboiler", meaning: 是否设再沸器}
+      - {path: "design_case.separator_config[].inlet.[]", meaning: 塔进料流股编号}
+      - {path: "design_case.separator_config[].outlet.top", meaning: 塔顶出料流股编号}
+      - {path: "design_case.separator_config[].outlet.bottom", meaning: 塔釜出料流股编号}
+      - {path: "design_case.separator_config[].require[].**", meaning: 分离要求（同v3 require语义）}
+      - {path: "design_case.separator_config[].operating_conditions.temperature.top.value", meaning: 塔顶温度}
+      - {path: "design_case.separator_config[].operating_conditions.temperature.bottom.value", meaning: 塔釜温度}
+      - {path: "design_case.separator_config[].operating_conditions.pressure.top.value", meaning: 塔顶压力}
+      - {path: "design_case.separator_config[].operating_conditions.pressure.bottom.value", meaning: 塔釜压力}
+      - {path: "design_case.separator_config[].operating_conditions.reflux.value", meaning: 回流量 kg/h}
+      - {path: "design_case.separator_config[].operating_conditions.reflux.unit", meaning: 回流量单位}
+      - {path: "retrofit_case.separator_config[].condenser", meaning: 是否设冷凝器}
+      - {path: "retrofit_case.separator_config[].reboiler", meaning: 是否设再沸器}
+      - {path: "retrofit_case.separator_config[].inlet.[]", meaning: 塔进料流股编号}
+      - {path: "retrofit_case.separator_config[].outlet.top", meaning: 塔顶出料流股编号}
+      - {path: "retrofit_case.separator_config[].outlet.bottom", meaning: 塔釜出料流股编号}
+      - {path: "retrofit_case.separator_config[].require[].**", meaning: 分离要求}
+      - {path: "retrofit_case.separator_config[].operating_conditions.temperature.top.value", meaning: 塔顶温度}
+      - {path: "retrofit_case.separator_config[].operating_conditions.temperature.bottom.value", meaning: 塔釜温度}
+      - {path: "retrofit_case.separator_config[].operating_conditions.pressure.top.value", meaning: 塔顶压力}
+      - {path: "retrofit_case.separator_config[].operating_conditions.pressure.bottom.value", meaning: 塔釜压力}
+      - {path: "retrofit_case.separator_config[].operating_conditions.reflux.value", meaning: 回流量 kg/h}
+      - {path: "retrofit_case.separator_config[].operating_conditions.reflux.unit", meaning: 回流量单位}
+      - {path: "design_case.streams[].**", meaning: 全装置流股（同3.2通用字段）}
+      - {path: "retrofit_case.streams[].**", meaning: 改造后物料平衡表流股}
+      - {path: "design_case.topology.nodes[].id", meaning: 设备节点编号}
+      - {path: "design_case.topology.nodes[].name", meaning: 设备节点名称}
+      - {path: "design_case.topology.nodes[].type", meaning: 设备类别}
+      - {path: "design_case.topology.nodes[].form", meaning: 设备形式}
+      - {path: "design_case.topology.nodes[].condenser", meaning: 是否设冷凝器}
+      - {path: "design_case.topology.nodes[].reboiler", meaning: 是否设再沸器}
+      - {path: "design_case.topology.nodes[].isNew", meaning: 是否新增设备}
+      - {path: "design_case.topology.nodes[].retrofit_role", meaning: 改造角色}
+      - {path: "design_case.topology.nodes[].original_tower", meaning: 新塔对应原塔编号}
+      - {path: "design_case.topology.edges[].id", meaning: 流股编号}
+      - {path: "design_case.topology.edges[].name", meaning: 流股名称}
+      - {path: "design_case.topology.edges[].source", meaning: 起点}
+      - {path: "design_case.topology.edges[].target", meaning: 终点}
+      - {path: "design_case.topology.edges[].modified", meaning: 是否改接}
+      - {path: "design_case.topology.edges[].originalTarget", meaning: 原去向设备}
+      - {path: "design_case.topology.edges[].isNew", meaning: 是否新增流股}
+      - {path: "retrofit_case.topology.nodes[].id", meaning: 设备节点编号}
+      - {path: "retrofit_case.topology.nodes[].name", meaning: 设备节点名称}
+      - {path: "retrofit_case.topology.nodes[].type", meaning: 设备类别}
+      - {path: "retrofit_case.topology.nodes[].form", meaning: 设备形式}
+      - {path: "retrofit_case.topology.nodes[].condenser", meaning: 是否设冷凝器}
+      - {path: "retrofit_case.topology.nodes[].reboiler", meaning: 是否设再沸器}
+      - {path: "retrofit_case.topology.nodes[].isNew", meaning: 是否新增设备}
+      - {path: "retrofit_case.topology.nodes[].retrofit_role", meaning: 改造角色}
+      - {path: "retrofit_case.topology.nodes[].original_tower", meaning: 新塔对应原塔编号}
+      - {path: "retrofit_case.topology.edges[].id", meaning: 流股编号}
+      - {path: "retrofit_case.topology.edges[].name", meaning: 流股名称}
+      - {path: "retrofit_case.topology.edges[].source", meaning: 起点}
+      - {path: "retrofit_case.topology.edges[].target", meaning: 终点}
+      - {path: "retrofit_case.topology.edges[].modified", meaning: 是否改接}
+      - {path: "retrofit_case.topology.edges[].originalTarget", meaning: 原去向设备}
+      - {path: "retrofit_case.topology.edges[].isNew", meaning: 是否新增流股}
+      - {path: "design_case.reactor_config[].**", meaning: 反应器配置}
+      - {path: "retrofit_case.reactor_config[].**", meaning: 反应器配置}
+      - {path: "design_case.separator_config[].id", meaning: 塔编号}
+      - {path: "design_case.separator_config[].name", meaning: 塔名称}
+      - {path: "retrofit_case.separator_config[].id", meaning: 塔编号}
+      - {path: "retrofit_case.separator_config[].name", meaning: 塔名称}
+      - {path: "design_case.separator_config[].operating_conditions.**", meaning: 操作条件完整容器（含单位字段）}
+      - {path: "retrofit_case.separator_config[].operating_conditions.**", meaning: 操作条件完整容器（含单位字段）}
+  retrofit_equipment:
+    description: 设备台账（retrofit_equipment.json）
+    patterns:
+      - {path: "equipment[].id", meaning: 设备编号}
+      - {path: "equipment[].name", meaning: 设备名称}
+      - {path: "equipment[].type", meaning: 设备类别}
+      - {path: "equipment[].form", meaning: 设备形式}
+      - {path: "equipment[].condenser", meaning: 是否设冷凝器}
+      - {path: "equipment[].reboiler", meaning: 是否设再沸器}
+      - {path: "equipment[].is_new", meaning: 是否新增设备}
+      - {path: "equipment[].specifications.**", meaning: 规格说明键值对}
+  retrofit_topology:
+    description: 改造后拓扑（retrofit_topology.json）
+    patterns:
+      - {path: "nodes[].id", meaning: 设备节点编号}
+      - {path: "nodes[].name", meaning: 设备节点名称}
+      - {path: "nodes[].type", meaning: 设备类别}
+      - {path: "nodes[].condenser", meaning: 是否设冷凝器}
+      - {path: "nodes[].reboiler", meaning: 是否设再沸器}
+      - {path: "nodes[].isNew", meaning: 是否新增设备}
+      - {path: "nodes[].retrofit_role", meaning: 改造角色}
+      - {path: "nodes[].original_tower", meaning: 新塔对应原塔编号}
+      - {path: "edges[].id", meaning: 流股编号}
+      - {path: "edges[].name", meaning: 流股名称}
+      - {path: "edges[].source", meaning: 起点}
+      - {path: "edges[].target", meaning: 终点}
+      - {path: "edges[].modified", meaning: 是否改接}
+      - {path: "edges[].originalTarget", meaning: 原去向设备}
+      - {path: "edges[].isNew", meaning: 是否新增流股}
+      - {path: "edges[].description", meaning: 新增流股说明}
+      - {path: "edges[].temperature", meaning: 流股温度}
+      - {path: "edges[].temperature.**", meaning: 流股温度（对象结构 value/unit）}
+      - {path: "edges[].pressure", meaning: 流股压力}
+      - {path: "edges[].pressure.**", meaning: 流股压力（对象结构 value/unit）}
+      - {path: "edges[].position.[]", meaning: 图面位置数组（不进正文）}
+      - {path: "edges[].phase", meaning: 流股相态}
+      - {path: "edges[].target_product_stream", meaning: 是否目标产品流股}
+      - {path: "edges[].is_top", meaning: 是否塔顶出料}
+      - {path: "edges[].is_middle", meaning: 是否侧线出料}
+      - {path: "edges[].is_bottom", meaning: 是否塔釜出料}
+      - {path: "schemeInfo[].name", meaning: 方案名称}
+      - {path: "schemeInfo[].description", meaning: 方案描述}
+      - {path: "schemeInfo[].rank", meaning: 方案排序}
+      - {path: "schemeInfo[].newEquipment.id", meaning: 新增设备ID}
+      - {path: "schemeInfo[].newEquipment.name", meaning: 新增设备名称}
+      - {path: "schemeInfo[].newEquipment.type", meaning: 新增设备类别}
+      - {path: "schemeInfo[].newEquipment.position", meaning: 安装位置描述}
+      - {path: "schemeInfo[].modifiedEquipment", meaning: 改造设备}
+      - {path: "schemeInfo[].modifiedEdges.[]", meaning: 改接流股编号列表}
+      - {path: "schemeInfo[].newEdges.[]", meaning: 新增流股编号列表}
+      - {path: "schemeInfo[].retrofitType", meaning: 改造类型}
+      - {path: "schemeInfo[].retrofitTypeLabel", meaning: 改造类型中文}
+      - {path: "schemeInfo[].newEquipment_list[].newEquipment", meaning: 新增设备名称}
+      - {path: "schemeInfo[].newEquipment_list[].type", meaning: 新增设备类别}
+      - {path: "schemeInfo[].newEquipment_list[].upEquipment", meaning: 上游设备}
+      - {path: "schemeInfo[].newEquipment_list[].upEquipment_id", meaning: 上游设备ID}
+      - {path: "schemeInfo[].newEquipment_list[].downEquipment", meaning: 下游设备}
+      - {path: "schemeInfo[].newEquipment_list[].downEquipment_id", meaning: 下游设备ID}
+      - {path: "schemeInfo[].newStream_list[].stream", meaning: 新增流股名称}
+      - {path: "schemeInfo[].newStream_list[].from", meaning: 来源}
+      - {path: "schemeInfo[].newStream_list[].to", meaning: 去向}
+      - {path: "schemeInfo[].newStream_list[].sourceOutletPosition", meaning: 引出位置}
+      - {path: "schemeInfo[].newStream_list[].targetInletPosition", meaning: 接入位置}
+      - {path: "schemeInfo[].newStream_list[].role", meaning: 工程角色}
+      - {path: "schemeInfo[].newStream_list[].roleLabel", meaning: 工程角色中文}
+      - {path: "schemeInfo[].newStream_list[].basis", meaning: 新增流股依据}
+      - {path: "schemeInfo[].modifiedStream_list[].changeType", meaning: 变更类型}
+      - {path: "schemeInfo[].modifiedStream_list[].oldfrom", meaning: 改接前起点}
+      - {path: "schemeInfo[].modifiedStream_list[].oldto", meaning: 改接前终点}
+      - {path: "schemeInfo[].modifiedStream_list[].newfrom", meaning: 改接后起点}
+      - {path: "schemeInfo[].modifiedStream_list[].newto", meaning: 改接后终点}
+      - {path: "schemeInfo[].modifiedStream_list[].newto_id", meaning: 改接后终点ID}
+      - {path: "schemeInfo[].removedStream_list.**", meaning: 取消流股}
+      - {path: "schemeInfo[].removedEquipment_list.**", meaning: 移除设备}
+      - {path: "schemeInfo[].idMapping.**", meaning: 新旧设备编号映射}
+      - {path: "schemeInfo[].sourceType", meaning: 方案来源}
+  candidate_scheme:
+    description: 诊断驱动拓扑方案（scheme.json，topology_retrofit_v1）
+    patterns:
+      - {path: "schemaVersion", meaning: 方案文件版本}
+      - {path: "schemeKind", meaning: 方案来源类型}
+      - {path: "issues[].issueId", meaning: 诊断问题编号}
+      - {path: "issues[].diagnosis.constraintComponent", meaning: 约束组分}
+      - {path: "issues[].diagnosis.associatedComponent", meaning: 关联组分}
+      - {path: "issues[].diagnosis.boilingPointDiff", meaning: 关键组分沸点差}
+      - {path: "issues[].diagnosis.bottleneckEquipment", meaning: 瓶颈设备名称}
+      - {path: "issues[].diagnosis.currentTopologyPattern", meaning: 当前拓扑模式}
+      - {path: "issues[].diagnosis.currentTopologyPatternLabel", meaning: 当前拓扑模式中文}
+      - {path: "issues[].diagnosis.bottleneckType", meaning: 瓶颈类型}
+      - {path: "issues[].diagnosis.bottleneckTypeLabel", meaning: 瓶颈类型中文}
+      - {path: "issues[].diagnosis.recommendedRetrofitPattern", meaning: 推荐改造模式}
+      - {path: "issues[].diagnosis.recommendedRetrofitPatternLabel", meaning: 推荐改造模式中文}
+      - {path: "issues[].diagnosis.basis", meaning: 诊断依据}
+      - {path: "issues[].diagnosis.assumptions", meaning: 诊断假设}
+      - {path: "issues[].diagnosis.risks", meaning: 改造风险}
+      - {path: "candidates[].name", meaning: 候选方案名称}
+      - {path: "candidates[].brief", meaning: 方案概要}
+      - {path: "candidates[].retrofitType", meaning: 改造类型}
+      - {path: "candidates[].retrofitTypeLabel", meaning: 改造类型中文}
+      - {path: "candidates[].description", meaning: 方案描述}
+      - {path: "candidates[].expectedEffect", meaning: 预期效果}
+      - {path: "candidates[].outletDisposition[].**", meaning: 出口去向调整说明}
+      - {path: "candidates[].resultingTopologyPattern", meaning: 改造后拓扑模式}
+      - {path: "candidates[].resultingTopologyPatternLabel", meaning: 改造后拓扑模式中文}
+      - {path: "candidates[].schemeDetails", meaning: 方案明细}
+      - {path: "candidates[].sourceType", meaning: 方案来源}
+      - {path: "candidates[].evaluation.**", meaning: 三维评估（技术可行性/实施复杂度/运行风险）}
+      - {path: "candidates[].score", meaning: 方案综合评分}
+      - {path: "candidates[].newEquipment_list[].**", meaning: 新增设备列表（语义同schemeInfo）}
+      - {path: "candidates[].newStream_list[].**", meaning: 新增流股列表}
+      - {path: "candidates[].modifiedStream_list[].**", meaning: 改接流股列表}
+      - {path: "candidates[].removedStream_list.**", meaning: 取消流股}
+      - {path: "candidates[].removedEquipment_list.**", meaning: 移除设备}
+      - {path: "candidates[].idMapping.**", meaning: 新旧编号映射}
+      - {path: "recommendation.combination[].**", meaning: 推荐方案组合}
+      - {path: "recommendation.reason", meaning: 推荐理由}
+  new_device_params:
+    description: 新增设备工艺参数（new_device_params.json）
+    patterns:
+      - {path: "reactors.*.[].id", meaning: 反应器编号}
+      - {path: "reactors.*.[].name", meaning: 反应器名称}
+      - {path: "reactors.*.[].equation", meaning: 反应方程式}
+      - {path: "reactors.*.[].reactants.**", meaning: 反应物组分与计量系数}
+      - {path: "reactors.*.[].products.**", meaning: 产物组分与计量系数}
+      - {path: "reactors.*.[].catalyst", meaning: 催化剂}
+      - {path: "reactors.*.[].conditions.temperature", meaning: 反应温度}
+      - {path: "reactors.*.[].conditions.pressure", meaning: 反应压力}
+      - {path: "reactors.*.[].type", meaning: 反应类型}
+      - {path: "reactors.*.[].main_reaction", meaning: 是否主反应}
+      - {path: "reactors.*.[].conversion", meaning: 该反应转化率}
+      - {path: "reactors.*.[].limiting_reactant", meaning: 限制性反应物}
+      - {path: "separators.*.*.*", meaning: 新增塔各流股关键组分回收率目标值}
+  plant_diagnosis:
+    description: 装置级诊断（结构随版本变化，整体通配）
+    patterns:
+      - {path: "**", meaning: 诊断结果（plant_diagnosis_report.md 为成文报告，数值可直接引用）}

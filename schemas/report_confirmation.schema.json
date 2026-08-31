@@ -1,0 +1,92 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Feasibility Report Pre-Writing Confirmation",
+  "type": "object",
+  "required": ["contract_version", "project_id", "confirmation_status", "recommended_scheme", "economic_summary", "equipment_summary", "retrofit_points"],
+  "properties": {
+    "contract_version": {"const": "1.0"},
+    "project_id": {"type": ["string", "null"]},
+    "project_name": {"type": ["string", "null"]},
+    "confirmation_status": {"enum": ["pending", "confirmed"]},
+    "recommended_scheme": {
+      "type": "object",
+      "required": ["name", "description", "status"],
+      "properties": {
+        "scheme_id": {"type": ["string", "number", "null"]},
+        "name": {"type": ["string", "null"]},
+        "description": {"type": ["string", "null"]},
+        "status": {"type": "string"}
+      },
+      "additionalProperties": true
+    },
+    "economic_summary": {
+      "type": "object",
+      "required": ["total_investment", "average_annual_profit", "static_payback_period", "after_tax_irr"],
+      "properties": {
+        "total_investment": {"$ref": "#/$defs/metric_total_investment"},
+        "average_annual_profit": {"$ref": "#/$defs/metric_average_profit"},
+        "static_payback_period": {"$ref": "#/$defs/metric_payback"},
+        "after_tax_irr": {"$ref": "#/$defs/metric_after_tax_irr"}
+      },
+      "additionalProperties": false
+    },
+    "equipment_summary": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["equipment_id", "name", "retrofit_status", "retrofit_description"],
+        "properties": {
+          "equipment_id": {"type": "string"},
+          "tag": {"type": ["string", "null"]},
+          "name": {"type": ["string", "null"]},
+          "equipment_type": {"type": ["string", "null"]},
+          "retrofit_status": {"type": "string"},
+          "retrofit_required": {"type": ["boolean", "null"]},
+          "action": {"type": ["string", "null"]},
+          "retrofit_description": {"type": ["string", "null"]}
+        },
+        "additionalProperties": true
+      }
+    },
+    "retrofit_points": {"type": "array"}
+  },
+  "$defs": {
+    "metric_base": {
+      "type": "object",
+      "required": ["value", "unit", "basis", "status"],
+      "properties": {
+        "value": {"type": ["number", "string", "null"]},
+        "unit": {"type": "string"},
+        "basis": {"type": "string"},
+        "status": {"enum": ["available", "pending_calculation"]},
+        "source_status": {"type": ["string", "null"]}
+      },
+      "additionalProperties": true
+    },
+    "metric_total_investment": {
+      "allOf": [
+        {"$ref": "#/$defs/metric_base"},
+        {"properties": {"basis": {"const": "项目总投资"}, "unit": {"const": "万元"}}}
+      ]
+    },
+    "metric_average_profit": {
+      "allOf": [
+        {"$ref": "#/$defs/metric_base"},
+        {"properties": {"basis": {"const": "年均利润总额"}, "unit": {"const": "万元"}}}
+      ]
+    },
+    "metric_payback": {
+      "allOf": [
+        {"$ref": "#/$defs/metric_base"},
+        {"properties": {"basis": {"const": "含建设期"}, "unit": {"const": "年"}}}
+      ]
+    },
+    "metric_after_tax_irr": {
+      "allOf": [
+        {"$ref": "#/$defs/metric_base"},
+        {"properties": {"basis": {"const": "税后 IRR"}, "unit": {"const": "%"}}}
+      ]
+    }
+  },
+  "additionalProperties": true
+}

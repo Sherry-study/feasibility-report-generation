@@ -1,0 +1,8 @@
+{
+  "tool":"engineering_facts",
+  "contract_version":"1.0",
+  "stage":"1_engineering_facts",
+  "input":{"workspace":"dir (xor source_manifest)","source_manifest":"file","profile":"file","project_name":"str","project_id":"str","project_level":"equipment|unit|system|plant","project_type":"str","user_inputs":"file","construction_unit":"str","annual_operating_hours":"number","project_location":"str","skip_user_inputs":"bool","output_dir":"dir (required)"},
+  "output":{"source_registry":"_resolved/source_registry.json","resolved_input_manifest":"_resolved/resolved_input_manifest.yaml","user_inputs":"_resolved/user_inputs.yaml","facts":"project_facts.json"},
+  "exit_codes":{"0":"facts_ready","2":"needs_resolution"}
+}

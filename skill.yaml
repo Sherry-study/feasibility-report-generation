@@ -1,0 +1,10 @@
+name: feasibility-report-generation
+display_name: 可研交付
+version: 0.14.9
+entrypoint: run_skill.py
+capability: 基于工程事实确认与章节规则驱动，生成设备级、装置级、系统级、全厂级改造项目的可行性研究报告交付文件
+tools:
+- engineering_facts
+- engineering_confirmation
+- chapter_planning
+- report_generation
