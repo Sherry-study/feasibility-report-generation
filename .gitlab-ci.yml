@@ -1,0 +1,68 @@
+# GitLab CI/CD - feasibility-report-generation
+# 使用 uv 管理 Python 环境，自动运行测试并启动 FastMCP 服务器
+#
+# Runner 类型：shell executor（无 Docker）
+# 前置：在 GitLab -> Settings -> CI/CD -> Variables 中配置所需环境变量
+#   - 服务启动所需的环境变量（如 API_KEY 等）
+# 这些变量会直接注入为环境变量，无需 .env 文件。
+
+variables:
+  UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
+  MCP_HOST: "0.0.0.0"
+  MCP_PORT: "8000"
+
+# uv 包缓存，加速后续 pipeline
+cache:
+  key: uv-cache-$CI_COMMIT_REF_SLUG
+  paths:
+    - .uv-cache
+
+stages:
+  - test
+  - deploy
+
+# ── 公共前置：确保 uv 可用 + 同步依赖 ────────────────────
+.setup_uv: &setup_uv
+  before_script:
+    - uv --version || pip install --quiet uv
+    - uv sync --frozen
+
+# ── 测试阶段 ──────────────────────────────────────────────
+test:unit:
+  <<: *setup_uv
+  stage: test
+  script:
+    - uv run pytest tests -v --tb=short --junitxml=test-report.xml
+  artifacts:
+    when: always
+    reports:
+      junit: test-report.xml
+
+# ── 部署阶段：启动 FastMCP 服务 ────────────────────────────
+# 长驻服务以后台方式运行，job 启动后即正常结束，不会挂起。
+# 仅在默认分支触发；其他分支可手动运行。
+deploy:mcp-server:
+  <<: *setup_uv
+  stage: deploy
+  script:
+    # 停止占用端口的旧实例（首次部署无旧进程时忽略错误）
+    - fuser -k ${MCP_PORT}/tcp || true
+    - sleep 1
+    # setsid 新建会话并重定向全部标准流，彻底脱离终端，否则 job 永不结束
+    - setsid uv run python -m mcp_server > mcp-server.log 2>&1 < /dev/null &
+    - sleep 3
+    # 验证服务是否启动成功：检查端口是否处于监听状态
+    - |
+      if fuser ${MCP_PORT}/tcp >/dev/null 2>&1; then
+        echo "[SUCCESS] FastMCP 服务已成功启动，监听端口 ${MCP_PORT}"
+      else
+        echo "[FAILED] FastMCP 服务启动失败，端口 ${MCP_PORT} 未监听"
+        cat mcp-server.log
+        exit 1
+      fi
+    - cat mcp-server.log
+  rules:
+    - if: $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+      when: never
+    - when: manual
