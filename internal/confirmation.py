@@ -525,7 +525,8 @@ def run_confirmation_stage(args, output_dir):
             'report_confirmation':str(confirmation),'report_confirmation_markdown':str(confirmation_md),
             'report_confirmation_schema':str(SKILL_ROOT/'schemas/report_confirmation.schema.json'),
             'confirmation_response_schema':str(SKILL_ROOT/'schemas/report_confirmation_response.schema.json'),
-            'next_action':'Present recommended scheme, economic summary, full equipment list and retrofit points to the user. After explicit confirmation, rerun with --confirm-as-is or --confirmation-response.'
+            'next_action':'Present recommended scheme, economic summary, full equipment list and retrofit points to the user. After explicit confirmation, rerun with --confirm-as-is or --confirmation-response.',
+            'confirmation':confirmation_data,
         }
     response_data=load_data(confirmation_response) if confirmation_response else {}
     try:
@@ -534,7 +535,8 @@ def run_confirmation_stage(args, output_dir):
         return EXIT_NEEDS_CONFIRMATION, {
             'status':'confirmation_invalid','resume_exit_code':EXIT_NEEDS_CONFIRMATION,
             'report_confirmation':str(confirmation),'confirmation_response':str(confirmation_response) if confirmation_response else None,
-            'error':str(exc),'next_action':'Correct the confirmation response and rerun.'
+            'error':str(exc),'next_action':'Correct the confirmation response and rerun.',
+            'confirmation':confirmation_data,
         }
     confirmed_facts=out/'confirmed_project_facts.json'; dump_json(confirmed_facts_data,confirmed_facts)
     confirmed_confirmation_path=out/'confirmed_report_confirmation.json'; dump_json(confirmed_confirmation,confirmed_confirmation_path)
@@ -542,5 +544,6 @@ def run_confirmation_stage(args, output_dir):
         'status':'confirmed','resume_exit_code':EXIT_GENERATED,'facts':str(facts_path),'annualization':str(annual),
         'energy_conversion':str(energy),
         'report_confirmation':str(confirmation),'report_confirmation_markdown':str(confirmation_md),
-        'confirmed_facts':str(confirmed_facts),'confirmed_report_confirmation':str(confirmed_confirmation_path)
+        'confirmed_facts':str(confirmed_facts),'confirmed_report_confirmation':str(confirmed_confirmation_path),
+        'confirmation':confirmed_confirmation,
     }

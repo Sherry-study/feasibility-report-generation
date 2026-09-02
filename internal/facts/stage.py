@@ -94,6 +94,61 @@ def _host_implementation_schedule(args):
     return {**sched, 'status': 'host_provided'}
 
 
+def _facts_brief(fdata):
+    """从完整 project facts 提取精简摘要，避免返回值携带全量流股组成等大对象。"""
+    project = fdata.get('project') or {}
+    process = fdata.get('process') or {}
+    design = process.get('design') or {}
+    retrofit = process.get('retrofit') or {}
+    equipment = fdata.get('equipment') or {}
+    annual_capacity = (fdata.get('fa') or {}).get('annual_capacity') or {}
+
+    def _stream_brief(streams):
+        return [
+            {k: s.get(k) for k in ('stream_id', 'name', 'flow_kg_h', 'flow_unit', 'phase', 'target_product_stream') if k in s}
+            for s in streams or []
+        ]
+
+    return {
+        'project_name': project.get('project_name'),
+        'project_id': project.get('project_id'),
+        'project_level': project.get('project_level'),
+        'project_type': project.get('project_type'),
+        'construction_unit': project.get('construction_unit'),
+        'project_location': project.get('project_location'),
+        'annual_operating_hours': (fdata.get('user') or {}).get('annual_operating_hours'),
+        'adopted_scheme': (fdata.get('adopted_scheme') or {}).get('scheme_name')
+                          or (fdata.get('adopted_scheme') or {}).get('status'),
+        'process': {
+            'design': {
+                'stream_count': len(design.get('streams') or []),
+                'feeds': _stream_brief(design.get('external_feeds')),
+                'products': _stream_brief(design.get('product_streams')),
+                'separator_count': len(design.get('separators') or []),
+                'reactor_count': len(design.get('reactors') or []),
+            },
+            'retrofit': {
+                'stream_count': len(retrofit.get('streams') or []),
+                'feeds': _stream_brief(retrofit.get('external_feeds')),
+                'products': _stream_brief(retrofit.get('product_streams')),
+                'separator_count': len(retrofit.get('separators') or []),
+                'reactor_count': len(retrofit.get('reactors') or []),
+            },
+        },
+        'equipment': {
+            'object_count': len(equipment.get('object_catalog') or []),
+            'tower_rows': len((equipment.get('tower') or {}).get('report_rows') or []),
+            'reactor_rows': len((equipment.get('reactor') or {}).get('report_rows') or []),
+        },
+        'gaps': [g.get('field') for g in (fdata.get('gaps') or [])],
+        'annual_capacity': {
+            'status': annual_capacity.get('status'),
+            'design_t_a': annual_capacity.get('design_t_a'),
+            'retrofit_t_a': annual_capacity.get('retrofit_t_a'),
+        },
+    }
+
+
 def run_engineering_facts_stage(args, output_dir):
     """Run stage 1. Returns (exit_code, summary_dict) without printing."""
     out=Path(output_dir).resolve(); out.mkdir(parents=True,exist_ok=True); resolved=out/'_resolved'; resolved.mkdir(exist_ok=True)
@@ -135,4 +190,4 @@ def run_engineering_facts_stage(args, output_dir):
 
     # 章节规划与缺口分析不在本阶段执行：确认 Gate 紧邻事实整理，章节计划、
     # 缺口分析与编制信息一次性提问（deferred_questions）统一延后到阶段③（确认后）。
-    return EXIT_GENERATED, {'status':'facts_ready','resume_exit_code':EXIT_GENERATED,'source_registry':str(resolved/'source_registry.json'),'resolved_input_manifest':str(manifest_path),'project_profile':str(profile),'user_inputs':str(user_inputs) if user_inputs else None,'facts':str(facts),'adapter_mode':adapter_mode}
+    return EXIT_GENERATED, {'status':'facts_ready','resume_exit_code':EXIT_GENERATED,'source_registry':str(resolved/'source_registry.json'),'resolved_input_manifest':str(manifest_path),'project_profile':str(profile),'user_inputs':str(user_inputs) if user_inputs else None,'facts':str(facts),'adapter_mode':adapter_mode,'project_facts_summary':_facts_brief(fdata)}

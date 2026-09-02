@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="color-scheme" content="light dark" />
+    <title>MCP Apps UI 模板</title>
+  </head>
+  <body>
+    <div id="root">
+      <!--
+        内联加载动画：HTML 解析后立即显示，JS 加载后由 React 无缝接管。
+        Apple 风格：纯净背景 + Apple Blue 脉动 + 简洁排版。
+      -->
+      <style>
+        #mcp-boot-loader {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          height: 100%;
+          width: 100%;
+          overflow: hidden;
+          background: #f5f5f7;
+          font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          -webkit-font-smoothing: antialiased;
+        }
+        #mcp-boot-loader .center {
+          position: relative;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+        }
+        #mcp-boot-loader .radar {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 80px;
+          height: 80px;
+          margin-bottom: 24px;
+        }
+        #mcp-boot-loader .ring {
+          position: absolute;
+          inset: 0;
+          border-radius: 9999px;
+          background: rgba(0, 113, 227, 0.15);
+          animation: mcp-ping 1.8s cubic-bezier(0, 0, 0.2, 1) infinite;
+        }
+        #mcp-boot-loader .ring:nth-child(2) {
+          background: rgba(0, 113, 227, 0.1);
+          animation-delay: 0.4s;
+        }
+        #mcp-boot-loader .ring:nth-child(3) {
+          background: rgba(0, 113, 227, 0.06);
+          animation-delay: 0.8s;
+        }
+        #mcp-boot-loader .badge {
+          position: relative;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          width: 48px;
+          height: 48px;
+          border-radius: 12px;
+          background: #0071e3;
+          box-shadow: rgba(0, 0, 0, 0.22) 3px 5px 30px 0px;
+          animation: mcp-breathe 2.5s ease-in-out infinite;
+        }
+        #mcp-boot-loader .badge svg {
+          width: 24px;
+          height: 24px;
+          color: #fff;
+          fill: none;
+          stroke: currentColor;
+          stroke-width: 2;
+          stroke-linecap: round;
+          stroke-linejoin: round;
+        }
+        #mcp-boot-loader .label {
+          display: flex;
+          align-items: center;
+          gap: 6px;
+          font-size: 14px;
+          font-weight: 400;
+          letter-spacing: -0.224px;
+          color: rgba(0, 0, 0, 0.48);
+        }
+        #mcp-boot-loader .dots {
+          display: flex;
+          gap: 4px;
+        }
+        #mcp-boot-loader .dot {
+          display: inline-block;
+          width: 4px;
+          height: 4px;
+          border-radius: 9999px;
+          background: currentColor;
+          animation: mcp-dot 1.4s ease-in-out infinite;
+        }
+        #mcp-boot-loader .dot:nth-child(2) { animation-delay: 0.16s; }
+        #mcp-boot-loader .dot:nth-child(3) { animation-delay: 0.32s; }
+        @keyframes mcp-ping {
+          75%, 100% { transform: scale(1.6); opacity: 0; }
+        }
+        @keyframes mcp-breathe {
+          0%, 100% { transform: scale(1); }
+          50% { transform: scale(1.05); }
+        }
+        @keyframes mcp-dot {
+          0%, 80%, 100% { opacity: 0.2; transform: translateY(0); }
+          40% { opacity: 1; transform: translateY(-3px); }
+        }
+      </style>
+      <div id="mcp-boot-loader">
+        <div class="center">
+          <div class="radar">
+            <span class="ring"></span>
+            <span class="ring"></span>
+            <span class="ring"></span>
+            <div class="badge">
+              <svg viewBox="0 0 24 24">
+                <circle cx="5" cy="6" r="2" />
+                <circle cx="19" cy="6" r="2" />
+                <circle cx="12" cy="18" r="2" />
+                <path d="M7 6h10" />
+                <path d="M6 8l5 8" />
+                <path d="M18 8l-5 8" />
+              </svg>
+            </div>
+          </div>
+          <div class="label">
+            <span>加载中</span>
+            <span class="dots">
+              <span class="dot"></span>
+              <span class="dot"></span>
+              <span class="dot"></span>
+            </span>
+          </div>
+        </div>
+      </div>
+    </div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

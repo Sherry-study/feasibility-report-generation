@@ -1,0 +1,383 @@
+/* ============================================================
+   Host 测试控制台 — Apple Design Language（参考 ui/DESIGN.md）
+   暗色基调：#000000 主背景 + #1c1c1e 面板 + Apple Blue (#2997ff) 唯一强调色
+   ============================================================ */
+
+:root {
+  --bg: #000000;            /* 主背景（Apple 沉浸式黑） */
+  --bg-panel: #1c1c1e;      /* Dark Surface 1：面板 */
+  --bg-elev: #2c2c2e;       /* Dark Surface 2：浮起/按钮 */
+  --bg-elev2: #3a3a3c;      /* Dark Surface 3：hover */
+  --border: rgba(255, 255, 255, 0.08);
+  --border2: rgba(255, 255, 255, 0.16);
+  --text: #ffffff;
+  --text-dim: rgba(255, 255, 255, 0.48);   /* 次级文本 */
+  --text-faint: rgba(255, 255, 255, 0.32); /* 三级文本 */
+  --accent: #2997ff;        /* Apple Bright Blue（暗底链接/强调） */
+  --accent-hover: #4da8ff;
+  --green: #30d158;
+  --amber: #ff9f0a;
+  --shadow: rgba(0, 0, 0, 0.5) 3px 5px 30px 0px;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  font-size: 14px;
+  letter-spacing: -0.224px;   /* Apple 通用负字距 */
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+button {
+  font-family: inherit;
+  letter-spacing: inherit;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.host-shell {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+}
+
+/* 顶栏 — Apple 玻璃效果 */
+.host-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  background: rgba(0, 0, 0, 0.72);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+  position: sticky;
+  top: 0;
+  z-index: 20;
+}
+
+.host-header h1 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 600;
+  letter-spacing: -0.374px;
+  line-height: 1.2;
+}
+
+.host-version {
+  font-size: 12px;
+  color: var(--text-faint);
+  letter-spacing: -0.224px;
+}
+
+.host-version code {
+  background: var(--bg-elev);
+  padding: 1px 6px;
+  border-radius: 5px;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  color: var(--text-dim);
+}
+
+.host-body {
+  display: flex;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+/* 左：控制面板 */
+.host-panel {
+  width: 320px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 16px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  overflow: auto;
+}
+
+/* 滚动条与暗色主题一致 */
+.host-panel,
+.log-body {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
+.host-panel::-webkit-scrollbar,
+.log-body::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+.host-panel::-webkit-scrollbar-track,
+.log-body::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.host-panel::-webkit-scrollbar-thumb,
+.log-body::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 3px;
+}
+
+.host-panel::-webkit-scrollbar-thumb:hover,
+.log-body::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+.panel-section h2 {
+  margin: 0 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-faint);
+}
+
+.tool-list,
+.scenario-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+/* 工具/场景按钮 — Apple 胶囊 chip */
+.tool-btn,
+.scenario-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, transform 0.12s;
+}
+
+.tool-btn:hover,
+.scenario-btn:hover {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tool-btn:active,
+.scenario-btn:active {
+  transform: scale(0.97);
+}
+
+.tool-btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.scenario-btn.active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: rgba(41, 151, 255, 0.1);
+}
+
+.btn-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elev);
+  color: var(--text);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s, opacity 0.15s, transform 0.12s;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.btn:active:not(:disabled) {
+  transform: scale(0.97);
+}
+
+.btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.btn.primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
+}
+
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-hover);
+  border-color: var(--accent-hover);
+  color: #fff;
+}
+
+.btn.small {
+  padding: 4px 10px;
+  font-size: 11px;
+}
+
+.hint {
+  margin: 10px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+  line-height: 1.5;
+}
+
+.log-section {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 auto;
+  min-height: 0;
+}
+
+.log-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+
+.log-head h2 {
+  margin: 0;
+}
+
+.log-body {
+  flex: 1 1 auto;
+  min-height: 120px;
+  overflow: auto;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px;
+  font-family: ui-monospace, 'SF Mono', 'Cascadia Code', monospace;
+  font-size: 11px;
+  letter-spacing: 0;
+}
+
+.log-empty {
+  color: var(--text-dim);
+  padding: 8px;
+}
+
+.log-line {
+  padding: 3px 6px;
+  border-radius: 6px;
+  margin-bottom: 2px;
+  word-break: break-all;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.log-line:hover {
+  background: var(--bg-elev);
+}
+
+/* 折叠态：单行省略，点击展开 */
+.log-line.collapsed {
+  display: -webkit-box;
+  -webkit-line-clamp: 1;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  white-space: normal;
+}
+
+.log-line.out {
+  color: #7fd1ff;   /* host -> ui，偏蓝 */
+}
+
+.log-line.in {
+  color: #ffd88a;   /* ui -> host，琥珀 */
+}
+
+.log-dir {
+  display: inline-block;
+  min-width: 52px;
+  font-weight: 600;
+}
+
+.log-method {
+  display: inline-block;
+  min-width: 150px;
+  color: inherit;
+}
+
+.log-detail {
+  color: var(--text-dim);
+}
+
+/* 右：iframe 舞台 */
+.host-stage {
+  flex: 1 1 auto;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.stage-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 16px;
+  background: rgba(28, 28, 30, 0.6);
+  backdrop-filter: saturate(180%) blur(20px);
+  border-bottom: 1px solid var(--border);
+  flex: 0 0 auto;
+}
+
+.status-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--amber);
+  box-shadow: 0 0 0 3px rgba(255, 159, 10, 0.15);
+}
+
+.status-dot.ready {
+  background: var(--green);
+  box-shadow: 0 0 0 3px rgba(48, 209, 88, 0.15);
+}
+
+.stage-title {
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: -0.224px;
+}
+
+.stage-page {
+  color: var(--text-dim);
+  font-size: 12px;
+}
+
+.stage-iframe {
+  flex: 1 1 auto;
+  width: 100%;
+  border: 0;
+  background: #f5f5f7;   /* 亮色画布，与 ui 亮色主题一致的浅灰 */
+}
