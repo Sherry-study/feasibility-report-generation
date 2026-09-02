@@ -1,4 +1,10 @@
 #!/usr/bin/env python3
+"""工程事实构建器。
+
+本模块把上游 PA/EA/FA、用户输入和候选方案资料规整为统一 Project Facts。
+它只做字段搬运、单位/状态归一和确定性派生，不替代专业算法，也不为报告
+正文创造未经确认的工程数字。
+"""
 from __future__ import annotations
 import argparse
 import json
@@ -11,17 +17,19 @@ import yaml
 BASE=Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(BASE))
 from internal.facts.sources import adapt_candidate_scheme
-from internal.common import load_data, dump_json, SKILL_ROOT
+from internal.common import ENGINEERING_RULES_ROOT, load_data, dump_json
 from internal.domain import annual_tonnes, fa_utility_margin_blocked, reactor_action_category, resolve_annual_hours, resolve_conversion_type, GAP_AFFECTED_SECTIONS
 
 
 # ===== 事实构建主实现区（原 runtime/fact_builder_impl.py） =====
 
 def load_text(path: Path):
+    """读取 UTF-8 文本文件，供 Markdown/JSON 派生解析使用。"""
     return path.read_text(encoding='utf-8')
 
 
 def _coalesce(*vals):
+    """返回第一个非空值，用于兼容多版本上游字段。"""
     for v in vals:
         if v is not None and v != '':
             return v
@@ -97,6 +105,7 @@ def _enterprise_from_sources(*payloads):
 
 
 def source_meta(manifest):
+    """从输入 manifest 生成 Project Facts 中的来源元信息。"""
     out = []
     for key, s in manifest['sources'].items():
         out.append({
@@ -112,12 +121,14 @@ def source_meta(manifest):
 
 
 def comp_maps(components):
+    """生成组分 formula/name 的双向查找表。"""
     code_to_name = {c.get('formula'): c.get('name') for c in components if c.get('formula')}
     name_to_code = {c.get('name'): c.get('formula') for c in components if c.get('name')}
     return code_to_name, name_to_code
 
 
 def normalize_streams(streams, semantic_names, code_to_name, condition, source_file):
+    """把 PA 流股表规整为 Project Facts 统一流股结构。"""
     out = []
     for s in streams:
         comps = []
@@ -154,6 +165,7 @@ def normalize_streams(streams, semantic_names, code_to_name, condition, source_f
 
 
 def parse_diagnosis(md):
+    """从诊断 Markdown 中提取收率、反应器和瓶颈摘要。"""
     result = {'raw_markdown': md}
     m = re.search(r'\|\s*设计总收率\s*\|\s*([0-9.]+)%', md)
     if m:
@@ -176,6 +188,7 @@ def parse_diagnosis(md):
 
 
 def find_by_id(items, id_value, id_key='id'):
+    """按 id 字段查找列表元素，找不到返回 None。"""
     for x in items:
         if str(x.get(id_key)) == str(id_value):
             return x
@@ -183,13 +196,11 @@ def find_by_id(items, id_value, id_key='id'):
 
 
 def _reactor_recommended_scheme_index(reactor_result):
-    """Resolve an explicitly recommended combined reactor scheme when the EA result provides one.
+    """解析 EA 明确推荐的组合反应器方案序号。
 
-    Do not infer recommendation from numeric order alone. If the conclusion contains
-    "推荐方案N" use that N; otherwise honor an explicit recommended/is_recommended flag.
-    As a backward-compatible fallback for legacy EA payloads with combined_schemes but no
-    explicit recommendation marker, the first combined scheme is treated as the selected
-    engineering result because V0.10/V0.11 used that exact contract.
+    不仅凭数值排序推断推荐方案。结论中写明“推荐方案N”时采用 N；
+    否则尊重 recommended/is_recommended 标记。旧 EA payload 没有明确标记时，
+    为兼容 V0.10/V0.11 契约，回退采用第一个 combined scheme。
     """
     text=str(reactor_result.get('conclusion') or '')
     m=re.search(r'推荐方案\s*([0-9]+)', text)
@@ -204,14 +215,11 @@ def _reactor_recommended_scheme_index(reactor_result):
 
 
 def _reactor_selected_scheme(reactor_result):
-    """Resolve the combined reactor scheme the report should adopt.
+    """解析报告应采用的组合反应器方案。
 
-    Priority per 算法输出字段与工程事实映射表 使用注意#1:
-    1. selected_combined_scheme -- the user's final choice (basis='user_selected').
-    2. Fallback: the algorithm-recommended combined scheme (conclusion "推荐方案N"
-       / recommended flag / first scheme), basis='algorithm_recommendation' so
-       downstream can flag it for user confirmation.
-    Legacy payloads without combined_schemes return (None, None).
+    优先级遵守字段映射表使用注意：用户最终选择 `selected_combined_scheme`
+    优先；否则回退到算法推荐方案，并标记 basis 为 `algorithm_recommendation`，
+    便于后续确认门提示用户确认。无 combined_schemes 的旧数据返回空。
     """
     sel=reactor_result.get('selected_combined_scheme')
     if isinstance(sel,dict) and sel:
@@ -225,7 +233,7 @@ def _reactor_selected_scheme(reactor_result):
 
 
 def _scheme_matches(sc, selected):
-    """True when combined-scheme element sc refers to the same scheme as selected."""
+    """判断候选组合方案是否与选中方案指向同一对象。"""
     if not isinstance(sc,dict) or not isinstance(selected,dict):
         return False
     if sc.get('scheme_id') and selected.get('scheme_id'):
@@ -734,7 +742,7 @@ def build_legacy_facts(input_dir, manifest_path, user_inputs_path=None):
         'accounting_standard':accounting_standard,
         'accounting_standard_source':accounting_standard_source,
         'consumption':ui_energy.get('consumption') or [],
-        'conversion_rules':load_data(SKILL_ROOT/'knowledge/energy_conversion_rules.json'),
+        'conversion_rules':load_data(ENGINEERING_RULES_ROOT/'energy_conversion_rules.json'),
         'note':'默认折标准煤（GB/T 2589-2020，电力当量值、蒸汽128.6 kgce/t）；折标准油（GB/T 50441-2016）仅在用户显式指定/模板口径/专项指标/上游冻结口径时启用。不从设备级HO/CW等公用工程线索自动推断能耗折标边界；由项目资料/后续Adapter明确纳入核算的能源介质。'
       },
       'fa':{
@@ -1005,7 +1013,7 @@ def build_generic_facts(input_dir, manifest, user_inputs=None):
         },
         'user':{'owner':construction_unit,'construction_unit':construction_unit,'annual_operating_hours':annual_hours,'annual_operating_hours_source':annual_hours_source,'utility_system_capacity':None,'project_location':project_location,'supply_conditions':None,'energy_accounting_media':ui_energy.get('accounting_media'),'energy_accounting_standard':accounting_standard},
         'enterprise':{'basic_profile':ui_enterprise.get('basic_profile'),'basic_profile_source':'user_input' if ui_enterprise.get('basic_profile') else None},
-        'energy':{'accounting_media':ui_energy.get('accounting_media') or [],'accounting_standard':accounting_standard,'accounting_standard_source':accounting_standard_source,'consumption':ui_energy.get('consumption') or [],'conversion_rules':load_data(SKILL_ROOT/'knowledge/energy_conversion_rules.json'),'note':'默认折标准煤（GB/T 2589-2020）；折标准油（GB/T 50441-2016）仅在显式口径要求时启用。不从设备级公用工程线索自动推断能耗核算边界。'},
+        'energy':{'accounting_media':ui_energy.get('accounting_media') or [],'accounting_standard':accounting_standard,'accounting_standard_source':accounting_standard_source,'consumption':ui_energy.get('consumption') or [],'conversion_rules':load_data(ENGINEERING_RULES_ROOT/'energy_conversion_rules.json'),'note':'默认折标准煤（GB/T 2589-2020）；折标准油（GB/T 50441-2016）仅在显式口径要求时启用。不从设备级公用工程线索自动推断能耗核算边界。'},
         'fa':{'energy_conversion':{'status':'not_calculated','tool':'energy_conversion_calculator'}},'gaps':gaps,'consistency_issues':issues,'section_coverage':[]
     }
     return facts

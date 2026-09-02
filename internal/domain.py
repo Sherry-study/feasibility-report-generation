@@ -1,11 +1,11 @@
-"""Domain knowledge and pure-computation single source of truth (P1b consolidation).
+"""领域规则与纯计算函数的统一入口。
 
-Discipline:
-- No file IO, no printing, no imports of sibling modules (common.py may
-  import this module one-way; the reverse would create cycles).
-- Consolidated helpers are behavior-equivalent to the previously duplicated
-  implementations; call-site differences are preserved via keyword switches
-  (strict annual_tonnes, deep_merge copy mode, resolve_annual_hours policy).
+纪律：
+- 不做文件 IO，不打印，不导入同级模块。`common.py` 可以单向导入本模块，
+  但本模块不能反向导入，避免循环依赖。
+- 合并后的 helper 必须与历史重复实现保持行为等价；调用点差异通过关键字
+  参数保留，例如 `annual_tonnes(strict=...)`、`deep_merge(copy=...)`、
+  `resolve_annual_hours(...)` 的策略开关。
 """
 from __future__ import annotations
 from copy import deepcopy
@@ -20,7 +20,7 @@ def normalize_media_name(name):
 
 
 def factor_index(lib):
-    """Map normalized name -> (factor_key, factor_item) for a conversion-factor library."""
+    """把折标系数库映射为 normalized name -> (factor_key, factor_item)。"""
     idx = {}
     for key, item in (lib.get('factors') or {}).items():
         names = [key, item.get('display_name'), *((item.get('aliases') or []))]
@@ -31,7 +31,7 @@ def factor_index(lib):
 
 
 def factor_alias_map(lib):
-    """Map normalized name -> factor_key (media-name lookup only)."""
+    """把折标系数库映射为 normalized name -> factor_key，仅用于介质名查找。"""
     return {norm: key for norm, (key, _item) in factor_index(lib).items()}
 
 
@@ -51,7 +51,7 @@ CONVERSION_TYPE_LABELS = {
 
 
 def normalize_conversion_type(value):
-    """Normalize a conversion-type hint to 'standard_coal'/'standard_oil' or None."""
+    """把折标口径提示归一为 `standard_coal`、`standard_oil` 或 None。"""
     if value in (None, ''):
         return None
     v = normalize_media_name(value)
@@ -62,10 +62,10 @@ def normalize_conversion_type(value):
 
 
 def resolve_conversion_type(user_value, profile_value):
-    """Resolve accounting system: user_input > project_profile > default standard_coal.
+    """解析能耗核算体系，优先级为 user_input > project_profile > 默认标准煤。
 
-    Returns (conversion_type, source) where source is one of
-    'user_input' / 'project_profile' / 'default'.
+    返回 `(conversion_type, source)`，source 取值为
+    `user_input`、`project_profile` 或 `default`。
     """
     ctype = normalize_conversion_type(user_value)
     if ctype:
@@ -77,7 +77,7 @@ def resolve_conversion_type(user_value, profile_value):
 
 
 def energy_rule_index(rules, conversion_type):
-    """Map normalized media name -> exact rule dict for the given conversion type."""
+    """按折标体系生成 normalized media name -> exact rule dict 的索引。"""
     block = (rules or {}).get(conversion_type) or {}
     idx = {}
     for item in (block.get('exact') or []):
@@ -89,14 +89,14 @@ def energy_rule_index(rules, conversion_type):
 
 
 def energy_steam_block(rules, conversion_type):
-    """Steam range block for the given conversion type (None if absent)."""
+    """读取某折标体系下的蒸汽范围规则块；不存在时返回 None。"""
     block = (rules or {}).get(conversion_type) or {}
     steam = block.get('steam')
     return steam if steam and steam.get('rules') else None
 
 
 def steam_alias_names(steam_block):
-    """Normalized lookup names for steam media (aliases + name)."""
+    """生成蒸汽介质的归一化查找名称集合。"""
     if not steam_block:
         return []
     names = [steam_block.get('energy_name'), steam_block.get('energy_code'),
@@ -105,7 +105,7 @@ def steam_alias_names(steam_block):
 
 
 def match_steam_label(steam_block, name):
-    """Match a trusted pressure-grade label (e.g. '5.0MPa级蒸汽') to a steam rule."""
+    """按可信压力等级标签（如 5.0MPa级蒸汽）匹配蒸汽规则。"""
     if not steam_block:
         return None
     norm = normalize_media_name(name)
@@ -114,7 +114,7 @@ def match_steam_label(steam_block, name):
         for lab in labels:
             if lab and normalize_media_name(lab) == norm:
                 return rule
-    # Fallback: a grade number embedded in the media name ('3.5MPa蒸汽' -> 3.5MPa级)
+    # 兜底：从介质名中提取等级数字，例如 3.5MPa蒸汽 -> 3.5MPa级。
     m = _extract_grade_number(name)
     if m is not None:
         for rule in steam_block['rules']:
@@ -130,7 +130,7 @@ def _extract_grade_number(text):
 
 
 def parse_pressure(value):
-    """Extract a numeric gauge pressure (MPa) from a free-form value; None if absent."""
+    """从自由文本中提取蒸汽表压 MPa；无法提取时返回 None。"""
     if value in (None, ''):
         return None
     m = re.search(r'-?\d+(?:\.\d+)?', str(value))
@@ -158,7 +158,7 @@ def _rule_max(rule):
 
 
 def match_steam_pressure(steam_block, pressure):
-    """Match a numeric gauge pressure (MPa) to a steam range rule (endpoints per flags)."""
+    """按数值表压 MPa 匹配蒸汽范围规则，端点开闭遵守规则标记。"""
     if not steam_block or pressure is None:
         return None
     p = float(pressure)
@@ -175,7 +175,7 @@ def match_steam_pressure(steam_block, pressure):
 
 
 def match_steam_rule(steam_block, name, pressure):
-    """Steam rule via trusted label first, then gauge-pressure range."""
+    """先按可信等级标签匹配蒸汽规则，再按表压范围匹配。"""
     if not steam_block:
         return None
     if name:
@@ -198,10 +198,10 @@ _UNIT_ALIASES = {
 
 
 def harmonize_unit(input_unit, rule_unit):
-    """Deterministic input-unit -> rule-unit reconciliation (mass kg<->t only).
+    """确定性协调输入单位与规则单位，目前只支持质量 kg/t 互转。
 
-    Returns (scale, canonical_unit); scale is None when no deterministic
-    conversion exists (caller must treat the item as blocked).
+    返回 `(scale, canonical_unit)`；无法确定性换算时 scale 为 None，
+    调用方必须将该项视为 blocked。
     """
     u_in = _UNIT_ALIASES.get(normalize_media_name(input_unit), str(input_unit or '').strip())
     u_rule = _UNIT_ALIASES.get(normalize_media_name(rule_unit), str(rule_unit or '').strip())
@@ -216,10 +216,10 @@ def harmonize_unit(input_unit, rule_unit):
 
 
 def annual_tonnes(flow_kg_h, hours, strict=False):
-    """Annualize an hourly kg/h quantity: hourly x hours / 1000.
+    """把 kg/h 小时量年化为 t/a：小时量 x 年运行时长 / 1000。
 
-    strict=True propagates conversion errors (tool CLI contract);
-    strict=False swallows them and returns None (facts-builder contract).
+    `strict=True` 传播转换异常，供 Tool CLI 使用；`strict=False`
+    吞掉异常并返回 None，供事实构建器保持兼容。
     """
     if flow_kg_h is None or hours in (None, ''):
         return None
@@ -249,11 +249,11 @@ def deep_merge(target, patch, copy=False):
 
 def resolve_annual_hours(ui_value, plant_info_hours, manifest_value,
                          *, reject_nonpositive=False, reset_source_on_error=False):
-    """Coalesce annual operating hours user_input > plant_info > project_manifest.
+    """解析年运行时长，优先级为 user_input > plant_info > project_manifest。
 
-    reject_nonpositive/reset_source_on_error=True: generic-facts policy (hours<=0
-    rejected, source reset on conversion error). Defaults: legacy fact-builder
-    policy (no <=0 rejection, source survives conversion errors).
+    `reject_nonpositive/reset_source_on_error=True` 是 generic facts 策略：
+    非正数会被拒绝，转换失败时重置来源。默认保持 legacy fact-builder 策略：
+    不拒绝 <=0，转换失败时仍保留来源。
     """
     if ui_value not in (None, ''):
         hours = ui_value; source = 'user_input'

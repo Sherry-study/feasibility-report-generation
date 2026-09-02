@@ -1,13 +1,10 @@
 #!/usr/bin/env python3
-"""Stage 1 (engineering facts) in-process orchestration.
+"""阶段①：工程事实整理的进程内编排。
 
-Behavior contract mirrors run_skill.py stage 1 (L91-108): source registry ->
-profile resolution -> resolved input manifest -> user inputs -> legacy/generic
-fact build. No user-input interrupt and no chapter planning here: the
-confirmation gate follows immediately; chapter plan + gap analysis + the
-one-shot compilation-info questions (deferred_questions) all happen in stage 3
-after confirmation. The helper functions below are copied (not moved) from
-run_skill.py so the legacy orchestration stays byte-identical.
+本模块是 `engineering_facts` Tool 的内部实现入口。执行顺序为：
+来源登记 -> 项目画像解析 -> 输入 manifest 归一 -> 用户输入合并
+-> legacy/generic fact build。这里不做人审确认、不做章节规划；
+确认门由阶段②负责，章节规划和延迟用户问题由阶段③负责。
 """
 from __future__ import annotations
 from pathlib import Path
@@ -19,11 +16,13 @@ from internal.facts.sources import build_registry, legacy_manifest
 
 
 def conservative_profile(project_id, project_name, project_type='mixed', project_level='unit'):
+    """构造保守项目画像，作为无法从来源推断 profile 时的最后兜底。"""
     return {'project_profile':{'project_id':project_id,'project_name':project_name,'project_type':project_type,'project_level':project_level,'retrofit_scope':project_level,'objectives':[],'changes':{
       'capacity_changed': None,'product_changed': None,'price_basis_changed': None,'raw_material_route_changed': None,'process_route_changed': None,'material_consumption_changed': None,'utility_demand_changed': None,'utility_system_changed': None,'equipment_changed': None,'layout_changed': None,'storage_changed': None,'outside_pipe_network_changed': None,'control_system_changed': None}}}
 
 
 def resolve_profile(args, reg, resolved):
+    """解析项目画像来源：显式参数优先，其次 manifest/workspace，最后使用保守兜底。"""
     if args.profile: return Path(args.profile).resolve()
     if args.source_manifest:
         d=load_data(args.source_manifest)
@@ -37,9 +36,8 @@ def resolve_profile(args, reg, resolved):
                 if isinstance(d,dict) and isinstance(d.get('project_profile'),dict): candidates.append(yp.resolve())
             except Exception: pass
         if len(candidates)==1: return candidates[0]
-    # No external project_profile.yaml is required. Source Resolver has already
-    # produced a source-labelled inference from selected algorithm outputs; the
-    # conservative profile remains the final fallback for genuinely missing data.
+    # 不强制要求外部 project_profile.yaml。Source Resolver 已经基于选中的算法
+    # 输出产生带来源标签的推断；真正缺失时才使用保守兜底画像。
     inferred=reg.get('inferred_project_profile')
     profile=inferred if isinstance(inferred,dict) else conservative_profile(
         reg['project']['project_id'], reg['project']['project_name'],
@@ -51,6 +49,7 @@ def resolve_profile(args, reg, resolved):
 
 
 def discover_user_inputs(workspace):
+    """在工作区内自动发现唯一的用户输入文件；多候选时不擅自选择。"""
     if not workspace: return None
     root=Path(workspace); hits=[]
     for name in ('user_inputs.yaml','user_inputs.yml','user_inputs.json','project_user_inputs.yaml','project_user_inputs.yml','project_user_inputs.json'):
@@ -60,6 +59,7 @@ def discover_user_inputs(workspace):
 
 
 def resolve_user_inputs(args, resolved):
+    """合并用户输入文件和显式 Tool 参数，并落盘为统一 user_inputs.yaml。"""
     src=Path(args.user_inputs).resolve() if args.user_inputs else discover_user_inputs(args.workspace)
     data=load_data(src) if src else {}; data=data if isinstance(data,dict) else {}
     project=data.setdefault('project',{})
@@ -72,7 +72,7 @@ def resolve_user_inputs(args, resolved):
 
 
 def _host_implementation_schedule(args):
-    """Load host-provided implementation schedule (18.2 work-package durations, months) and validate."""
+    """读取宿主提供的实施进度计划，并校验 18.2 所需工作包工期。"""
     src = getattr(args, 'implementation_schedule', None)
     if not src:
         return None
@@ -150,7 +150,7 @@ def _facts_brief(fdata):
 
 
 def run_engineering_facts_stage(args, output_dir):
-    """Run stage 1. Returns (exit_code, summary_dict) without printing."""
+    """执行阶段①，返回 (exit_code, summary_dict)，不直接打印结果。"""
     out=Path(output_dir).resolve(); out.mkdir(parents=True,exist_ok=True); resolved=out/'_resolved'; resolved.mkdir(exist_ok=True)
 
     reg=build_registry(Path(args.workspace).resolve() if args.workspace else None,Path(args.source_manifest).resolve() if args.source_manifest else None,args.project_name,args.project_id,args.project_level,args.project_type)
@@ -159,8 +159,8 @@ def run_engineering_facts_stage(args, output_dir):
         return EXIT_NEEDS_RESOLUTION, {'status':'needs_resolution','source_registry':str(resolved/'source_registry.json'),'missing':reg.get('missing_required_sources',[]),'ambiguities':reg['ambiguities']}
     profile=resolve_profile(args,reg,resolved); profile_data=load_data(profile); profile_obj=profile_data.get('project_profile',profile_data)
     user_inputs=resolve_user_inputs(args,resolved)
-    # User-provided project name may refine an algorithm-inferred/workspace
-    # placeholder, but never overrides an explicit profile or CLI metadata.
+    # 用户提供的项目名称可修正算法/目录推断出的占位名；
+    # 但不能覆盖显式 profile 或 CLI 元数据。
     if user_inputs and profile_obj.get('profile_provenance',{}).get('mode')=='algorithm_inferred':
         ui=load_data(user_inputs) or {}
         ui_name=(ui.get('project') or {}).get('project_name') if isinstance(ui,dict) else None

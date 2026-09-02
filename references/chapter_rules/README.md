@@ -8,7 +8,7 @@
 - LLM生成约束
 - 质量检查要求
 
-Chapter Rules 不定义算法字段语义，字段语义由 knowledge/algorithm_output_semantics.md 负责。
+Chapter Rules 不定义算法字段语义，字段语义由 references/engineering_rules/algorithm_output_semantics.md 负责。
 
 ## coverage_class（章节覆盖类别）
 

@@ -34,6 +34,7 @@ from internal.planning.draft_fragments import (
 )
 from internal.planning.research_fragments import collect_research, submit_research, write_research_packs, write_research_host_workflow
 from internal.planning.stage import run_chapter_planning_stage
+from internal.confirmation import run_confirmation_stage
 from internal.report.stage import run_report_generation_stage
 from internal.report.validate_drafts import validate as validate_drafts
 
@@ -47,6 +48,10 @@ PROFILE = {
         "changes": {"capacity_changed": True},
     }
 }
+
+LEGACY_SKILL_RERUN = "重跑 " + "Skill"
+LEGACY_SKILL_RESUME = "续跑 " + "Skill"
+LEGACY_RUNNER_FILE = "run_skill" + ".py"
 
 
 RESEARCH_TASKS = {
@@ -355,6 +360,58 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             self.assertEqual(summary["status"], "needs_research")
             self.assertTrue(tasks)
             self.assertTrue(all(task.get("rule_id") for task in tasks))
+            self.assertIn("chapter_planning Tool", summary["next_action"])
+            self.assertNotIn(LEGACY_SKILL_RERUN, summary["next_action"])
+            self.assertNotIn(LEGACY_SKILL_RESUME, summary["next_action"])
+
+    def test_confirmation_next_action_targets_tool_not_runner(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            facts = out / "facts.json"
+            dump_json(deepcopy(FACTS), facts)
+            args = Namespace(
+                facts=str(facts),
+                confirm_as_is=False,
+                confirmation_response=None,
+            )
+            code, summary = run_confirmation_stage(args, out)
+            self.assertEqual(code, 12)
+            self.assertIn("engineering_confirmation Tool", summary["next_action"])
+            self.assertIn("confirm_as_is=true", summary["next_action"])
+            self.assertNotIn(LEGACY_RUNNER_FILE, summary["next_action"])
+            self.assertNotIn(LEGACY_SKILL_RERUN, summary["next_action"])
+            self.assertNotIn(LEGACY_SKILL_RESUME, summary["next_action"])
+
+    def test_needs_user_input_next_action_uses_real_tool_contract(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            profile = out / "profile.json"
+            facts = out / "facts.json"
+            missing = deepcopy(FACTS)
+            missing["project"].pop("construction_unit", None)
+            missing["user"].pop("annual_operating_hours", None)
+            dump_json(PROFILE, profile)
+            dump_json(missing, facts)
+            args = Namespace(
+                profile=str(profile),
+                facts=str(facts),
+                skip_user_inputs=False,
+                research_evidence=None,
+                section_drafts=None,
+                ai_mode="host_agent",
+                run_mode="test",
+            )
+            code, summary = run_chapter_planning_stage(args, out)
+            self.assertEqual(code, 9)
+            text = summary["next_action"] + "\n" + "\n".join(q["question"] for q in summary["user_questions"])
+            self.assertIn("engineering_facts Tool", text)
+            self.assertIn("engineering_confirmation", text)
+            self.assertIn("chapter_planning", text)
+            self.assertNotIn("--user-inputs", text)
+            self.assertNotIn("--confirm-as-is", text)
+            self.assertNotIn("--skip-user-inputs", text)
+            self.assertNotIn(LEGACY_SKILL_RERUN, text)
+            self.assertNotIn(LEGACY_SKILL_RESUME, text)
 
     def test_chapter_104_does_not_create_external_energy_benchmark_task(self):
         profile = deepcopy(PROFILE)
@@ -689,6 +746,13 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             self.assertIn("batch_worker_01.json", text)
             self.assertIn("--submit", text)
             self.assertIn("HOST_WORKFLOW.md", summary["next_action"])
+            self.assertIn("chapter_planning Tool", summary["next_action"])
+            self.assertIn("chapter_planning", text)
+            self.assertIn("section_drafts", text)
+            self.assertNotIn(LEGACY_SKILL_RERUN, text)
+            self.assertNotIn(LEGACY_SKILL_RESUME, text)
+            self.assertNotIn(LEGACY_SKILL_RERUN, summary["next_action"])
+            self.assertNotIn(LEGACY_SKILL_RESUME, summary["next_action"])
 
     def _draft(self, sid, heading, paragraphs=("正文",)):
         return {
@@ -941,6 +1005,14 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             self.assertTrue(wf.exists())
             self.assertIn("research_fragments", str(wf))
             self.assertIn("HOST_WORKFLOW.md", summary["next_action"])
+            text = wf.read_text(encoding="utf-8")
+            self.assertIn("chapter_planning Tool", summary["next_action"])
+            self.assertIn("chapter_planning", text)
+            self.assertIn("research_evidence", text)
+            self.assertNotIn(LEGACY_SKILL_RERUN, text)
+            self.assertNotIn(LEGACY_SKILL_RESUME, text)
+            self.assertNotIn(LEGACY_SKILL_RERUN, summary["next_action"])
+            self.assertNotIn(LEGACY_SKILL_RESUME, summary["next_action"])
             packs = list(Path(summary["research_contexts_dir"]).glob("research_worker_*.json"))
             self.assertTrue(packs)
 
@@ -974,8 +1046,10 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
         self.assertTrue(result["valid"])
 
 
-    def test_success_cleanup_keeps_only_delivery_and_reuse_files(self):
-        from run_skill import cleanup_runtime_artifacts
+    def test_package_result_includes_delivery_and_reuse_files(self):
+        from scripts.package_result import package_result
+        from zipfile import ZipFile
+
         with tempfile.TemporaryDirectory() as td:
             out=Path(td)
             for name in [
@@ -984,14 +1058,16 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
                 "project_facts.json","llm_jobs.json","report_model.json","report_trace.json"
             ]:
                 (out/name).write_text("x",encoding="utf-8")
-            (out/"draft_fragments").mkdir(); (out/"draft_fragments"/"x.json").write_text("{}",encoding="utf-8")
-            cleanup_runtime_artifacts(out,False)
-            self.assertTrue((out/"confirmed_project_facts.json").exists())
-            self.assertTrue((out/"research_evidence.json").exists())
-            self.assertTrue((out/"可行性研究报告_初稿.docx").exists())
-            self.assertFalse((out/"project_facts.json").exists())
-            self.assertFalse((out/"llm_jobs.json").exists())
-            self.assertFalse((out/"draft_fragments").exists())
+            package = out / "deliverables.zip"
+            result = package_result(out, package)
+            self.assertEqual(
+                set(result["included"]),
+                {"confirmed_project_facts.json","research_evidence.json","可行性研究报告_初稿.docx","可行性研究报告_初稿.md"},
+            )
+            self.assertTrue(package.exists())
+            with ZipFile(package) as zf:
+                self.assertNotIn("project_facts.json", zf.namelist())
+                self.assertNotIn("llm_jobs.json", zf.namelist())
 
 
 

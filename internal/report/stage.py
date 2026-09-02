@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
-"""Stage 4 (report generation) in-process orchestration.
+"""阶段④：报告模型构建、门禁检查与 DOCX/Markdown 导出。
 
-Behavior contract mirrors run_skill.py stage 4 (L143-144 prerequisites +
-L166-178): process topology -> report tables -> report model -> consistency
-gate (exit 3 on failed) -> DOCX/Markdown export -> report trace. All internal
-calls are in-process; no subprocess.
+本模块是 `report_generation` Tool 的进程内实现。执行顺序为：
+工艺拓扑分析 -> 报告表格 -> report model -> 一致性门禁
+-> DOCX/Markdown 导出 -> report trace。所有内部调用都在进程内完成。
 """
 from __future__ import annotations
 from pathlib import Path
 
-from internal.common import EXIT_CONSISTENCY_BLOCKED, EXIT_GENERATED, SKILL_ROOT, dump_json, load_data
+from internal.common import EXIT_CONSISTENCY_BLOCKED, EXIT_GENERATED, REPORT_RULES_ROOT, dump_json, load_data
 from internal.report.topology import analyze as analyze_topology
 from internal.report.tables import build as build_tables
 from internal.report.model import build_report_model
@@ -18,6 +17,7 @@ from internal.report.exporters import export_model, export_model_markdown
 
 
 def _registry_project_id(out, profile_data, facts_data):
+    """优先使用 source_registry 中的 project_id，缺失时回退到 profile/facts。"""
     try:
         reg=load_data(out/'_resolved'/'source_registry.json')
         pid=(reg.get('project') or {}).get('project_id')
@@ -29,7 +29,7 @@ def _registry_project_id(out, profile_data, facts_data):
 
 
 def run_report_generation_stage(args, output_dir):
-    """Run stage 4. Returns (exit_code, summary_dict) without printing."""
+    """执行阶段④，返回 (exit_code, summary_dict)，不直接打印结果。"""
     out=Path(output_dir).resolve(); out.mkdir(parents=True,exist_ok=True)
     facts_path=Path(args.facts).resolve(); profile_path=Path(args.profile).resolve(); plan_path=Path(args.chapter_plan).resolve()
     facts_data=load_data(facts_path); profile_data=load_data(profile_path); plan_data=load_data(plan_path)
@@ -42,7 +42,7 @@ def run_report_generation_stage(args, output_dir):
     topo_data=analyze_topology(facts_data); dump_json(topo_data,topology)
     tables=out/'report_tables.json'; tables_data=build_tables(facts_data); dump_json(tables_data,tables)
 
-    model=build_report_model(profile_data,facts_data,tables_data,topo_data,load_data(SKILL_ROOT/'knowledge/standards_library.yaml'),chapter_plan=plan_data,drafts=load_data(drafts) if drafts else None)
+    model=build_report_model(profile_data,facts_data,tables_data,topo_data,load_data(REPORT_RULES_ROOT/'standards_library.yaml'),chapter_plan=plan_data,drafts=load_data(drafts) if drafts else None)
     report_model=out/'report_model.json'; dump_json(model,report_model)
 
     check=out/'consistency_check.json'
@@ -59,7 +59,7 @@ def run_report_generation_stage(args, output_dir):
     docx=out/'可行性研究报告_初稿.docx'; markdown=out/'可行性研究报告_初稿.md'
     export_model(model,docx); export_model_markdown(model,markdown)
 
-    # Trace fields mirror run_skill.py L177; paths point into this output dir.
+    # trace 记录最终产物和中间证据路径，供调试与交付追溯使用。
     unconfirmed_facts=out/'project_facts.json'
     facts_trace=str(unconfirmed_facts) if unconfirmed_facts.exists() else str(facts_path)
     trace={'project_id':_registry_project_id(out,profile_data,facts_data),'source_registry':str(out/'_resolved'/'source_registry.json'),'facts':facts_trace,'chapter_plan':str(plan_path),'gap_analysis':str(out/'gap_analysis.json'),'blocked_sections':blocked_sections,'annualization':str(out/'annualization_result.json'),'process_topology_analysis':str(topology),'report_tables':str(tables),'research_tasks':str(out/'research_tasks.json'),'llm_jobs':str(out/'llm_jobs.json'),'consistency_check':str(check),'adopted_scheme':(facts_data.get('adopted_scheme') or {}).get('scheme_name'),'report_confirmation':str(out/'report_confirmation.json'),'report_confirmation_markdown':str(out/'report_confirmation.md'),'confirmed_report_confirmation':str(out/'confirmed_report_confirmation.json'),'confirmed_facts':str(facts_path),'docx':str(docx),'markdown':str(markdown)}

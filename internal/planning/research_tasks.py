@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
+"""生成可研章节需要的外部 Research 任务。
+
+Research 任务只补充公开可核验背景，不替代企业内部事实、PA/EA/FA 专业结果
+或用户确认输入。任务是否生成由 `references/chapter_rules/` 中的
+`research` 配置和当前 chapter_plan 共同决定。
+"""
 import argparse, json, sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
-from internal.common import load_data, dump_json, SKILL_ROOT
+from internal.common import ENGINEERING_RULES_ROOT, load_data, dump_json
 from internal.domain import (
     normalize_media_name, resolve_conversion_type, energy_rule_index,
     energy_steam_block, steam_alias_names, match_steam_label,
@@ -13,11 +19,13 @@ from internal.planning.chapter_rules import evaluate_required_facts, load_chapte
 
 
 class _SafeFormat(dict):
+    """让 YAML 模板中的未知占位符原样保留，避免格式化阶段误删信息。"""
     def __missing__(self, key):
         return '{'+key+'}'
 
 
 def first_product(facts):
+    """从改造/设计产品流股中推断 Research 查询使用的目标产品名。"""
     for condition in ('retrofit','design'):
         arr=facts.get('process',{}).get(condition,{}).get('product_streams',[]) or []
         if arr:
@@ -29,6 +37,7 @@ def first_product(facts):
 
 
 def sec_status(plan, sec):
+    """读取 chapter_plan 中某章节的规划状态。"""
     for x in plan:
         if str(x.get('section'))==str(sec):
             return x.get('status')
@@ -36,6 +45,7 @@ def sec_status(plan, sec):
 
 
 def enabled(plan, sec):
+    """章节未被禁用时允许生成对应 Research 任务。"""
     return sec_status(plan,sec) not in (None,'disabled')
 
 
@@ -43,6 +53,7 @@ def add_task(tasks, task_id, section_id, research_type, subject, questions, quer
              preferred_sources, minimum_sources=2, target_sections=None,
              requires_official_source=False, purpose=None, prohibited=None,
              geography=None, time_scope=None, rule_id=None):
+    """追加一个标准 Research 任务，保持输出字段与 schema 契约一致。"""
     task={
       'task_id':task_id,
       'section_id':str(section_id),
@@ -68,6 +79,7 @@ def add_task(tasks, task_id, section_id, research_type, subject, questions, quer
 
 
 def _fmt(value, context):
+    """递归渲染规则模板中的简单占位符。"""
     if isinstance(value,str):
         return value.format_map(_SafeFormat(context))
     if isinstance(value,list):
@@ -78,6 +90,7 @@ def _fmt(value, context):
 
 
 def _research_condition_met(research, profile, facts):
+    """判断 conditional Research 是否被 profile/facts 中的条件触发。"""
     key=research.get('condition_key')
     if not key:
         return True
@@ -87,6 +100,7 @@ def _research_condition_met(research, profile, facts):
 
 
 def _add_template_tasks(tasks, rule, profile, facts, product, project_name, location, geography, emitted_ids):
+    """从章节规则的 task_templates 生成 Research 任务，并去重 task_id。"""
     research=rule.get('research') or {}
     mode=research.get('mode')
     if mode=='none':
@@ -120,9 +134,10 @@ def _add_template_tasks(tasks, rule, profile, facts, product, project_name, loca
 
 
 def accounting_media(profile, facts):
-    """Only explicit energy-accounting media participate in conversion-rule lookup.
-    Equipment utility clues such as HO/CW are intentionally NOT inferred as energy-accounting media.
-    Future document/platform adapters can populate one of these fields.
+    """只把明确进入能耗核算边界的介质用于折标系数匹配。
+
+    热油、循环水等设备公用工程线索不能自动反推为能耗核算介质；
+    后续文档/平台适配器可以显式填充这里读取的字段。
     """
     vals=[]
     for source in (
@@ -147,15 +162,14 @@ def _conversion_rules(facts):
     rules=(facts.get('energy') or {}).get('conversion_rules')
     if isinstance(rules,dict) and rules.get('metadata'):
         return rules
-    return load_data(SKILL_ROOT/'knowledge/energy_conversion_rules.json')
+    return load_data(ENGINEERING_RULES_ROOT/'energy_conversion_rules.json')
 
 
 def missing_conversion_media(profile, facts):
-    """Check accounting media against the dual-system rule library of the RESOLVED system.
+    """按已解析的折标体系检查核算介质是否存在内置规则。
 
-    Returns (known_media, missing_media, conversion_type). Steam under the oil
-    system counts as known (rules built in); its pressure/grade is a separate
-    input requirement, not a missing factor.
+    返回 `(known_media, missing_media, conversion_type)`。标准油体系下的蒸汽
+    视为已知介质；蒸汽压力/品位是独立输入要求，不等同于缺少折标系数。
     """
     rules=_conversion_rules(facts)
     conversion_type,_src=resolve_conversion_type(
@@ -180,7 +194,7 @@ def missing_conversion_media(profile, facts):
 
 
 def build_tasks(profile_file, plan_file, facts):
-    """Pure function entry: (profile file data, plan file data, facts dict) -> tasks payload."""
+    """纯函数入口：根据 profile、chapter_plan 和 facts 生成 Research 任务 payload。"""
     profile=profile_file['project_profile']
     plan=plan_file['chapter_plan']
     product=first_product(facts); project_name=profile.get('project_name') or facts.get('project',{}).get('project_name') or '本项目'
@@ -236,9 +250,9 @@ def build_tasks(profile_file, plan_file, facts):
           purpose='仅补充1.1.3必要的行业/政策背景。优先1个与项目直接相关的官方来源，足以支撑背景后立即停止；项目自身必要性仍必须来自企业目标、现状诊断和项目事实。',
           rule_id=hook_rule_id('policy_industry_context_113'))
 
-    # 1.1.4 / design codes / laws use fixed in-package libraries for current MVP. No routine Web task.
+    # 当前 MVP 中，1.1.4 / 设计规范 / 法律条文使用包内固定库，不常规联网。
 
-    # Chapter 2: market research.
+    # 第 2 章：市场预测需要外部公开证据。
     if hook_enabled('market_forecast_2') and enabled(plan,'2') and 'R-MKT-002-01' not in emitted_ids:
         emitted_ids.add('R-MKT-002-01')
         add_task(tasks,'R-MKT-002-01','2','market_forecast',product,
@@ -256,7 +270,7 @@ def build_tasks(profile_file, plan_file, facts):
           purpose='形成第2章市场预测的最小充分证据底座；3个独立可靠来源已足以支撑主要判断时必须停止扩展检索。企业客户、订单、历史成交价和销售策略仍由U提供。',
           rule_id=hook_rule_id('market_forecast_2'))
 
-    # 4.1.1 / 4.1.2: only route changes require external technology research.
+    # 4.1.1 / 4.1.2：只有路线或技术论证需要时才触发外部技术 Research。
     if hook_enabled('raw_material_route_review_411') and sec_status(plan,'4.1.1')=='full' and 'R-RAW-0411-01' not in emitted_ids:
         emitted_ids.add('R-RAW-0411-01')
         add_task(tasks,'R-RAW-0411-01','4.1.1','raw_material_route_review',product,
@@ -276,16 +290,13 @@ def build_tasks(profile_file, plan_file, facts):
           minimum_sources=2,
           purpose='支撑4.1.2国内外工艺技术概况；取得2个可靠独立来源且足以说明主流路线/成熟度后停止；不得以公开文献替代本项目PA/EA专业计算。',
           rule_id=hook_rule_id('technology_review_412'))
-    # 4.1.3 does not trigger an independent Web benchmark in V0.14.8.
-    # The comparison uses project diagnosis / PA-EA / confirmed engineering facts;
-    # external technology research, when needed, is already handled by 4.1.2.
+    # 4.1.3 不单独触发 Web benchmark；比较依据来自项目诊断、PA/EA 和
+    # 确认后的工程事实。需要外部技术背景时由 4.1.2 负责。
 
-    # 5.1, 7.x, 8.1 do not auto-search codes in current MVP. Project-specific conditions come from U/C.
+    # 当前 MVP 中，5.1、7.x、8.1 不自动联网检索规范；项目特异条件来自 U/C。
 
-    # 18.2: external schedule benchmarks support LLM narrative drafting.
-    # Project-specific durations still come from the implementation schedule,
-    # equipment scope and confirmed engineering facts; web evidence must not
-    # be used to invent exact project dates.
+    # 18.2：外部实施进度样例只支撑组织方式叙述。项目具体工期仍来自实施计划、
+    # 设备改造量和确认后事实，不得用公开资料编造项目日期。
     _has_schedule=bool((facts.get('implementation_schedule') or {}).get('packages'))
     if (not _has_schedule) and hook_enabled('implementation_schedule_benchmark_182') and (enabled(plan,'18.2') or enabled(plan,'18')) and 'R-IMP-0182-01' not in emitted_ids:
         emitted_ids.add('R-IMP-0182-01')
@@ -299,7 +310,7 @@ def build_tasks(profile_file, plan_file, facts):
           purpose='为18.2提供1个可核验的常规工期组织参考即可；项目工期仍以设备改造量、施工窗口和企业计划为主，取得足够参考后立即停止检索。',
           rule_id=hook_rule_id('implementation_schedule_benchmark_182'))
 
-    # 10.5: built-in rules first. Only missing explicitly-accounted media trigger Web lookup.
+    # 10.5：优先使用内置折标规则；只有明确核算介质缺失时才联网补系数。
     known_media, missing_media, conversion_type=missing_conversion_media(profile,facts)
     conv_label='折标准煤' if conversion_type=='standard_coal' else '折标准油'
     if hook_enabled('missing_energy_conversion_factor_105') and missing_media and 'R-ENE-105-MISSING-01' not in emitted_ids:
@@ -314,21 +325,21 @@ def build_tasks(profile_file, plan_file, facts):
           purpose=f'仅补充当前内置折标规则库没有覆盖的能耗核算介质（当前口径：{conv_label}）；已内置的电力、蒸汽等不重复联网。',
           rule_id=hook_rule_id('missing_energy_conversion_factor_105'))
 
-    # 10.6 intentionally has NO benchmark search.
+    # 10.6 当前不触发 benchmark 检索。
 
     out={
       'contract_version':'1.0',
       'policy_revision':'1.0',
       'project_id':profile.get('project_id') or facts.get('project',{}).get('project_id'),
       'project_name':profile.get('project_name'),
-      'energy_conversion_factor_check':{'known_media':known_media,'missing_media':missing_media,'conversion_type':conversion_type,'library':'knowledge/energy_conversion_rules.json'},
+      'energy_conversion_factor_check':{'known_media':known_media,'missing_media':missing_media,'conversion_type':conversion_type,'library':'references/engineering_rules/energy_conversion_rules.json'},
       'tasks':tasks
     }
     return out
 
 
 def main():
-    ap=argparse.ArgumentParser(description='Build dynamic external research tasks for feasibility-study chapters (current policy)')
+    ap=argparse.ArgumentParser(description='生成可研章节外部 Research 任务（当前策略）')
     ap.add_argument('--profile',required=True); ap.add_argument('--plan',required=True); ap.add_argument('--facts',required=True); ap.add_argument('--output',required=True)
     a=ap.parse_args()
     out=build_tasks(load_data(a.profile),load_data(a.plan),load_data(a.facts))

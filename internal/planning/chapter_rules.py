@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Executable Chapter Rules runtime.
+"""可执行章节规则运行时。
 
-This module is the single runtime boundary between YAML chapter rules and
-planning-stage consumers. It validates rule shape, selects rules through the
-chapter plan, binds only declared fact paths, and evaluates missing required
-facts without turning missing data into prose.
+本模块是 `references/chapter_rules/` YAML 规则与阶段③消费者之间的唯一
+运行边界。它负责校验规则形态、按 chapter_plan 选择有效规则、只绑定
+规则声明过的事实路径，并在必需事实缺失时形成缺口记录，而不是把缺口
+改写成正文。
 """
 from __future__ import annotations
 
@@ -16,7 +16,7 @@ import sys
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
-from internal.common import SKILL_ROOT, load_data
+from internal.common import REFERENCES_ROOT, load_data
 from internal.domain import is_disabled_status, plan_status_map
 
 CONTRACT_VERSION = "1.0"
@@ -79,12 +79,12 @@ HEADING_RE = re.compile(r"^\d+(?:\.\d+)*\s+\S")
 
 
 class ChapterRuleError(ValueError):
-    """Raised when executable chapter rules are invalid."""
+    """章节规则不可执行或越界时抛出。"""
 
 
 def load_chapter_rules(rule_dir=None):
-    """Load and validate executable rule files from knowledge/chapter_rules."""
-    base = Path(rule_dir) if rule_dir else SKILL_ROOT / "knowledge" / "chapter_rules"
+    """从 references/chapter_rules 读取并校验可执行规则文件。"""
+    base = Path(rule_dir) if rule_dir else REFERENCES_ROOT / "chapter_rules"
     if not base.is_dir():
         raise ChapterRuleError(f"chapter rule directory not found: {base}")
     docs = []
@@ -102,6 +102,7 @@ def load_chapter_rules(rule_dir=None):
 
 
 def _err(errors, file_name, section_id, message):
+    """把文件名和 section_id 合并进错误信息，便于定位问题规则。"""
     prefix = file_name or "<unknown>"
     if section_id:
         prefix += f"[{section_id}]"
@@ -109,6 +110,7 @@ def _err(errors, file_name, section_id, message):
 
 
 def _validate_path(path, errors, file_name, section_id):
+    """校验规则声明的 fact path，不允许直接绑定原始算法根节点。"""
     if not isinstance(path, str) or not PATH_RE.match(path):
         _err(errors, file_name, section_id, f"invalid fact path syntax: {path!r}")
         return
@@ -120,6 +122,7 @@ def _validate_path(path, errors, file_name, section_id):
 
 
 def _validate_section(doc, section, errors, seen_sections):
+    """校验单个章节规则的覆盖类型、必需事实、Research 与输出约束。"""
     file_name = doc.get("_file")
     sid = str(section.get("section_id") or "")
     if not sid:
@@ -203,6 +206,7 @@ def _validate_section(doc, section, errors, seen_sections):
 
 
 def validate_chapter_rules(registry):
+    """校验完整规则登记表，确保当前批准的写作面都有规则覆盖。"""
     errors = []
     seen_rules = set()
     seen_sections = set()
@@ -245,6 +249,7 @@ def validate_chapter_rules(registry):
 
 
 def _section_status(section_id, pmap):
+    """读取章节状态，兼容父章节和 10.1-10.6 这类范围规划。"""
     sid = str(section_id)
     if sid in pmap:
         return pmap[sid]
@@ -261,7 +266,7 @@ def _section_status(section_id, pmap):
 
 
 def select_active_rules(registry, chapter_plan):
-    """Return section rules not suppressed by disabled exact, parent or range plan entries."""
+    """返回未被 chapter_plan 禁用的章节规则。"""
     pmap = plan_status_map(chapter_plan)
     selected = []
     for doc in registry.get("documents") or []:
@@ -284,6 +289,7 @@ def select_active_rules(registry, chapter_plan):
 
 
 def _values_for_token(value, token):
+    """解析 fact path 中的单个 token，支持 `[]` 数组展开语义。"""
     is_array = token.endswith("[]")
     key = token[:-2] if is_array else token
     if isinstance(value, dict):
@@ -300,6 +306,7 @@ def _values_for_token(value, token):
 
 
 def resolve_fact_path(facts, path):
+    """按规则声明的点路径从 facts 中取值；缺失时返回 None。"""
     values = [facts]
     for token in str(path).split("."):
         next_values = []
@@ -312,6 +319,7 @@ def resolve_fact_path(facts, path):
 
 
 def _facts_with_profile(profile, facts):
+    """把 profile 中的项目基本信息补入 facts，用于章节上下文绑定。"""
     merged = deepcopy(facts or {})
     p = profile.get("project_profile", profile) if isinstance(profile, dict) else {}
     project = dict(merged.get("project") or {})
@@ -327,6 +335,7 @@ def _facts_with_profile(profile, facts):
 
 
 def bind_section_context(section_rule, profile, facts):
+    """按 context_paths 绑定一个章节允许消费的上下文。"""
     merged = _facts_with_profile(profile, facts)
     paths = {}
     for path in section_rule.get("context_paths") or []:
@@ -337,6 +346,7 @@ def bind_section_context(section_rule, profile, facts):
 
 
 def evaluate_required_facts(section_rule, facts):
+    """检查章节必需事实是否存在，返回缺失项列表。"""
     findings = []
     for fact in section_rule.get("required_facts") or []:
         if fact.get("required") is False:
@@ -360,6 +370,7 @@ def evaluate_required_facts(section_rule, facts):
 
 
 def rule_entry_map(registry):
+    """生成规则覆盖索引，供测试和诊断查看章节覆盖面。"""
     entries = {}
     coverage = {"llm_narrative": [], "deterministic_only": [], "plan_parent_or_range": [], "template_rendered": []}
     for doc in registry.get("documents") or []:
@@ -373,6 +384,7 @@ def rule_entry_map(registry):
 
 
 def missing_findings_by_section(rules, facts):
+    """按章节聚合必需事实缺失项。"""
     by_section = {}
     for rule in rules:
         findings = evaluate_required_facts(rule, facts)

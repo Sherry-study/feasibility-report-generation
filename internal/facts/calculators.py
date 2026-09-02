@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Facts-stage deterministic calculators: annualization and energy conversion (dual-system)."""
+"""事实阶段确定性计算器：年化计算与标准煤/标准油双体系能耗折标。"""
 from __future__ import annotations
 import sys
 from pathlib import Path
 
 ROOT=Path(__file__).resolve().parents[2]
 sys.path.insert(0,str(ROOT))
-from internal.common import SKILL_ROOT, load_data
+from internal.common import ENGINEERING_RULES_ROOT, load_data
 from internal.domain import (
     annual_tonnes, first_product_stream, normalize_media_name, normalize_conversion_type,
     energy_rule_index, energy_steam_block, steam_alias_names, match_steam_rule, harmonize_unit,
@@ -14,6 +14,7 @@ from internal.domain import (
 
 
 def calculate_from_facts(facts, hours=None):
+    """从 facts 中读取产物流股和年运行时长，计算年产能与年物耗。"""
     if hours is None:
         hours=(facts.get('user') or {}).get('annual_operating_hours')
     if hours in (None,''):
@@ -41,17 +42,20 @@ def calculate_from_facts(facts, hours=None):
 
 
 def calculate_standalone(flow_kg_h, hours):
+    """单独计算某一小时流量的年化吨/年结果。"""
     return {'status':'calculated','annual_operating_hours':hours,'annual_t_a':annual_tonnes(flow_kg_h,hours,strict=True),'formula':'hourly_kg_h × annual_operating_hours / 1000'}
 
 
-ENERGY_RULES_PATH=SKILL_ROOT/'knowledge'/'energy_conversion_rules.json'
+ENERGY_RULES_PATH=ENGINEERING_RULES_ROOT/'energy_conversion_rules.json'
 
 
 def load_energy_rules(path=None):
+    """加载能耗折标规则；默认读取 references/engineering_rules。"""
     return load_data(Path(path) if path else ENERGY_RULES_PATH)
 
 
 def _item_quantity(x):
+    """兼容不同上游字段名，读取能耗介质实物量。"""
     for k in ('quantity','annual_quantity','amount','value'):
         if x.get(k) is not None:
             return x.get(k)
@@ -59,6 +63,7 @@ def _item_quantity(x):
 
 
 def _item_unit(x):
+    """兼容不同上游字段名，读取能耗介质单位。"""
     for k in ('unit','annual_unit','units'):
         if x.get(k):
             return x.get(k)
@@ -66,6 +71,7 @@ def _item_unit(x):
 
 
 def _item_pressure(x):
+    """读取蒸汽压力或等级匹配所需压力字段。"""
     for k in ('pressure_mpa','pressure','gauge_pressure','表压','蒸汽表压'):
         if x.get(k) not in (None,''):
             return x.get(k)
@@ -73,11 +79,11 @@ def _item_pressure(x):
 
 
 def convert(items, rules, conversion_type='standard_coal'):
-    """Deterministic energy conversion under one accounting system.
+    """在单一核算体系下执行确定性折标计算。
 
-    standard_coal -> GB/T 2589 (tce); standard_oil -> GB/T 50441 (toe).
-    Steam under standard_oil matches by trusted pressure-grade label or by
-    gauge-pressure range (GB/T 50441-2016 表3.0.8); no rounding, no LLM guesses.
+    `standard_coal` 对应 GB/T 2589（tce），`standard_oil` 对应
+    GB/T 50441（toe）。标准油体系下蒸汽按可信压力等级标签或表压范围匹配；
+    不四舍五入系数，不让 LLM 猜测。
     """
     ctype=normalize_conversion_type(conversion_type) or 'standard_coal'
     block=(rules or {}).get(ctype) or {}
@@ -177,7 +183,7 @@ def convert(items, rules, conversion_type='standard_coal'):
 
 
 def energy_conversion_from_facts(facts, rules=None):
-    """FA energy conversion from facts['energy']['consumption'] under the resolved system."""
+    """按已解析核算体系，对 facts['energy']['consumption'] 执行 FA 能耗折标。"""
     rules=rules or load_energy_rules()
     energy=facts.get('energy') or {}
     items=energy.get('consumption') or []

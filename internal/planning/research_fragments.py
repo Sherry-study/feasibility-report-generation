@@ -1,22 +1,20 @@
 #!/usr/bin/env python3
-"""Research-evidence parallel channels (mirrors draft_fragments.py).
+"""Research Evidence 分片提交与收集辅助工具。
 
-Why: research evidence generation is the last serial big block in the host
-timeline (measured: ~14 min for 13 serially searched tasks). The tasks are
-mutually independent, so the same pattern that fixed section drafting applies:
+设计目的：Research 任务彼此独立，串行检索会拖慢宿主 Agent 的完整流程。
+本模块把 `needs_research` 状态拆成固定 worker pack，并提供 submit/collect
+两个确定性动作：
 
-  needs_research exit
-    -> research_fragments/worker_contexts/research_worker_XX.json (max 2 fixed worker packs)
-    -> fixed research workers in parallel: market long-pole + general lightweight lane
-    -> --submit <fragment>  per-task validation gate -> validated/<task_id>.json
-    -> --output <research_evidence.json>  merge + full validation gate
+  needs_research
+    -> research_fragments/worker_contexts/research_worker_XX.json（最多 2 个）
+    -> 宿主并行派发 research worker
+    -> --submit <fragment> 按任务校验证据并写入 validated/<task_id>.json
+    -> --output <research_evidence.json> 合并并执行完整校验门
 
-Per-task submit reuses the *same* validation function as the final gate
-(validate_evidence.validate against a single-task payload), so strictness is
-identical — only the granularity changes. validated/ is one-file-per-task, so
-concurrent sub-agents share no mutable state.
+每个 task 的 submit 复用最终 Evidence 校验函数，只改变校验粒度，不降低
+严格性。`validated/` 采用每任务一个文件，避免并发写同一文件。
 
-CLI exit codes (mirror draft_fragments): 0 ok / 2 hard error / 4 partial coverage.
+CLI 返回码：0 通过；2 硬错误；4 覆盖不完整但已有分片合法。
 """
 import argparse, json, sys
 from pathlib import Path
@@ -32,10 +30,10 @@ DEFAULT_RESEARCH_WORKERS=2
 
 
 def _search_budget(task):
-    """Hard runtime budget exposed to the research subAgent.
+    """暴露给 research worker 的硬检索预算。
 
-    The validator still controls evidence quality/minimum_sources; this budget only
-    prevents open-ended exploration after enough evidence already exists.
+    证据质量和 minimum_sources 仍由 validator 控制；这里的预算只防止在证据
+    已经足够后继续开放式检索。
     """
     minimum=max(1,int(task.get('minimum_sources') or 1))
     rtype=str(task.get('research_type') or '')
@@ -55,6 +53,7 @@ def _search_budget(task):
 
 
 def _task_pack(task, project_id):
+    """把完整 Research task 压缩成单个 worker 可读的自包含任务包。"""
     queries=list(task.get('suggested_queries') or [])
     rtype=str(task.get('research_type') or '')
     primary_count=2 if rtype=='market_forecast' else 1
@@ -88,10 +87,9 @@ def _task_pack(task, project_id):
 
 
 def plan_research_workers(tasks_payload):
-    """Deterministic two-lane plan: market is the long pole, everything else shares one worker.
+    """确定性双通道分配：市场任务单独作为长耗时通道，其余任务共用一组。
 
-    This intentionally minimizes host dispatch decisions. With only one lane present,
-    only one worker is emitted.
+    这样宿主不需要重新规划 worker；只有一种通道存在时，只生成一个非空 worker。
     """
     tasks=list(tasks_payload.get('tasks') or [])
     market=[t for t in tasks if str(t.get('research_type'))=='market_forecast']
@@ -106,17 +104,19 @@ def plan_research_workers(tasks_payload):
 
 
 def _load(path):
+    """读取 JSON 文件；Research 分片工具只接受 JSON。"""
     return json.loads(Path(path).read_text(encoding='utf-8-sig'))
 
 
 def _safe(name):
+    """把 task_id 转成可作为文件名的稳定字符串。"""
     for ch in '\\/:*?"<>|.-':
         name=name.replace(ch,'_')
     return name
 
 
 def write_research_packs(tasks_payload, frag_dir):
-    """Emit at most two self-contained research worker packs; no redundant digest/plan files."""
+    """写入最多两个自包含 research worker pack，不生成冗余 digest/plan 文件。"""
     fdir=Path(frag_dir); cdir=fdir/'worker_contexts'; cdir.mkdir(parents=True,exist_ok=True)
     tasks=list(tasks_payload.get('tasks') or [])
     pid=tasks_payload.get('project_id')
@@ -140,7 +140,7 @@ def write_research_packs(tasks_payload, frag_dir):
 
 
 def write_research_host_workflow(tasks_payload, frag_dir, output_dir, skill_root, worker_manifest=None):
-    """Single terse host entry for first-run research."""
+    """写入宿主执行说明，作为首次 Research 的唯一入口。"""
     fdir=Path(frag_dir); outdir=Path(output_dir)
     manifest=worker_manifest or {'workers':[]}
     workers=manifest.get('workers') or []
@@ -150,7 +150,7 @@ def write_research_host_workflow(tasks_payload, frag_dir, output_dir, skill_root
       '1. **一次性并行派发全部 Research Worker**；每个 subAgent 只读自己的 worker pack。',
       '2. 严格遵守 `search_budget`：先 primary_queries；达到 minimum_sources 且足够支撑正文后立即停止；非必要不跑 fallback_queries。',
       '3. 每完成一个 task 写 evidence_<task_id>.json 并 submit；失败只修当前 task。',
-      '4. 全部完成后只 collect 一次；collect exit 0 后立即重跑 Skill。若进入 needs_llm，直接执行 Draft HOST_WORKFLOW，中间不总结、不重新规划。','',
+      '4. 全部完成后只 collect 一次；collect exit 0 后立即重新调用 chapter_planning Tool，传入 collect 产物 research_evidence.json。若返回 needs_llm，直接执行 Draft HOST_WORKFLOW，中间不总结、不重新规划。','',
       '## Worker','```'
     ]
     for w in workers:
@@ -162,14 +162,14 @@ def write_research_host_workflow(tasks_payload, frag_dir, output_dir, skill_root
       '## collect（全部 task 后一次）','```',
       f'python "{skill_root}/internal/planning/research_fragments.py" --tasks "{outdir}/research_tasks.json" --fragments-dir "{fdir}" --output "{outdir}/research_evidence.json"',
       '```','',
-      f'collect exit 0 后立即携带 `--research-evidence "{outdir}/research_evidence.json"` 重跑原 Skill 命令。'
+      f'collect exit 0 后立即重新调用 `chapter_planning` Tool，并设置 `research_evidence="{outdir}/research_evidence.json"`。'
     ]
     wf=fdir/'HOST_WORKFLOW.md'; wf.write_text('\n'.join(L)+'\n',encoding='utf-8')
     return str(wf)
 
 
 def _fragment_items(raw):
-    """Accept {"task_id":...,"items":[...]} / {"items":[...]} / bare item array."""
+    """兼容三种 Evidence 分片形态：带 task_id、仅 items、或裸数组。"""
     if isinstance(raw,dict):
         return raw.get('task_id'), list(raw.get('items') or [])
     if isinstance(raw,list):
@@ -178,9 +178,7 @@ def _fragment_items(raw):
 
 
 def submit_research(tasks_payload, frag_dir, fragment_path, mode='production'):
-    """Validate one task's evidence items against the same gate used at collect
-    time (single-task payload -> validate_evidence.validate), persist to
-    validated/<task_id>.json on success."""
+    """校验单个 task 的 Evidence，并在通过后持久化到 validated/<task_id>.json。"""
     fdir=Path(frag_dir)
     raw=_fragment_items(_load(fragment_path))
     declared_tid, items=raw
@@ -203,8 +201,7 @@ def submit_research(tasks_payload, frag_dir, fragment_path, mode='production'):
 
 
 def _collect_entries(fdir, issues):
-    """Gather per-task validated files + loose fragment files in the fragments
-    dir (contexts/ and validated/ excluded). Returns {task_id: [items]}."""
+    """收集 validated/ 与 loose fragment，返回 {task_id: [items]}。"""
     by_task={}
     seen={}
     vdir=fdir/'validated'
@@ -228,8 +225,7 @@ def _collect_entries(fdir, issues):
 
 
 def collect_research(tasks_payload, frag_dir, output_path, mode='production'):
-    """Merge validated/ + loose fragments into research_evidence.json and run
-    the full validation gate. Exit 0 / 2 (hard) / 4 (partial coverage)."""
+    """合并 Evidence 分片并执行完整校验门；返回码 0/2/4。"""
     fdir=Path(frag_dir); issues=[]
     by_task=_collect_entries(fdir,issues)
     items=[it for t in tasks_payload.get('tasks') or [] for it in by_task.get(t.get('task_id'),[]) ]
@@ -256,7 +252,7 @@ def collect_research(tasks_payload, frag_dir, output_path, mode='production'):
 
 
 def main():
-    ap=argparse.ArgumentParser()
+    ap=argparse.ArgumentParser(description='提交或收集 Research Evidence 分片。')
     ap.add_argument('--tasks',required=True)
     ap.add_argument('--fragments-dir',required=True)
     ap.add_argument('--mode',choices=['production','test'],default='production')

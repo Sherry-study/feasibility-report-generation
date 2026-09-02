@@ -1,14 +1,11 @@
 #!/usr/bin/env python3
-"""section_drafts validation.
+"""section_drafts 草稿校验。
 
-Two layers share the same per-draft rules:
-- validate_draft_entries(jobs, evidence, drafts_list, mode): per-draft checks
-  (headings / evidence binding / claims / banned terms / duplicates). Used by the
-  full-document gate below and by the incremental fragment collector
-  (internal/planning/draft_fragments.py) for fail-fast per-fragment feedback.
-- validate(jobs, evidence, drafts_doc, mode): full-document gate = header checks
-  (contract_version / project_id / test_only) + per-draft entries + coverage.
-  Signature and issue wording are unchanged from the pre-refactor contract.
+两层入口共用同一套单草稿规则：
+- validate_draft_entries(jobs, evidence, drafts_list, mode)：校验标题、证据绑定、
+  claims、内部词、重复章节等。完整文档门禁和分片收集器都会调用它。
+- validate(jobs, evidence, drafts_doc, mode)：完整文档门禁，额外检查
+  contract_version、project_id、test_only 和章节覆盖。
 """
 import argparse, json, sys
 from pathlib import Path
@@ -23,7 +20,7 @@ BAD_REPORT_PHRASES=['主要资料来源','参考资料：','商业报告口径',
 
 
 def validate_draft_entries(jobs, evidence, drafts, mode='production'):
-    """Per-draft checks on a drafts list. Returns (issues, covered_section_ids)."""
+    """逐条校验草稿列表，返回 (issues, covered_section_ids)。"""
     ev=evidence; issues=[]
     valid_ev={x.get('evidence_id') for x in ev.get('items',[])}; job_map={str(x.get('section_id')):x for x in jobs.get('jobs',[])}; seen=set()
     for i,d in enumerate(drafts or []):
@@ -57,7 +54,7 @@ def validate_draft_entries(jobs, evidence, drafts, mode='production'):
 
 
 def validate(jobs, evidence, drafts, mode='production'):
-    """Pure function entry: returns (result_dict, exit_code)."""
+    """纯函数入口，返回 (result_dict, exit_code)。"""
     dr=drafts; issues=[]
     try: production_guard(dr,'section_drafts',mode)
     except Exception as e: issues.append(str(e))

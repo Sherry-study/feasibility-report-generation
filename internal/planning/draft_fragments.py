@@ -1,20 +1,16 @@
 #!/usr/bin/env python3
-"""Incremental section-draft submission: worker packs + fragment collection.
+"""章节草稿分片提交与收集辅助工具。
 
-Why: the host LLM's single-turn output (thinking + one Write tool call) has a hard size
-ceiling; a complete section_drafts.json for a full report often exceeds it and the tool
-call gets truncated mid-JSON. The pipeline contract, however, only needs one complete
-valid file. This module assembles that file from worker batches with fail-fast
-validation, without touching any stage logic, exit-code contract or schema. The
-full-file path (--section-drafts) remains the primary interface; fragments are an
-optional assembly aid.
+设计目的：完整 `section_drafts.json` 往往超过宿主 LLM 单轮输出上限，容易在
+写入 JSON 中途被截断。业务契约只需要最终得到一个完整且通过校验的
+`section_drafts.json`，所以本模块把草稿写作拆为 worker batch，并用
+submit/collect 两个确定性动作合成最终文件。它不修改阶段状态码、Schema
+或主流程，只是辅助宿主 Agent 可靠收集草稿。
 
-Worker sizing (deterministic, no LLM): default to 3 non-empty worker packs (or fewer
-when fewer jobs exist). Jobs are assigned by greedy load balancing on slimmed context
-incremental bytes plus estimated output chars. A section remains the validation atom,
-but a worker submits one batch_worker_XX.json containing all drafts it owns.
+worker 分配是确定性的：默认最多 3 个非空 worker pack。章节仍是最小校验
+单元；一个 worker 可以提交包含多个章节的 `batch_worker_XX.json`。
 
-CLI (also usable standalone by the host):
+常用 CLI：
   plan:    python internal/planning/draft_fragments.py --plan --jobs llm_jobs.json \
                 --output draft_fragments/batch_plan.json
   collect: python internal/planning/draft_fragments.py --jobs llm_jobs.json \
@@ -26,26 +22,11 @@ CLI (also usable standalone by the host):
                 --evidence research_evidence.json --fragments-dir draft_fragments \
                 --submit draft_1_2.json
 
-Fragment file format (draft_fragments/batch_worker_01.json, legacy batch_01.json ...):
-either a bare JSON array of draft objects, {"drafts": [...]}, or a single draft object.
-Any *.json in the directory is collected (sorted by name); batch_plan.json itself is
-skipped. The worker plan is advisory guidance for the host, not enforced at collect time.
+分片文件可为裸 JSON 数组、`{"drafts": [...]}`，或单个 draft object。
+submit 通过的章节会写入 `draft_fragments/validated/<section_id>.json`；
+collect 时 submitted 版本优先，并在 `shadowed` 中记录被覆盖的原始分片。
 
-Submission channel (parallel sub-agent drafting): --submit validates one draft or a
-worker batch immediately and persists each accepted section to
-draft_fragments/validated/<section_id>.json. Validation is the same
-validate_draft_entries gate collect uses; accepted files are not re-validated at
-collect time (only the final merged-document gate covers the assembled whole).
-One file per section_id means concurrent submitters share no mutable state — no
-locks needed. A section present both as a raw fragment and under validated/ is
-resolved in favour of the submitted one and reported in `shadowed`.
-
-Exit codes (local to this utility, disjoint from pipeline stage codes):
-  0  complete: every job section covered, merged+validated section_drafts.json written
-     (check/submit: the file passed the same hard validation gate)
-  2  invalid:  one or more fragments failed hard validation (issue names file+section)
-  4  partial: fragments valid so far but coverage incomplete (missing list reported;
-               keep writing the remaining batches and rerun)
+CLI 返回码：0 完成或校验通过；2 存在硬错误；4 当前分片合法但覆盖不完整。
 """
 from __future__ import annotations
 import argparse, json, sys
@@ -64,7 +45,7 @@ DEFAULT_WORKER_COUNT=3
 
 
 def _section_char_budget(section_id):
-    """Target Chinese prose budget per section; keeps worker generations concise."""
+    """每节中文正文长度目标，用于约束 worker 输出不要膨胀。"""
     sid=str(section_id)
     budgets={
       '1.1.2':450, '1.1.3':650, '1.2':900,
@@ -77,29 +58,34 @@ def _section_char_budget(section_id):
 
 
 def _estimate(job):
-    """Estimated output chars used for worker load balancing."""
+    """估算章节输出字符数，供 worker 负载均衡使用。"""
     return _section_char_budget(job.get('section_id'))
 
 
 def _stable_json(value):
+    """生成稳定 JSON 字符串，用于去重和比较。"""
     return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
 
 
 def _json_bytes(value):
+    """估算 JSON 落盘字节数，辅助控制 worker pack 体积。"""
     return len(json.dumps(value, ensure_ascii=False, indent=2).encode('utf-8'))
 
 
 def _path_depth(path):
+    """计算 fact path 深度，父路径优先进入共享上下文仓库。"""
     return len([x for x in str(path).split('.') if x])
 
 
 def _is_parent_path(parent, child):
+    """判断 parent 是否为 child 的同一路径或父路径。"""
     parent=str(parent)
     child=str(child)
     return parent == child or child.startswith(parent + '.')
 
 
 def _values_for_token(value, token):
+    """解析上下文路径 token，支持 `[]` 数组展开。"""
     is_array=token.endswith('[]')
     key=token[:-2] if is_array else token
     if isinstance(value,dict):
@@ -116,6 +102,7 @@ def _values_for_token(value, token):
 
 
 def _resolve_selector(value, selector):
+    """在已存父路径值上解析 selector，避免重复存储相同大对象。"""
     if not selector:
         return value
     values=[value]
@@ -130,12 +117,14 @@ def _resolve_selector(value, selector):
 
 
 def _selector(parent_path, child_path):
+    """从父路径和子路径得到相对 selector。"""
     if str(parent_path)==str(child_path):
         return ''
     return str(child_path)[len(str(parent_path))+1:]
 
 
 def _job_context_entries(job):
+    """提取一个章节任务中可共享的上下文条目。"""
     pack=_pack_for(job)
     entries=[]
     for scope in ('chapter_context','project_context'):
@@ -148,6 +137,7 @@ def _job_context_entries(job):
 
 
 def _find_context_item(items, path, value):
+    """在共享上下文仓库中查找相同值或可覆盖该值的父路径。"""
     value_key=_stable_json(value)
     for item in items:
         if item['_value_key']==value_key:
@@ -163,6 +153,7 @@ def _find_context_item(items, path, value):
 
 
 def _build_context_store(section_jobs):
+    """为一组章节构建去重后的共享上下文仓库和章节引用。"""
     all_entries=[]
     by_section={}
     for job in section_jobs:
@@ -220,10 +211,12 @@ def _build_context_store(section_jobs):
 
 
 def _evidence_key(item):
+    """生成 Evidence 去重键，优先使用 evidence_id。"""
     return str(item.get('evidence_id') or _stable_json(item))
 
 
 def _build_evidence_store(section_jobs):
+    """为 worker pack 构建共享 Evidence 仓库和章节引用。"""
     items=[]
     refs_by_section={}
     index={}
@@ -244,6 +237,7 @@ def _build_evidence_store(section_jobs):
 
 
 def _job_open_items(job):
+    """收集章节上下文中的 open_items，供兼容旧调用点使用。"""
     items=[]
     seen=set()
     for scope in ('chapter_context','project_context'):
@@ -257,6 +251,7 @@ def _job_open_items(job):
 
 
 def _common_output_contract(project_id, section_ids):
+    """生成 worker 输出契约，约束 draft JSON 形态。"""
     return {
         'file_shape':{
             'contract_version':'1.0',
@@ -274,6 +269,7 @@ def _common_output_contract(project_id, section_ids):
 
 
 def _build_worker_pack(jobs_payload, worker_id, section_jobs):
+    """构建单个 draft worker 的自包含上下文包。"""
     ordered=sorted(section_jobs, key=lambda j: str(j.get('_worker_order', '')))
     section_ids=[str(j.get('section_id')) for j in ordered]
     context_items,context_refs=_build_context_store(ordered)
@@ -313,11 +309,13 @@ def _build_worker_pack(jobs_payload, worker_id, section_jobs):
 
 
 def _worker_load(jobs_payload, worker_id, jobs):
+    """估算某 worker 当前任务包的总负载。"""
     pack=_build_worker_pack(jobs_payload, worker_id, jobs)
     return _json_bytes(pack)+sum(_estimate(j) for j in jobs)
 
 
 def _job_ordered_copy(jobs):
+    """给 jobs 增加稳定顺序键，保证分配结果可复现。"""
     copied=[]
     for i,job in enumerate(jobs):
         item=dict(job)
@@ -327,7 +325,7 @@ def _job_ordered_copy(jobs):
 
 
 def plan_worker_batches(jobs_payload, worker_count=DEFAULT_WORKER_COUNT):
-    """Deterministic worker plan from an llm_jobs payload. Pure function."""
+    """从 llm_jobs payload 生成确定性 worker 分配计划。"""
     jobs=_job_ordered_copy(jobs_payload.get('jobs') or [])
     if not jobs:
         return {
@@ -382,12 +380,12 @@ def plan_worker_batches(jobs_payload, worker_count=DEFAULT_WORKER_COUNT):
 
 
 def plan_batches(jobs_payload, max_sections=MAX_SECTIONS_PER_BATCH, char_target=BATCH_CHAR_TARGET, char_min=BATCH_CHAR_MIN, workers=DEFAULT_WORKER_COUNT):
-    """Compatibility wrapper: default planning now returns worker batches."""
+    """兼容入口：默认返回 worker batch 分配计划。"""
     return plan_worker_batches(jobs_payload, worker_count=workers)
 
 
 def plan_section_batches(jobs_payload, max_sections=MAX_SECTIONS_PER_BATCH, char_target=BATCH_CHAR_TARGET, char_min=BATCH_CHAR_MIN):
-    """Legacy top-level-chapter batch plan. Kept for callers that need old guidance."""
+    """旧版按大章节分批的计划函数，仅保留给兼容调用点。"""
     jobs=[j for j in (jobs_payload.get('jobs') or [])]
     def chapter(sid): return str(sid).split('.',1)[0]
     groups=[]
@@ -395,7 +393,7 @@ def plan_section_batches(jobs_payload, max_sections=MAX_SECTIONS_PER_BATCH, char
         ch=chapter(j.get('section_id'))
         if groups and groups[-1][0]==ch: groups[-1][1].append(j)
         else: groups.append((ch,[j]))
-    # Greedy merge of adjacent chapter groups under the size/section ceilings.
+    # 在章节数和字符预算内贪心合并相邻大章节。
     batches=[]
     for ch,items in groups:
         est=sum(_estimate(j) for j in items); count=len(items)
@@ -403,13 +401,13 @@ def plan_section_batches(jobs_payload, max_sections=MAX_SECTIONS_PER_BATCH, char
             b=batches[-1]; b['sections']+=count; b['est_chars']+=est; b['section_ids'].extend(str(j.get('section_id')) for j in items)
         else:
             batches.append({'sections':count,'est_chars':est,'section_ids':[str(j.get('section_id')) for j in items]})
-    # Split any oversized batch (a chapter group larger than the ceiling).
+    # 超出上限的大章节组继续拆分。
     final=[]
     for b in batches:
         ids=b['section_ids']
         if b['sections']<=max_sections: final.append(ids); continue
         for i in range(0,len(ids),max_sections): final.append(ids[i:i+max_sections])
-    # Post-pass: absorb lone-section batches into a neighbour when ceilings allow.
+    # 后处理：预算允许时，将孤立单节并入相邻 batch。
     merged=[]
     for ids in final:
         if merged and (len(ids)==1 or sum(_estimate(j) for j in jobs if str(j.get('section_id')) in ids)<char_min):
@@ -429,18 +427,11 @@ PACK_PATH_CHAR_LIMIT=48000
 
 
 def _slim(value):
-    """Deterministic slimming of a bound context value for host-facing packs.
+    """对宿主可见上下文做确定性瘦身。
 
-    Drops keys that never feed report prose: `_meta` (internal provenance,
-    forbidden in body text anyway), `composition` (per-stream component detail
-    rendered by the table layer, not narrative input), `streams` (the full
-    intermediate-stream register; narrative sections consume external feeds /
-    product streams / equipment keys, and stream-level numbers reach the report
-    through tables and topology paragraphs), `report_rows` (table-layer rows
-    rendered by report_tables from the facts directly) and `solution_sets`
-    (algorithm-internal iteration states the Hard Rules exclude from prose).
-    No guessing, no summarizing — only removal of structurally identified
-    noise; the untrimmed values remain in llm_jobs.json.
+    只移除正文不消费的结构性噪声：`_meta`、`composition`、`streams`、
+    `report_rows`、`solution_sets`。不猜测、不摘要、不改写事实；完整值
+    仍保留在 `llm_jobs.json` 中。
     """
     if isinstance(value,dict):
         return {k:_slim(v) for k,v in value.items() if k not in PACK_SLIM_KEYS}
@@ -450,7 +441,7 @@ def _slim(value):
 
 
 def _pack_for(j):
-    """Build the host-facing pack from a job: deep-copied, context-slimmed."""
+    """从单个 job 生成宿主可见 pack：深拷贝并瘦身上下文。"""
     import copy
     pack=copy.deepcopy(j)
     if pack.get('chapter_context') is pack.get('project_context'):
@@ -461,16 +452,14 @@ def _pack_for(j):
             slimmed={}
             for k,v in ctx['paths'].items():
                 s=_slim(v)
-                # Size backstop: a path still exceeding the limit after slimming gets
-                # its long arrays truncated (keeping order) rather than silently
-                # ballooning the pack; untrimmed values remain in llm_jobs.json.
+                # 体积兜底：瘦身后仍超限的长数组按顺序截断，避免 pack 膨胀；
+                # 未截断完整值仍保留在 llm_jobs.json。
                 if len(json.dumps(s,ensure_ascii=False))>PACK_PATH_CHAR_LIMIT and isinstance(s,list):
                     s=s[:50]+[{'_truncated':True,'note':'列表已截断，完整数据见 llm_jobs.json 同章节'}]
                 slimmed[k]=s
             ctx['paths']=slimmed
-    # Dedupe: project_context repeats the chapter-level bindings verbatim in every
-    # job (it is what makes llm_jobs.json carry the same payload N times). In the
-    # pack, a project path identical to its chapter-level twin is dropped.
+    # 去重：project_context 往往逐节重复 chapter_context 中的同值路径，
+    # pack 内删除完全相同的项目级路径引用，避免 N 次重复携带。
     cc=pack.get('chapter_context'); pc=pack.get('project_context')
     if isinstance(cc,dict) and isinstance(pc,dict) and isinstance(cc.get('paths'),dict) and isinstance(pc.get('paths'),dict):
         pc['paths']={k:v for k,v in pc['paths'].items() if not (k in cc['paths'] and cc['paths'][k]==v)}
@@ -478,20 +467,10 @@ def _pack_for(j):
 
 
 def write_context_packs(jobs_payload, frag_dir):
-    """Legacy split: llm_jobs -> one self-contained context pack per section + digest.
+    """旧版拆分：一个章节一个上下文包并生成 digest。
 
-    Why: the host LLM drafting one section only needs ~2% of llm_jobs.json /
-    confirmed_project_facts.json; making each agent read the full files costs
-    context budget and blocks parallel sub-agent drafting. Each pack
-    (draft_fragments/contexts/job_<section_id>.json, '.' replaced by '_') embeds
-    the system instruction, the facts-bound chapter context (slimmed: internal
-    provenance and per-stream composition detail are stripped — the narrative
-    never consumes them), research evidence, allowed headings, required
-    structure and the output contract. draft_fragments/digest.md lists one line
-    per section for batch planning without parsing the full jobs file.
-    llm_jobs.json itself is left untouched (contract artifact, full fidelity).
-
-    Pure function; caller (stage 3, on needs_llm exit) owns persistence order.
+    当前主流程使用 worker pack；本函数保留给旧调用点。它不修改
+    `llm_jobs.json`，只在 `draft_fragments/contexts/` 生成节级包。
     """
     fdir=Path(frag_dir); cdir=fdir/'contexts'; cdir.mkdir(parents=True,exist_ok=True)
     jobs=jobs_payload.get('jobs') or []
@@ -513,7 +492,7 @@ def write_context_packs(jobs_payload, frag_dir):
 
 
 def write_worker_packs(jobs_payload, frag_dir, worker_count=DEFAULT_WORKER_COUNT):
-    """Write only the worker packs needed by the host; no redundant digest/manifest files."""
+    """只写宿主需要的 worker pack，不生成冗余 digest/manifest 文件。"""
     fdir=Path(frag_dir); cdir=fdir/'worker_contexts'; cdir.mkdir(parents=True,exist_ok=True)
     plan=plan_worker_batches(jobs_payload, worker_count=worker_count)
     jobs_by_id={str(j.get('section_id')):dict(j, _worker_order=f'{i:06d}') for i,j in enumerate(jobs_payload.get('jobs') or [])}
@@ -541,7 +520,7 @@ def write_worker_packs(jobs_payload, frag_dir, worker_count=DEFAULT_WORKER_COUNT
 
 
 def write_host_workflow(jobs_payload, frag_dir, output_dir, evidence_path, skill_root, worker_manifest=None):
-    """Single host entry for parallel draft workers; intentionally terse."""
+    """写入宿主并行 draft worker 执行说明，作为 needs_llm 后的唯一入口。"""
     fdir=Path(frag_dir); fdir.mkdir(parents=True,exist_ok=True)
     jobs=jobs_payload.get('jobs') or []
     outdir=Path(output_dir)
@@ -553,7 +532,7 @@ def write_host_workflow(jobs_payload, frag_dir, output_dir, evidence_path, skill
       '1. **一次性并行派发全部 worker**。每个 subAgent 只读取自己的 worker pack；生成对应 batch JSON；然后执行一次 submit。',
       '2. worker pack 内 `length_budget_chars` 是正文长度上限目标：优先精炼，不重复表格数字，不输出 claims/open_items。',
       '3. submit 部分失败时只重写 `retry_sections`，已通过章节不得返工。',
-      '4. 全部 worker 完成后只运行一次 collect；collect exit 0 后立即携带 section_drafts.json 重跑 Skill 到最终报告，中间不总结、不重新规划。','',
+      '4. 全部 worker 完成后只运行一次 collect；collect exit 0 后立即重新调用 chapter_planning Tool，传入 collect 产物 section_drafts.json，再进入最终报告生成，中间不总结、不重新规划。','',
       '## Worker','```'
     ]
     for b in batches:
@@ -565,18 +544,17 @@ def write_host_workflow(jobs_payload, frag_dir, output_dir, evidence_path, skill
       '## collect（全部 worker 后一次）','```',
       f'python "{skill_root}\\internal\\planning\\draft_fragments.py" --output-dir "{outdir}" --fragments-dir "{fdir}" --output "{outdir}\\section_drafts.json"',
       '```','',
-      f'collect exit 0 后立即用 `--section-drafts "{outdir}\\section_drafts.json"` 重跑原 Skill 命令。'
+      f'collect exit 0 后立即重新调用 `chapter_planning` Tool，并设置 `section_drafts="{outdir}\\section_drafts.json"`。'
     ]
     wf=fdir/'HOST_WORKFLOW.md'; wf.write_text('\n'.join(L)+'\n',encoding='utf-8')
     return str(wf)
 
 
 def _fragment_entries(path):
-    """Load one fragment file -> drafts list. Raises ValueError with file context.
+    """读取一个草稿分片并返回 drafts 列表。
 
-    Accepts a bare JSON array of drafts, {"drafts": [...]}, or a single draft
-    object ({"section_id": ...}) — the last form is the natural output of a
-    per-section submission.
+    兼容裸数组、`{"drafts": [...]}`、单个 draft object 三种形态；
+    异常信息携带文件名，便于宿主定位失败分片。
     """
     try:
         data=json.loads(path.read_text(encoding='utf-8-sig'))
@@ -594,10 +572,10 @@ def _fragment_entries(path):
 
 
 def validate_fragment(jobs_payload, evidence, path, mode='production'):
-    """Validate a single draft/fragment file. No state change, no merging.
+    """只校验单个草稿/分片文件，不落盘、不合并。
 
-    Same gate collect applies per fragment (production guard + validate_draft_entries).
-    Returns (result_dict, exit_code): 0 valid, 2 invalid (issues name the file).
+    使用与 collect 相同的 production guard 和 validate_draft_entries 规则；
+    返回 `(result_dict, exit_code)`。
     """
     p=Path(path)
     try: entries=_fragment_entries(p)
@@ -610,14 +588,11 @@ def validate_fragment(jobs_payload, evidence, path, mode='production'):
 
 
 def submit(fragments_dir, jobs_payload, evidence, path, mode='production'):
-    """Validate a worker batch section-by-section and persist every passing draft.
+    """按章节校验 worker batch，并持久化每个通过的草稿。
 
-    V0.14.8 changes failure semantics only, not the validation gate: one bad section
-    no longer discards 4-6 already-good sections from the same worker batch. Each
-    entry is checked by the same production guard + validate_draft_entries rules.
-    The command returns exit 2 when any section fails, but `accepted_sections` have
-    already been persisted and must NOT be regenerated; `retry_sections` names only
-    the drafts that need repair.
+    部分失败时不丢弃同 batch 中已通过章节。命令仍返回 2 提醒修复，
+    但 `accepted_sections` 已落盘且不得重写；`retry_sections` 只列出
+    需要修正的章节。
     """
     p=Path(path)
     try:
@@ -659,18 +634,11 @@ def submit(fragments_dir, jobs_payload, evidence, path, mode='production'):
     return {'status':'accepted','issues':[],'file':str(p),'submitted':accepted,'accepted_sections':accepted,'retry_sections':[],'validated_dir':str(vdir)},0
 
 def collect(fragments_dir, jobs_payload, evidence, mode='production'):
-    """Merge fragments -> per-fragment validation -> coverage check.
+    """合并分片、执行分片校验和覆盖检查。
 
-    Two input channels, same validation gate:
-      * raw fragments (draft_fragments/*.json): validated here, per file;
-      * per-section submissions (draft_fragments/validated/<sid>.json): already
-        passed the identical gate at --submit time, so they are only re-checked
-        by the production guard here; the final merged-document gate covers the
-        assembled whole. When a section exists in both channels, the submitted
-        version wins and the shadowed raw fragment is reported.
-    A missing section can be delivered through either channel.
-
-    Returns (result_dict, exit_code). exit 0/2/4 as documented in the module docstring.
+    raw fragments 与 validated/ 两条输入通道使用同一套校验规则；
+    同一章节同时存在时，submitted 版本优先，原始分片记录到 `shadowed`。
+    返回 `(result_dict, exit_code)`，返回码见模块说明。
     """
     fdir=Path(fragments_dir)
     issues=[]; collected={}; docs={}; files=[]; shadowed=[]
@@ -719,7 +687,7 @@ def collect(fragments_dir, jobs_payload, evidence, mode='production'):
 
 
 def main():
-    ap=argparse.ArgumentParser(description='Incremental section-draft worker batches: plan + collect.')
+    ap=argparse.ArgumentParser(description='章节草稿 worker 分片：计划、校验、提交与收集。')
     ap.add_argument('--jobs'); ap.add_argument('--evidence'); ap.add_argument('--fragments-dir'); ap.add_argument('--output')
     ap.add_argument('--output-dir',help='便捷参数：从 run_summary.json 自动定位 llm_jobs/research_evidence')
     ap.add_argument('--mode',choices=['production','test'],default='production')

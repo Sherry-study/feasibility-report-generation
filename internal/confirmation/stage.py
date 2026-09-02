@@ -1,3 +1,9 @@
+"""阶段②：关键事实确认与确认后事实基线冻结。
+
+本模块是 `engineering_confirmation` Tool 的进程内实现。它只做三件事：
+补足确定性年化/能耗计算、生成供用户确认的关键事实材料、在用户确认后
+把确认值合并回 `confirmed_project_facts.json`。确认前不得进入章节正文生成。
+"""
 from __future__ import annotations
 
 from copy import deepcopy
@@ -12,6 +18,7 @@ from internal.facts.calculators import calculate_from_facts, energy_conversion_f
 
 
 def _first_value(obj, keys):
+    """从多个候选字段中取第一个非空值，兼容不同上游 FA 字段命名。"""
     if not isinstance(obj, dict):
         return None
     for key in keys:
@@ -24,6 +31,7 @@ def _first_value(obj, keys):
 
 
 def _metric(value, unit, basis, source_status=None):
+    """统一经济指标的确认单形态，避免缺值被正文误当成可用数值。"""
     return {
         'value': value,
         'unit': unit,
@@ -34,6 +42,7 @@ def _metric(value, unit, basis, source_status=None):
 
 
 def _economic_summary(facts):
+    """抽取投资/收益/回收期/IRR 摘要；只搬运已有值，不做推算。"""
     fa = facts.get('fa') or {}
     investment = fa.get('investment') or facts.get('investment') or {}
     finance = fa.get('finance') or facts.get('finance') or {}
@@ -82,6 +91,7 @@ def _economic_summary(facts):
 
 
 def _label(obj):
+    """生成确认单中的设备显示名，优先使用位号和名称。"""
     tag = str(obj.get('tag') or '').strip()
     name = str(obj.get('name') or '').strip()
     if tag and name:
@@ -90,6 +100,7 @@ def _label(obj):
 
 
 def _action_description(row):
+    """把设备动作分组转换成人可确认的工程描述。"""
     if not isinstance(row, dict):
         return None
     if row.get('confirmed_retrofit_description'):
@@ -121,6 +132,7 @@ def _action_description(row):
 
 
 def _status_for_row(row):
+    """把算法动作分组归入报告可使用的设备状态分类。"""
     if row.get('confirmed_retrofit_status'):
         return row.get('confirmed_retrofit_status')
     ag = row.get('action_group')
@@ -143,6 +155,7 @@ def _status_for_row(row):
 
 
 def _equipment_summary(facts):
+    """合并设备目录、拓扑节点和报告行，形成完整设备确认清单。"""
     eq = facts.get('equipment') or {}
     rows = []
     action_rows = []
@@ -160,6 +173,7 @@ def _equipment_summary(facts):
 
     objects = {}
     def add_obj(x, source):
+        """按 equipment_id 合并同一设备在不同事实源中的基础属性。"""
         if not isinstance(x, dict):
             return
         rid = str(x.get('id') if x.get('id') is not None else x.get('equipment_id') or '')
@@ -202,12 +216,14 @@ def _equipment_summary(facts):
 
 
 def _retrofit_points(facts, equipment_summary):
+    """从设备动作和已确认方案中提取项目级改造点。"""
     points = []
     seen = set()
     labels = {str(x.get('equipment_id')): _label(x) for x in equipment_summary}
     eq = facts.get('equipment') or {}
 
     def add(ptype, desc, ids=None, source=None):
+        """去重后追加改造点，保持后续确认单稳定。"""
         desc = str(desc or '').strip()
         if not desc:
             return
@@ -279,15 +295,16 @@ def _pending_user_inputs(facts):
         })
 
     if not (project.get('construction_unit') or user.get('construction_unit') or user.get('owner')):
-        add('construction_unit','未提供（保留缺口）','--construction-unit 传入后重跑阶段①')
+        add('construction_unit','未提供（保留缺口）','通过 engineering_facts Tool 的 construction_unit 或 user_inputs 补充后重新生成事实')
     if user.get('annual_operating_hours') in (None,''):
-        add('annual_operating_hours','未提供（年化指标将保持缺口）','--annual-operating-hours 传入后重跑阶段①')
+        add('annual_operating_hours','未提供（年化指标将保持缺口）','通过 engineering_facts Tool 的 annual_operating_hours 或 user_inputs 补充后重新生成事实')
     if (project.get('project_name_source') or 'default') in ('workspace_dir','default'):
-        add('project_name',f"当前为占位名：{project.get('project_name')}",'--project-name 传入后重跑阶段①')
+        add('project_name',f"当前为占位名：{project.get('project_name')}",'通过 engineering_facts Tool 的 project_name 或 user_inputs 补充后重新生成事实')
     return pending
 
 
 def build_report_confirmation(facts):
+    """生成用户确认用 JSON：推荐方案、经济摘要、设备清单和改造点。"""
     project = facts.get('project') or {}
     adopted = facts.get('adopted_scheme') or {}
     equipment = _equipment_summary(facts)
@@ -323,6 +340,7 @@ def _merge(target, patch):
 
 
 def apply_confirmation(facts, confirmation, response=None, confirm_as_is=False):
+    """应用用户确认响应，并冻结后续章节生成使用的事实基线。"""
     response = response or {}
     if not confirm_as_is:
         if response.get('contract_version') not in (None, '1.0'):
@@ -377,8 +395,8 @@ def apply_confirmation(facts, confirmation, response=None, confirm_as_is=False):
             raise ValueError('changes.retrofit_points 必须为 array')
         confirmed['retrofit_points'] = deepcopy(changes['retrofit_points'])
 
-    # A value explicitly confirmed by the user becomes an available confirmed metric;
-    # missing values remain pending and must not be synthesized by the LLM.
+    # 用户明确确认的经济指标才转为可用；仍缺失的指标继续保持 pending，
+    # 后续 LLM 草稿不得把 pending 指标补造成金额或评价结论。
     for metric in (confirmed.get('economic_summary') or {}).values():
         if isinstance(metric, dict):
             if metric.get('value') is not None:
@@ -432,6 +450,7 @@ def apply_confirmation(facts, confirmation, response=None, confirm_as_is=False):
 
 
 def render_confirmation_markdown(confirmation):
+    """渲染给用户看的确认单 Markdown，便于人工确认或修正。"""
     def metric_line(label, item):
         item=item or {}
         value=item.get('value')
@@ -469,7 +488,7 @@ def render_confirmation_markdown(confirmation):
         lines += [f"- {x.get('description')}" for x in points]
     else:
         lines.append('- 当前未形成可确认的结构化改造点。')
-    lines += ['', '> 请确认以上内容。未形成的经济指标保持“待计算”，不得由大模型补造；上文“未提供的项目信息”经您确认后保留缺口，后续可随时补充并重跑。']
+    lines += ['', '> 请确认以上内容。未形成的经济指标保持“待计算”，不得由大模型补造；上文“未提供的项目信息”经您确认后保留缺口，后续可通过对应 MCP Tool 补充并重新推进。']
     return '\n'.join(lines)+'\n'
 
 
@@ -477,7 +496,7 @@ def render_confirmation_markdown(confirmation):
 
 
 def merge_annualization(facts, result):
-    # Copied from run_skill.py (do not modify the original file).
+    """把年化计算结果回写到 facts['fa']，并清理对应 gap。"""
     if result.get('status')!='calculated': return facts
     hours=result.get('annual_operating_hours'); facts.setdefault('user',{})['annual_operating_hours']=hours
     facts.setdefault('fa',{})['annual_capacity']={'status':'calculated','annual_operating_hours':hours,**(result.get('annual_capacity') or {})}
@@ -487,7 +506,7 @@ def merge_annualization(facts, result):
 
 
 def merge_energy_conversion(facts, result):
-    """Write the FA energy-conversion result back into facts['fa']['energy_conversion']."""
+    """把 FA 能耗折标结果回写到 facts['fa']['energy_conversion']。"""
     if not isinstance(result, dict):
         return facts
     facts.setdefault('fa',{})['energy_conversion']=deepcopy(result)
@@ -495,26 +514,25 @@ def merge_energy_conversion(facts, result):
 
 
 def run_confirmation_stage(args, output_dir):
-    """Run stage 2: annualization + merge + confirmation gate/apply.
+    """执行阶段②，返回 (exit_code, summary_dict)，不直接打印结果。
 
-    Mirrors run_skill.py L110-139. The file pointed to by args.facts is
-    rewritten in place with the merged annualization results, exactly like the
-    legacy path. Returns (exit_code, summary_dict) without printing.
+    `args.facts` 指向的事实文件会被确定性年化和能耗折标结果原位补充；
+    真正进入报告正文前，必须先得到用户确认或有效 confirmation_response。
     """
     out=Path(output_dir).resolve(); out.mkdir(parents=True,exist_ok=True)
     facts_path=Path(args.facts).resolve()
 
-    # FA annualization is a real Tool, not hidden inside fact resolution.
+    # FA 年化是独立确定性能力，不隐藏在事实整理阶段里。
     annual=out/'annualization_result.json'
     ar=calculate_from_facts(load_data(facts_path)); dump_json(ar,annual)
     fdata=merge_annualization(load_data(facts_path),ar); dump_json(fdata,facts_path)
 
-    # FA energy conversion is a real deterministic Tool (dual-system rules).
+    # FA 能耗折标是独立确定性能力，遵守标准煤/标准油双体系规则。
     energy=out/'energy_conversion_result.json'
     er=energy_conversion_from_facts(load_data(facts_path)); dump_json(er,energy)
     fdata=merge_energy_conversion(load_data(facts_path),er); dump_json(fdata,facts_path)
 
-    # Pre-writing key-fact confirmation is a required human gate.
+    # 报告撰写前的人审确认门：确认缺失时只返回 needs_confirmation。
     confirmation=out/'report_confirmation.json'
     confirmation_data=build_report_confirmation(load_data(facts_path)); dump_json(confirmation_data,confirmation)
     confirmation_md=out/'report_confirmation.md'; confirmation_md.write_text(render_confirmation_markdown(confirmation_data),encoding='utf-8')
@@ -525,7 +543,7 @@ def run_confirmation_stage(args, output_dir):
             'report_confirmation':str(confirmation),'report_confirmation_markdown':str(confirmation_md),
             'report_confirmation_schema':str(SKILL_ROOT/'schemas/report_confirmation.schema.json'),
             'confirmation_response_schema':str(SKILL_ROOT/'schemas/report_confirmation_response.schema.json'),
-            'next_action':'Present recommended scheme, economic summary, full equipment list and retrofit points to the user. After explicit confirmation, rerun with --confirm-as-is or --confirmation-response.',
+            'next_action':'请把推荐方案、经济摘要、完整设备清单和改造点展示给用户。用户明确确认后，再次调用 engineering_confirmation Tool，并设置 confirm_as_is=true 或传入 confirmation_response 用户响应文件。',
             'confirmation':confirmation_data,
         }
     response_data=load_data(confirmation_response) if confirmation_response else {}
@@ -535,7 +553,7 @@ def run_confirmation_stage(args, output_dir):
         return EXIT_NEEDS_CONFIRMATION, {
             'status':'confirmation_invalid','resume_exit_code':EXIT_NEEDS_CONFIRMATION,
             'report_confirmation':str(confirmation),'confirmation_response':str(confirmation_response) if confirmation_response else None,
-            'error':str(exc),'next_action':'Correct the confirmation response and rerun.',
+            'error':str(exc),'next_action':'请修正 confirmation_response 后，再次调用 engineering_confirmation Tool，并将 confirmation_response 指向修正后的文件。',
             'confirmation':confirmation_data,
         }
     confirmed_facts=out/'confirmed_project_facts.json'; dump_json(confirmed_facts_data,confirmed_facts)
