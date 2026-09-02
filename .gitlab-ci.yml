@@ -9,7 +9,7 @@
 variables:
   UV_CACHE_DIR: $CI_PROJECT_DIR/.uv-cache
   MCP_HOST: "0.0.0.0"
-  MCP_PORT: "8000"
+  MCP_PORT: "8013"
 
 # uv 包缓存，加速后续 pipeline
 cache:
@@ -50,8 +50,15 @@ deploy:mcp-server:
     - sleep 1
     # setsid 新建会话并重定向全部标准流，彻底脱离终端，否则 job 永不结束
     - setsid uv run python -m mcp_server > mcp-server.log 2>&1 < /dev/null &
-    - sleep 3
-    # 验证服务是否启动成功：检查端口是否处于监听状态
+    # 增加等待时间，循环检查直到端口监听（最多 15 秒）
+    - |
+      for i in {1..15}; do
+        if fuser ${MCP_PORT}/tcp >/dev/null 2>&1; then
+          break
+        fi
+        sleep 1
+      done
+    # 验证服务是否启动成功
     - |
       if fuser ${MCP_PORT}/tcp >/dev/null 2>&1; then
         echo "[SUCCESS] FastMCP 服务已成功启动，监听端口 ${MCP_PORT}"
