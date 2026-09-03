@@ -21,7 +21,7 @@ from internal.planning.llm_jobs import build_jobs, compact_jobs_for_validation
 from internal.planning.draft_fragments import write_host_workflow, write_worker_packs
 from internal.planning.research_fragments import write_research_packs, write_research_host_workflow
 from internal.planning.validate_evidence import validate as validate_evidence
-from internal.report.validate_drafts import validate as validate_drafts, validate_draft_entries
+from internal.report.validate_drafts import validate as validate_drafts
 
 
 PLANNING_DEPENDENCIES=(
@@ -63,10 +63,6 @@ def _planning_fingerprint(profile_data, facts_data, args):
         'run_mode':getattr(args,'run_mode',None),
         'skip_user_inputs':bool(getattr(args,'skip_user_inputs',False)),
     }
-
-
-def _fingerprint_sha(fingerprint):
-    return data_digest(fingerprint)
 
 
 def _artifact_digest(path):
@@ -152,7 +148,7 @@ def _worker_performance_from_summary(perf):
 def _load_current_worker_performance(out, fingerprint):
     """只复用同一 planning fingerprint 下已落盘的 worker 指标。"""
     path=out/'performance_summary.json'
-    expected=_fingerprint_sha(fingerprint)
+    expected=data_digest(fingerprint)
     try:
         perf=load_data(path)
     except Exception:
@@ -162,173 +158,6 @@ def _load_current_worker_performance(out, fingerprint):
     return _worker_performance_from_summary(perf)
 
 
-def _job_digest(job):
-    return data_digest(job)
-
-
-def _empty_research_evidence(project_id, mode):
-    payload={'contract_version':'1.0','project_id':project_id,'items':[]}
-    if mode=='test':
-        payload['test_only']=True
-    return payload
-
-
-def _early_jobs_payload(profile_data, plan_data, facts_data, tasks_payload, mode):
-    empty_evidence=_empty_research_evidence(tasks_payload.get('project_id'),mode)
-    candidate_payload=build_jobs(profile_data,plan_data,facts_data,tasks_payload,empty_evidence)
-    early=[]
-    for job in candidate_payload.get('jobs') or []:
-        sid=str(job.get('section_id'))
-        if sid=='1.2':
-            continue
-        if job.get('plan_status')=='summary_gate':
-            continue
-        if job.get('research_task_ids'):
-            continue
-        early.append(job)
-    return {
-        'contract_version':'1.0',
-        'project_id':candidate_payload.get('project_id'),
-        'jobs':early,
-        'skipped_sections':candidate_payload.get('skipped_sections') or [],
-    }
-
-
-def _write_early_draft_inputs(out, fingerprint, early_payload, mode):
-    early_dir=out/'draft_fragments'/'early'
-    early_dir.mkdir(parents=True,exist_ok=True)
-    compact=compact_jobs_for_validation(early_payload)
-    jobs_path=early_dir/'early_llm_jobs.json'
-    evidence_path=early_dir/'early_empty_research_evidence.json'
-    dump_json(compact,jobs_path)
-    dump_json(_empty_research_evidence(early_payload.get('project_id'),mode),evidence_path)
-    ctx=write_worker_packs(early_payload,early_dir,worker_count=1) if early_payload.get('jobs') else {'manifest_data':{'batches':[]},'workers':0,'contexts_dir':str(early_dir/'worker_contexts')}
-    manifest={
-        'contract_version':'1.0',
-        'planning_fingerprint_sha256':_fingerprint_sha(fingerprint),
-        'early_llm_jobs':str(jobs_path),
-        'early_empty_research_evidence':str(evidence_path),
-        'jobs':[{'section_id':str(job.get('section_id')),'job_digest':_job_digest(job)} for job in early_payload.get('jobs') or []],
-        'worker_packs':[{'worker_id':b.get('worker_id'),'context_pack':str(early_dir/b.get('context_pack','')),'section_ids':b.get('section_ids') or []} for b in (ctx.get('manifest_data') or {}).get('batches') or []],
-    }
-    manifest_path=early_dir/'early_manifest.json'
-    dump_json(manifest,manifest_path)
-    return {
-        'early_dir':early_dir,
-        'jobs_path':jobs_path,
-        'evidence_path':evidence_path,
-        'manifest_path':manifest_path,
-        'manifest_data':manifest,
-        'worker_count':ctx.get('workers',0),
-        'section_ids':[str(job.get('section_id')) for job in early_payload.get('jobs') or []],
-    }
-
-
-def _promote_early_drafts(out, fingerprint, jobs_payload, evidence_payload, mode):
-    early_dir=out/'draft_fragments'/'early'
-    manifest_path=early_dir/'early_manifest.json'
-    accepted=[]; ignored=[]
-    try:
-        manifest=load_data(manifest_path)
-    except Exception as e:
-        return accepted,[{'reason':'early_manifest_unavailable','detail':str(e)}]
-    if not isinstance(manifest,dict):
-        return accepted,[{'reason':'early_manifest_invalid_type'}]
-    if manifest.get('planning_fingerprint_sha256')!=_fingerprint_sha(fingerprint):
-        return accepted,[{'reason':'planning_fingerprint_mismatch'}]
-    try:
-        early_jobs_path=manifest.get('early_llm_jobs')
-        if not isinstance(early_jobs_path,str):
-            return accepted,[{'reason':'early_llm_jobs_path_invalid'}]
-        early_jobs_resolved=Path(early_jobs_path).resolve()
-        if early_jobs_resolved!= (early_dir/'early_llm_jobs.json').resolve():
-            return accepted,[{'reason':'early_llm_jobs_path_mismatch'}]
-        early_jobs=load_data(early_jobs_resolved)
-        if not isinstance(early_jobs,dict):
-            return accepted,[{'reason':'early_llm_jobs_invalid_type'}]
-    except Exception as e:
-        return accepted,[{'reason':'early_llm_jobs_unavailable','detail':str(e)}]
-    if early_jobs.get('project_id')!=jobs_payload.get('project_id'):
-        return accepted,[{'reason':'project_id_mismatch'}]
-    current={str(job.get('section_id')):job for job in jobs_payload.get('jobs') or []}
-    raw_jobs=manifest.get('jobs')
-    if not isinstance(raw_jobs,list):
-        return accepted,[{'reason':'early_manifest_jobs_invalid_type'}]
-    manifest_jobs={}
-    for item in raw_jobs:
-        if not isinstance(item,dict):
-            ignored.append({'reason':'early_manifest_job_invalid_type'})
-            continue
-        sid=item.get('section_id')
-        digest=item.get('job_digest')
-        if not isinstance(sid,str) or not isinstance(digest,str):
-            ignored.append({'reason':'early_manifest_job_invalid_contract'})
-            continue
-        manifest_jobs[sid]=digest
-    vdir=early_dir/'validated'
-    final_vdir=out/'draft_fragments'/'validated'
-    for sid,digest in manifest_jobs.items():
-        job=current.get(sid)
-        if not job:
-            ignored.append({'section_id':sid,'reason':'job_not_in_current_plan'})
-            continue
-        if _job_digest(job)!=digest:
-            ignored.append({'section_id':sid,'reason':'job_digest_mismatch'})
-            continue
-        draft_path=(vdir/f"{sid.replace('.','_')}.json").resolve()
-        try:
-            draft_path.relative_to(vdir.resolve())
-        except ValueError:
-            ignored.append({'section_id':sid,'reason':'validated_draft_path_invalid'})
-            continue
-        if not draft_path.is_file():
-            ignored.append({'section_id':sid,'reason':'validated_draft_missing'})
-            continue
-        try:
-            draft=load_data(draft_path)
-        except Exception as e:
-            ignored.append({'section_id':sid,'reason':'validated_draft_unreadable','detail':str(e)})
-            continue
-        issues,_covered=validate_draft_entries({'contract_version':'1.0','project_id':jobs_payload.get('project_id'),'jobs':[job]},evidence_payload,[draft],mode)
-        if issues:
-            ignored.append({'section_id':sid,'reason':'draft_validation_failed','issues':issues})
-            continue
-        final_vdir.mkdir(parents=True,exist_ok=True)
-        dump_json(draft,final_vdir/f"{sid.replace('.','_')}.json")
-        accepted.append(sid)
-    return accepted,ignored
-
-
-def _early_manifest_section_ids(out):
-    try:
-        manifest=load_data(out/'draft_fragments'/'early'/'early_manifest.json')
-    except Exception:
-        return []
-    if not isinstance(manifest,dict) or not isinstance(manifest.get('jobs'),list):
-        return []
-    return [str(item.get('section_id')) for item in manifest.get('jobs') or [] if isinstance(item,dict) and item.get('section_id')]
-
-
-def _write_planning_delivery_manifest(out, fingerprint, facts_path, profile_path, plan_path, research_tasks_path, evidence_path, llm_jobs_path):
-    artifacts={
-        'facts':{'path':str(facts_path),'sha256':_artifact_digest(facts_path)},
-        'profile':{'path':str(profile_path),'sha256':_artifact_digest(profile_path)},
-        'chapter_plan':{'path':str(plan_path),'sha256':_artifact_digest(plan_path)},
-        'research_tasks':{'path':str(research_tasks_path),'sha256':_artifact_digest(research_tasks_path)},
-        'llm_jobs':{'path':str(llm_jobs_path),'sha256':_artifact_digest(llm_jobs_path)},
-    }
-    if evidence_path:
-        artifacts['research_evidence']={'path':str(evidence_path),'sha256':_artifact_digest(evidence_path)}
-    manifest={
-        'contract_version':'1.0',
-        'planning_fingerprint_sha256':_fingerprint_sha(fingerprint),
-        'artifacts':artifacts,
-    }
-    path=out/'planning_delivery_manifest.json'
-    dump_json(manifest,path)
-    return path
-
-
 def _finalize_summary(out, summary, start_time, planning_cache_hit, worker_manifest=None, worker_metrics=None, planning_fingerprint=None):
     perf={
         'planning_cache_hit':bool(planning_cache_hit),
@@ -336,7 +165,7 @@ def _finalize_summary(out, summary, start_time, planning_cache_hit, worker_manif
         'draft_worker_metrics_available':bool(worker_manifest or worker_metrics),
     }
     if planning_fingerprint is not None:
-        perf['planning_fingerprint_sha256']=_fingerprint_sha(planning_fingerprint)
+        perf['planning_fingerprint_sha256']=data_digest(planning_fingerprint)
     if worker_manifest:
         perf.update(_worker_performance(worker_manifest))
     elif worker_metrics:
@@ -414,10 +243,8 @@ def run_chapter_planning_stage(args, output_dir):
             if tasks:
                 rfrag=out/'research_fragments'
                 rpacks=write_research_packs(tasks_payload,rfrag)
-                early_payload=_early_jobs_payload(profile_data,plan_data,facts_data,tasks_payload,args.run_mode)
-                early_info=_write_early_draft_inputs(out,fingerprint,early_payload,args.run_mode)
-                rwf=write_research_host_workflow(tasks_payload,rfrag,out,SKILL_ROOT,rpacks['manifest_data'],early_info)
-                summary={'status':'needs_research','resume_exit_code':EXIT_NEEDS_RESEARCH,'facts':str(facts_path),'research_tasks':str(research_tasks),'blocked_sections':blocked_sections,'research_evidence_schema':str(SKILL_ROOT/'schemas/research_evidence.schema.json'),'research_fragments_dir':str(rfrag),'research_contexts_dir':rpacks['contexts_dir'],'research_worker_count':rpacks['workers'],'research_worker_total_pack_bytes':rpacks['total_pack_bytes'],'host_workflow':rwf,'research_cache_hit':False,'planning_snapshot':str(snapshot_path),'overlap_enabled':bool(early_info['section_ids']),'early_draft_section_ids':early_info['section_ids'],'early_draft_worker_count':early_info['worker_count'],'accepted_early_draft_section_ids':[],'remaining_draft_section_ids':[],'next_action':'严格按 research_fragments/HOST_WORKFLOW.md 执行：一次性并行派发 Research worker 和 early-draft worker；Research collect 成功生成 research_evidence.json 后，立即再次调用 chapter_planning Tool，并传入 research_evidence 参数。'}
+                rwf=write_research_host_workflow(tasks_payload,rfrag,out,SKILL_ROOT,rpacks['manifest_data'])
+                summary={'status':'needs_research','resume_exit_code':EXIT_NEEDS_RESEARCH,'facts':str(facts_path),'research_tasks':str(research_tasks),'blocked_sections':blocked_sections,'research_evidence_schema':str(SKILL_ROOT/'schemas/research_evidence.schema.json'),'research_fragments_dir':str(rfrag),'research_contexts_dir':rpacks['contexts_dir'],'research_worker_count':rpacks['workers'],'research_worker_total_pack_bytes':rpacks['total_pack_bytes'],'host_workflow':rwf,'research_cache_hit':False,'planning_snapshot':str(snapshot_path),'next_action':'严格按 research_fragments/HOST_WORKFLOW.md 执行：一次性派发固定 research worker，搜够即停；collect 成功生成 research_evidence.json 后，立即再次调用 chapter_planning Tool，并传入 research_evidence 参数。'}
                 return EXIT_NEEDS_RESEARCH, _finalize_summary(out,summary,start_time,planning_cache_hit,planning_fingerprint=fingerprint)
             evidence_payload={'contract_version':'1.0','project_id':tasks_payload.get('project_id'),'items':[]}
         else:
@@ -430,18 +257,12 @@ def run_chapter_planning_stage(args, output_dir):
         jobs=jobs_payload.get('jobs') or []
         # worker pack 使用完整内存 payload；落盘的 llm_jobs.json 只保留轻量校验契约。
         dump_json(compact_jobs_for_validation(jobs_payload),llm_jobs)
-        delivery_manifest=_write_planning_delivery_manifest(out,fingerprint,facts_path,profile_path,plan_path,research_tasks,evidence,llm_jobs)
         summary['llm_jobs']=str(llm_jobs); summary['research_evidence']=str(evidence) if evidence else None; summary['skipped_sections']=jobs_payload.get('skipped_sections') or []
-        summary['planning_delivery_manifest']=str(delivery_manifest)
         if jobs and drafts is None:
             frag_dir=out/'draft_fragments'; frag_dir.mkdir(parents=True,exist_ok=True)
-            accepted_early,ignored_early=_promote_early_drafts(out,fingerprint,jobs_payload,evidence_payload,args.run_mode)
-            remaining_jobs=[job for job in jobs if str(job.get('section_id')) not in set(accepted_early)]
-            remaining_payload={**jobs_payload,'jobs':remaining_jobs}
-            ctx=write_worker_packs(remaining_payload,frag_dir)
-            wf=write_host_workflow(remaining_payload,frag_dir,out,evidence,SKILL_ROOT,ctx['manifest_data'],facts_path=str(facts_path),profile_path=str(profile_path),chapter_plan_path=str(plan_path))
-            early_sections=_early_manifest_section_ids(out)
-            summary={'status':'needs_llm','resume_exit_code':EXIT_NEEDS_LLM,'llm_jobs':str(llm_jobs),'blocked_sections':blocked_sections,'section_drafts_schema':str(SKILL_ROOT/'schemas/section_drafts.schema.json'),'research_evidence':str(evidence) if evidence else None,'research_cache_hit':research_cache_hit,'draft_fragments_dir':str(frag_dir),'worker_contexts_dir':ctx['contexts_dir'],'contexts_dir':ctx['contexts_dir'],'host_workflow':wf,'worker_count':ctx['workers'],'worker_total_pack_bytes':ctx['total_pack_bytes'],'worker_max_pack_bytes':ctx['max_pack_bytes'],'planning_snapshot':str(snapshot_path),'planning_delivery_manifest':str(delivery_manifest),'overlap_enabled':bool(early_sections),'early_draft_section_ids':early_sections,'accepted_early_draft_section_ids':accepted_early,'ignored_early_draft_items':ignored_early,'remaining_draft_section_ids':[str(job.get('section_id')) for job in remaining_jobs],'next_action':'严格按 draft_fragments/HOST_WORKFLOW.md 执行：一次性并行派发固定 worker；正文遵守 length_budget_chars；collect 成功生成 section_drafts.json 后，直接调用 report_generation Tool，由 report_generation 重新校验 Evidence/Draft 并生成报告。'}
+            ctx=write_worker_packs(jobs_payload,frag_dir)
+            wf=write_host_workflow(jobs_payload,frag_dir,out,evidence,SKILL_ROOT,ctx['manifest_data'])
+            summary={'status':'needs_llm','resume_exit_code':EXIT_NEEDS_LLM,'llm_jobs':str(llm_jobs),'blocked_sections':blocked_sections,'section_drafts_schema':str(SKILL_ROOT/'schemas/section_drafts.schema.json'),'research_evidence':str(evidence) if evidence else None,'research_cache_hit':research_cache_hit,'draft_fragments_dir':str(frag_dir),'worker_contexts_dir':ctx['contexts_dir'],'contexts_dir':ctx['contexts_dir'],'host_workflow':wf,'worker_count':ctx['workers'],'worker_total_pack_bytes':ctx['total_pack_bytes'],'worker_max_pack_bytes':ctx['max_pack_bytes'],'planning_snapshot':str(snapshot_path),'next_action':'严格按 draft_fragments/HOST_WORKFLOW.md 执行：一次性并行派发固定 worker；正文遵守 length_budget_chars；collect 成功生成 section_drafts.json 后，立即再次调用 chapter_planning Tool，并传入 section_drafts 参数。'}
             return EXIT_NEEDS_LLM, _finalize_summary(out,summary,start_time,planning_cache_hit,ctx['manifest_data'],planning_fingerprint=fingerprint)
         if jobs:
             dr_result,dr_code=validate_drafts(jobs_payload,evidence_payload,load_data(drafts),args.run_mode)
@@ -455,8 +276,6 @@ def run_chapter_planning_stage(args, output_dir):
             project_id=p.get('project_id') or (facts_data.get('project') or {}).get('project_id')
         dump_json({'contract_version':'1.0','project_id':project_id,'jobs':[]},llm_jobs)
         summary['llm_jobs']=str(llm_jobs)
-        delivery_manifest=_write_planning_delivery_manifest(out,fingerprint,facts_path,profile_path,plan_path,research_tasks,None,llm_jobs)
-        summary['planning_delivery_manifest']=str(delivery_manifest)
     summary['ai_mode']=args.ai_mode
     worker_metrics=_load_current_worker_performance(out,fingerprint) if drafts else None
     return EXIT_GENERATED, _finalize_summary(out,summary,start_time,planning_cache_hit,worker_metrics=worker_metrics,planning_fingerprint=fingerprint)
