@@ -245,3 +245,110 @@ python -X utf8 C:\Users\huangxiaoting\.codex\skills\.system\skill-creator\script
 - 最终报告章节结构和正文预算
 
 实施开始前记录 `SKILL.md` 与 `references/report_rules/writing_constraints.md` 的 SHA-256；完成后再次计算并确认完全一致。若实施前相对 HEAD 已存在 diff，不要求该 diff 为空；只要求实施前后 SHA-256 完全相同，并确认这两个文件没有被 stage 或 commit。不得将两者纳入格式化、批量替换或提交范围。
+
+## 9. 冷启动关键路径实验（第二轮）
+
+本节是用户完成第一次 Trae 实测后的增量决策；凡与第 3.2 节和第 8 节中“不得修改 Skill / 状态推进方式”的第一轮约束冲突之处，以本节为准。第一轮上下文投影、负载均衡和规划快照设计继续有效。
+
+### 9.1 决策与目标
+
+第一次优化已经降低 draft worker pack 体积和 Draft 阶段时长，但真实 Trae 冷启动总时长没有下降。第二轮以用户定义的系统耗时为准：
+
+```text
+Engineering Facts 输出耗时
++ 用户明确确认后至 DOCX/Markdown 完成耗时
+```
+
+用户阅读和确认材料的等待时间不计入。冷启动验收不得依赖其他输出目录、历史 Research Evidence 或历史章节草稿。
+
+本轮选择“同轮重叠 + 减少宿主往返”，不采用三个串行 Draft 波次。原因是 Trae 的 Agent 派发和 Tool 接力本身有明显成本；增加 LLM 批次可能抵消并行收益。
+
+### 9.2 `needs_research` 同轮重叠
+
+首次 `chapter_planning` 判断需要 Research 时，仍返回 `needs_research`，但 `host_workflow` 同时提供：
+
+- 现有最多 2 个 research worker；
+- 最多 1 个 early-draft worker。
+
+early-draft 只包含同时满足以下条件的章节：
+
+1. 当前完整规则与确认事实能够构建 LLM job；
+2. `research_task_ids` 为空；
+3. 不是研究结论或综合结论章节。固定排除 `1.2`，并排除 `plan_status=summary_gate` 的章节；
+4. 不属于 blocked、disabled、not-applicable 或 deterministic-only。
+
+当前代表性案例预期 early-draft 为 `1.1.3`、`4.1.3.2`。该集合来自规则计算与上述过滤条件，不由宿主自行挑选。early-draft 使用空 Evidence 契约，只允许 `source_evidence_ids=[]`，生成后通过现有 draft submit 校验写入当前输出目录的 `draft_fragments/validated/`。它不是跨任务缓存。
+
+合并的 `host_workflow` 必须要求一次性并行派发所有 Research 与 early-draft worker，总并发任务数不得超过 3；全部完成后只 collect Research 一次，再把 `research_evidence.json` 传回 `chapter_planning`。early-draft 不等待 Research，也不触发单独的 `chapter_planning` 调用。
+
+### 9.3 Evidence 返回后的增量 Draft
+
+`chapter_planning` 校验 Research Evidence 并构建当前完整 LLM jobs 后，检查 `draft_fragments/validated/` 中的 early-draft：
+
+1. 只接受 project_id、当前 job、allowed headings 和 Evidence 绑定均通过当前校验的章节；
+2. 当前 planning fingerprint、job 或文件不匹配时忽略，不阻断正常 Draft；
+3. 从本轮 worker packs 中排除已接受章节，但最终 `llm_jobs.json` 仍保留完整章节集合；
+4. 其余章节继续一次性生成最多 3 个非空 worker，不新增第三个串行 Draft 波次；
+5. 最终 collect 仍按完整 `llm_jobs.json` 校验章节覆盖，因此 early-draft 与后续草稿缺一不可。
+
+这意味着汇总章节 `1.2`、`26.1`、`26.2` 仍在 Research 完成后的正常 Draft 批次生成；本轮不为了理论依赖再增加单独汇总波次。
+
+### 9.4 Draft 完成后直接生成报告
+
+现有 Draft `HOST_WORKFLOW.md` 在 collect 成功后不再要求再次调用 `chapter_planning`，而是直接调用 `report_generation`，传入确认事实、Profile、Chapter Plan、输出目录和 `section_drafts.json`。
+
+为保持门禁等价，`report_generation` 在构建报告模型前必须从同一 `output_dir` 读取：
+
+- `research_tasks.json`；
+- `research_evidence.json`（存在 Research 任务时必需）；
+- `llm_jobs.json`；
+- 调用参数中的 `section_drafts.json`。
+
+按顺序重新执行当前 Research Evidence 校验和完整 Draft 校验，校验通过后才生成报告。缺文件、指纹/项目不一致、Evidence 无效或 Draft 无效时不得生成 DOCX/Markdown；沿用 exit code 3 和 `consistency_blocked`，并返回 `validation_stage` 与 `issues`。四个 MCP Tool 的名称、参数和成功状态不变。
+
+`chapter_planning(section_drafts=...) -> planning_ready` 兼容路径继续保留，供旧宿主、诊断和重试使用；新的 Skill 和 HOST_WORKFLOW 走直接报告路径。
+
+### 9.5 Skill 与运行策略
+
+`SKILL.md` 只增加两条可执行状态规则：
+
+- `needs_research` 必须执行 Tool 返回的合并 `host_workflow`，不得把 early-draft 另行串行化；
+- `needs_llm` collect 成功后直接调用 `report_generation`，由该 Tool 完成最终 Evidence/Draft 门禁。
+
+详细并发、复用和回退说明继续放在 `references/runtime_policy.md`，避免把 Skill 主体膨胀成 Workflow Runner。保留用户在 `SKILL.md` 中已有的未提交修改，只做上述定点增量。
+
+### 9.6 诊断指标与验收
+
+`chapter_planning` 摘要增加 best-effort 字段：
+
+- `overlap_enabled`；
+- `early_draft_section_ids`；
+- `early_draft_worker_count`；
+- `accepted_early_draft_section_ids`；
+- `remaining_draft_section_ids`。
+
+自动测试至少覆盖：
+
+1. `needs_research` 同时产出 Research 与 early-draft pack，合计 worker 不超过 3；
+2. `1.2` 和 `summary_gate` 章节不进入 early-draft；
+3. early-draft 通过 submit 后，Evidence 恢复只为剩余章节生成 pack；
+4. 无效、陈旧或其他项目 early-draft 不被接受，并回到完整 Draft；
+5. 最终 collect 必须覆盖完整 jobs；
+6. `report_generation` 直接路径重新校验 Evidence 和 Draft；无效输入不生成报告；
+7. 旧的 `chapter_planning(section_drafts=...)` 兼容路径继续通过；
+8. Skill 快速校验、全部 unittest、compileall 通过。
+
+真实成功标准仍只有 Trae 冷启动 A/B：同任务、同模型、同宿主环境且无历史输出复用时，按 9.1 的计时口径总时长下降，报告章节覆盖、字数约束、Evidence 和一致性门禁无退化。未实测前只称“实验版”，不声明性能完成。
+
+### 9.7 第二轮预期改动文件
+
+- `SKILL.md`（定点增量，保留现有未提交内容）
+- `references/runtime_policy.md`
+- `internal/planning/stage.py`
+- `internal/planning/draft_fragments.py`
+- `internal/planning/research_fragments.py` 或等价的轻量合并 workflow 生成位置
+- `internal/report/stage.py`
+- 必要的 Tool/Workflow docstring（不得改变参数）
+- `tests/test_chapter_rules_runtime.py`
+
+第二轮不得修改 `references/report_rules/writing_constraints.md`、Schema、事实确认门、章节结构、正文预算和 Research 搜索预算。实施前后分别记录目标文件 SHA-256 和 diff；第二轮变更必须能与第一轮 pack/快照优化分开识别，便于 Trae 实测失败后按用户确认的范围回退。
