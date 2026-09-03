@@ -20,35 +20,12 @@ sections:
     title: 国内、外工艺技术概况
     coverage_class: llm_narrative
     required_facts: []
-    context_paths:
-      - project.changes
-      - project.process_route_changed
-      - process.design.external_feeds
-      - process.design.product_streams
-      - process.retrofit.external_feeds
-      - process.retrofit.product_streams
-      - process.retrofit.scheme_changes
-      - adopted_scheme.scheme_name
-      - adopted_scheme.scheme_description
-      - adopted_scheme.status
+    context_paths: [project.changes, process, adopted_scheme]
     output:
       allowed_headings: ["4.1.2 国内、外工艺技术概况"]
       required_structure:
         - heading: "4.1.2 国内、外工艺技术概况"
           requirements: ["概述主要工艺技术路线类型及工业化情况。", "明确本项目为扩能改造时是否改变既有工艺路线。", "仅使用项目事实与报告内已有数据，外部技术资料不得替代本项目专业计算。"]
-      required_structure_by_plan_status:
-        full:
-          - heading: "4.1.2 国内、外工艺技术概况"
-            requirements:
-              - "基于已校验 Research Evidence 概述国内外主要工艺路线类型、成熟度和工业化情况。"
-              - "回到本项目确认事实，说明既有工艺路线、改造后路线及是否改变工艺路线。"
-              - "外部技术资料只用于技术概况，不得替代本项目专业计算、设备校核或性能结论。"
-        concise:
-          - heading: "4.1.2 国内、外工艺技术概况"
-            requirements:
-              - "仅基于确认后的项目事实、设计/改造进出料与产品摘要、采用方案，说明沿用或局部调整的工艺路线情况。"
-              - "明确本项目是否改变既有工艺路线；没有明确变化时按简写处理，不扩展外部技术综述。"
-              - "不得在没有 Research Evidence 时生成国内外路线、成熟度、商业化应用或技术提供方事实。"
     research: {mode: conditional, task_templates: [], condition_key: null, policy_hook: technology_review_412, target_sections: ["4.1.2"]}
     generation_rules: {must_include: [], forbidden: ["把文献性能直接当成本项目性能"]}
     quality_checks: ["工艺路线变化状态是否与chapter_plan一致"]

@@ -1,7 +1,6 @@
 from __future__ import annotations
 import json
 import re
-import hashlib
 from pathlib import Path
 import yaml
 
@@ -51,17 +50,6 @@ def dump_json(data, path):
     p=Path(path); p.parent.mkdir(parents=True,exist_ok=True)
     p.write_text(json.dumps(data,ensure_ascii=False,indent=2),encoding='utf-8')
     return p
-
-
-def data_digest(data):
-    """返回结构化内容的稳定 SHA-256 摘要。"""
-    raw=json.dumps(data,ensure_ascii=False,sort_keys=True,separators=(',',':')).encode('utf-8')
-    return hashlib.sha256(raw).hexdigest()
-
-
-def file_digest(path):
-    """返回文件字节内容 SHA-256 摘要。"""
-    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
 
 
 def emit_result(path, data):

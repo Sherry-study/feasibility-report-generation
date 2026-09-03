@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import tempfile
 import unittest
-import json
 from copy import deepcopy
 from argparse import Namespace
 from pathlib import Path
@@ -134,93 +133,6 @@ FACTS = {
     "fa": {},
     "user": {"annual_operating_hours": 8000},
 }
-
-
-def _set_plan_status(plan, section_id, status):
-    out = deepcopy(plan)
-    for item in out["chapter_plan"]:
-        if item["section"] == section_id:
-            item["status"] = status
-            return out
-    out["chapter_plan"].append({"section": section_id, "status": status})
-    return out
-
-
-def _representative_412_facts():
-    facts = deepcopy(FACTS)
-    facts["project"].update({
-        "changes": {
-            "capacity_changed": True,
-            "process_route_changed": False,
-            "raw_material_route_changed": False,
-        },
-        "process_route_changed": False,
-        "raw_material_route_changed": False,
-    })
-    heavy_blob = "WIDE-FIELD-" * 900
-    facts["process"] = {
-        "design": {
-            "external_feeds": [{"name": f"设计外部进料{i}", "flow": i} for i in range(12)],
-            "product_streams": [{"name": f"设计产品{i}", "flow": i} for i in range(12)],
-            "topology": {
-                "nodes": [{"id": f"D-N{i}", "payload": heavy_blob} for i in range(80)],
-                "edges": [{"from": f"D-N{i}", "to": f"D-N{i+1}", "payload": heavy_blob} for i in range(79)],
-            },
-            "separator_details": [{"tag": f"T-{i}", "payload": heavy_blob} for i in range(50)],
-        },
-        "retrofit": {
-            "external_feeds": [{"name": f"改造外部进料{i}", "flow": i} for i in range(12)],
-            "product_streams": [{"name": f"改造产品{i}", "flow": i} for i in range(12)],
-            "scheme_changes": [{"item": f"局部调整{i}", "description": "沿用主体流程"} for i in range(8)],
-            "topology": {
-                "nodes": [{"id": f"R-N{i}", "payload": heavy_blob} for i in range(80)],
-                "edges": [{"from": f"R-N{i}", "to": f"R-N{i+1}", "payload": heavy_blob} for i in range(79)],
-            },
-            "equipment_check_parameters": [{"tag": f"E-{i}", "payload": heavy_blob} for i in range(70)],
-        },
-    }
-    facts["adopted_scheme"] = {
-        "scheme_name": "采用方案",
-        "scheme_description": "保留主体工艺路线，局部调整进出料组织。",
-        "description": "兼容旧字段",
-        "status": "confirmed",
-        "wide_internal_notes": heavy_blob,
-    }
-    facts["scheme_analysis"] = {"candidates": [{"name": f"方案{i}", "description": "比较项"} for i in range(6)]}
-    facts["equipment"] = {"reactor": {"solution_sets": [{"name": "反应器方案", "payload": heavy_blob}], "utility_requirements": [{"medium": "电"}]}}
-    return facts
-
-
-def _representative_jobs_payload():
-    context_blob = "context-" * 600
-    plan = _set_plan_status(PLAN, "4.1.2", "concise")
-    real_412 = next(
-        job for job in build_jobs(PROFILE, plan, _representative_412_facts(), {"tasks": []}, {"items": []})["jobs"]
-        if job["section_id"] == "4.1.2"
-    )
-    jobs = []
-    for index, sid in enumerate(["1.1.3", "1.2", "2", "4.1.3.2", "18.2", "26.1", "26.2"]):
-        jobs.append({
-            "section_id": sid,
-            "title": sid,
-            "plan_status": "full",
-            "system_instruction": "sys",
-            "chapter_context": {
-                "paths": {
-                    f"project.section_{index}": context_blob,
-                    "project.project_name": "示例改造项目",
-                },
-                "open_items": [],
-            },
-            "project_context": {"paths": {"project.project_name": "示例改造项目"}, "open_items": []},
-            "research_evidence": [],
-            "required_structure": [{"heading": f"{sid} 标题", "requirements": ["要求一", "要求二"]}],
-            "allowed_headings": [f"{sid} 标题"],
-            "generation_rules": {},
-            "quality_checks": [],
-        })
-    jobs.insert(3, real_412)
-    return {"contract_version": "1.0", "project_id": "P-001", "jobs": jobs}
 
 
 def _write_registry_docs(base, docs):
@@ -446,9 +358,6 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
 
             self.assertEqual(code, EXIT_NEEDS_RESEARCH)
             self.assertEqual(summary["status"], "needs_research")
-            self.assertFalse(summary["planning_cache_hit"])
-            self.assertFalse(summary["draft_worker_metrics_available"])
-            self.assertNotIn("worker_max_pack_bytes", summary)
             self.assertTrue(tasks)
             self.assertTrue(all(task.get("rule_id") for task in tasks))
             self.assertIn("chapter_planning Tool", summary["next_action"])
@@ -639,43 +548,6 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
         ctx = bind_section_context(rule, PROFILE, data)
         self.assertEqual(ctx["paths"]["project.project_name"], "示例改造项目")
 
-    def test_412_context_paths_exclude_full_process_and_topology(self):
-        facts = _representative_412_facts()
-        plan = _set_plan_status(PLAN, "4.1.2", "concise")
-        jobs = build_jobs(PROFILE, plan, facts, {"tasks": []}, {"items": []})
-        job = next(x for x in jobs["jobs"] if x["section_id"] == "4.1.2")
-        paths = job["chapter_context"]["paths"]
-        self.assertNotIn("process", paths)
-        self.assertNotIn("process.design.topology", paths)
-        self.assertNotIn("process.retrofit.topology", paths)
-        self.assertIn("project.process_route_changed", paths)
-        self.assertIn("process.design.external_feeds", paths)
-        self.assertIn("process.retrofit.product_streams", paths)
-        self.assertIn("adopted_scheme.scheme_name", paths)
-        text = json.dumps(job, ensure_ascii=False)
-        self.assertNotIn("topology", text)
-        self.assertNotIn("equipment_check_parameters", text)
-
-    def test_412_full_and_concise_use_plan_status_structures(self):
-        facts = _representative_412_facts()
-        full_plan = _set_plan_status(PLAN, "4.1.2", "full")
-        full_tasks = {"tasks": [{"task_id": "R-TECH-0412-01", "section_id": "4.1.2", "target_sections": ["4.1.2"]}]}
-        full_evidence = {"items": [_ev("EV-TECH-1", "R-TECH-0412-01", "https://example.com/tech")]}
-        full_job = next(x for x in build_jobs(PROFILE, full_plan, facts, full_tasks, full_evidence)["jobs"] if x["section_id"] == "4.1.2")
-        self.assertEqual(full_job["plan_status"], "full")
-        self.assertEqual(full_job["research_task_ids"], ["R-TECH-0412-01"])
-        self.assertEqual(len(full_job["research_evidence"]), 1)
-        self.assertIn("Research Evidence", json.dumps(full_job["required_structure"], ensure_ascii=False))
-
-        concise_plan = _set_plan_status(PLAN, "4.1.2", "concise")
-        concise_job = next(x for x in build_jobs(PROFILE, concise_plan, facts, {"tasks": []}, {"items": []})["jobs"] if x["section_id"] == "4.1.2")
-        self.assertEqual(concise_job["plan_status"], "concise")
-        self.assertFalse(concise_job["research_task_ids"])
-        self.assertFalse(concise_job["research_evidence"])
-        concise_text = json.dumps(concise_job["required_structure"], ensure_ascii=False)
-        self.assertIn("不得在没有 Research Evidence", concise_text)
-        self.assertNotIn("技术提供方", concise_text.split("不得在没有 Research Evidence", 1)[0])
-
     def test_context_packs_are_self_contained_and_digest_lists_all_jobs(self):
         jobs = build_jobs(PROFILE, PLAN, FACTS, {"tasks": []}, {"items": []})
         with tempfile.TemporaryDirectory() as td:
@@ -729,16 +601,7 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
         self.assertTrue(all(batch["section_ids"] for batch in first["batches"]))
         self.assertNotEqual(sorted(len(batch["section_ids"]) for batch in first["batches"]), [2, 2, 2])
         self.assertEqual(plan_batches(payload), first)
-        self.assertEqual(first["assignment_strategy"], "deterministic_greedy_estimated_load_v1")
-        batch = first["batches"][0]
-        self.assertIn("pack_bytes", batch)
-        self.assertIn("output_budget_chars", batch)
-        self.assertIn("allowed_heading_count", batch)
-        self.assertIn("requirement_count", batch)
-        self.assertEqual(
-            batch["estimated_load"],
-            batch["pack_bytes"] + batch["output_budget_chars"] * 6 + batch["allowed_heading_count"] * 2048 + batch["requirement_count"] * 512,
-        )
+        self.assertEqual(first["assignment_strategy"], "greedy_by_slimmed_context_increment_plus_estimated_output")
 
     def test_worker_planning_uses_fewer_workers_when_jobs_are_fewer_than_three(self):
         payload = {"contract_version": "1.0", "project_id": "P-001", "jobs": [
@@ -749,44 +612,6 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
         self.assertEqual(len(plan["batches"]), 2)
         self.assertEqual(plan["jobs_total"], 2)
         self.assertTrue(all(batch["section_ids"] for batch in plan["batches"]))
-
-    def test_worker_planning_handles_zero_to_more_than_three_jobs_without_empty_workers(self):
-        empty = plan_worker_batches({"contract_version": "1.0", "project_id": "P-001", "jobs": []})
-        self.assertEqual(empty["batches"], [])
-        for count in (1, 2, 3, 5):
-            payload = deepcopy(_representative_jobs_payload())
-            payload["jobs"] = payload["jobs"][:count]
-            plan = plan_worker_batches(payload)
-            self.assertEqual(len(plan["batches"]), min(count, 3))
-            self.assertLessEqual(len(plan["batches"]), 3)
-            self.assertTrue(all(batch["section_ids"] for batch in plan["batches"]))
-
-    def test_representative_worker_static_metrics_meet_regression_thresholds(self):
-        payload = _representative_jobs_payload()
-        self.assertEqual(len(payload["jobs"]), 8)
-        with tempfile.TemporaryDirectory() as td:
-            info = write_worker_packs(payload, Path(td) / "draft_fragments")
-            manifest = info["manifest_data"]
-            self.assertEqual(info["workers"], 3)
-            all_sections = [sid for batch in manifest["batches"] for sid in batch["section_ids"]]
-            self.assertEqual(set(all_sections), {job["section_id"] for job in payload["jobs"]})
-            self.assertEqual(manifest, write_worker_packs(payload, Path(td) / "draft_fragments_again")["manifest_data"])
-            self.assertEqual(len(all_sections), len(set(all_sections)))
-            self.assertLessEqual(info["max_pack_bytes"], 100000)
-            self.assertLessEqual(info["total_pack_bytes"], 220000)
-            self.assertLessEqual(manifest["max_to_min_load_ratio"], 1.6)
-            self.assertEqual(manifest["total_output_budget_chars"], sum(batch["output_budget_chars"] for batch in manifest["batches"]))
-            for batch in manifest["batches"]:
-                self.assertEqual(
-                    batch["estimated_load"],
-                    batch["pack_bytes"] + batch["output_budget_chars"] * 6 + batch["allowed_heading_count"] * 2048 + batch["requirement_count"] * 512,
-                )
-            pack_412 = next(
-                Path(info["contexts_dir"], f"{batch['worker_id']}.json")
-                for batch in manifest["batches"]
-                if "4.1.2" in batch["section_ids"]
-            )
-            self.assertLessEqual(pack_412.stat().st_size, 80000)
 
     def test_worker_packs_dedupe_context_values_and_parent_paths(self):
         jobs = {"contract_version": "1.0", "project_id": "P-001", "jobs": [
@@ -836,7 +661,6 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             self.assertFalse((fdir / "contexts" / "worker_01.json").exists())
             self.assertEqual(pack["pack_type"], "draft_worker")
             self.assertIn("common_output_contract", pack)
-            self.assertIn("plan_status", pack["sections"][0])
             self.assertNotIn("chapter_context", pack["sections"][0])
             context_items = pack["shared_context"]["items"]
             self.assertEqual(len([x for x in context_items if "process" in x["source_paths"]]), 1)
@@ -911,10 +735,6 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             self.assertEqual(cdir.name, "worker_contexts")
             self.assertEqual(summary["contexts_dir"], summary["worker_contexts_dir"])
             self.assertLessEqual(summary["worker_count"], 3)
-            self.assertTrue(summary["draft_worker_metrics_available"])
-            self.assertIn("performance_summary", summary)
-            self.assertTrue((out / "performance_summary.json").exists())
-            self.assertIn("workers", load_data(summary["performance_summary"]))
             self.assertFalse((Path(summary["draft_fragments_dir"]) / "digest.md").exists())
             self.assertFalse((Path(summary["draft_fragments_dir"]) / "batch_plan.json").exists())
             # 强制工作流：唯一入口 + 并行派发 + next_action 指向它
@@ -1159,166 +979,6 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             self.assertEqual(code, EXIT_NEEDS_LLM)
             self.assertTrue(summary["research_cache_hit"])
             self.assertEqual(summary["status"], "needs_llm")
-
-    def test_planning_snapshot_hits_and_invalidates_on_input_or_rule_change(self):
-        import internal.planning.stage as stage
-        self.assertIn("internal/domain.py", {str(path.relative_to(stage.SKILL_ROOT)).replace("\\", "/") for path in stage.PLANNING_DEPENDENCIES})
-        with tempfile.TemporaryDirectory() as td:
-            out = Path(td)
-            profile = out / "profile.json"
-            facts = out / "facts.json"
-            dump_json(PROFILE, profile)
-            dump_json(FACTS, facts)
-            args = Namespace(
-                profile=str(profile),
-                facts=str(facts),
-                skip_user_inputs=True,
-                research_evidence=None,
-                section_drafts=None,
-                ai_mode="host_agent",
-                run_mode="test",
-            )
-            code, summary = run_chapter_planning_stage(args, out)
-            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
-            self.assertFalse(summary["planning_cache_hit"])
-            self.assertTrue((out / "planning_snapshot.json").exists())
-
-            code, summary = run_chapter_planning_stage(args, out)
-            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
-            self.assertTrue(summary["planning_cache_hit"])
-
-            changed = deepcopy(FACTS)
-            changed["project"]["project_name"] = "事实变化项目"
-            dump_json(changed, facts)
-            code, summary = run_chapter_planning_stage(args, out)
-            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
-            self.assertFalse(summary["planning_cache_hit"])
-
-            from unittest.mock import patch as mock_patch
-            with mock_patch("internal.planning.stage._rule_set_digest", return_value="changed-rule-digest"):
-                code, summary = run_chapter_planning_stage(args, out)
-            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
-            self.assertFalse(summary["planning_cache_hit"])
-
-            (out / "planning_snapshot.json").write_text("{broken", encoding="utf-8")
-            code, summary = run_chapter_planning_stage(args, out)
-            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
-            self.assertFalse(summary["planning_cache_hit"])
-
-    def test_evidence_and_draft_validation_still_run_on_planning_cache_hit(self):
-        from unittest.mock import patch as mock_patch
-        with tempfile.TemporaryDirectory() as td:
-            out = Path(td)
-            dump_json(PROFILE, out / "profile.json")
-            dump_json(FACTS, out / "facts.json")
-            evidence = {"contract_version": "1.0", "project_id": "P-001", "items": []}
-            drafts = {"contract_version": "1.0", "project_id": "P-001", "drafts": []}
-            dump_json(evidence, out / "evidence.json")
-            dump_json(drafts, out / "drafts.json")
-            args = Namespace(
-                profile=str(out / "profile.json"),
-                facts=str(out / "facts.json"),
-                skip_user_inputs=True,
-                research_evidence=str(out / "evidence.json"),
-                section_drafts=str(out / "drafts.json"),
-                ai_mode="host_agent",
-                run_mode="test",
-            )
-            with mock_patch("internal.planning.stage.validate_evidence", return_value=({"issues": []}, 0)) as ev_mock, \
-                 mock_patch("internal.planning.stage.validate_drafts", return_value=({"valid": True, "issues": []}, 0)) as dr_mock:
-                code, first = run_chapter_planning_stage(args, out)
-                code, second = run_chapter_planning_stage(args, out)
-            self.assertEqual(code, 0)
-            self.assertFalse(first["planning_cache_hit"])
-            self.assertTrue(second["planning_cache_hit"])
-            self.assertEqual(ev_mock.call_count, 2)
-            self.assertEqual(dr_mock.call_count, 2)
-
-    def test_draft_restore_reuses_only_current_worker_performance_metrics(self):
-        from unittest.mock import patch as mock_patch
-        with tempfile.TemporaryDirectory() as td:
-            out = Path(td)
-            dump_json(PROFILE, out / "profile.json")
-            dump_json(FACTS, out / "facts.json")
-            evidence = {"contract_version": "1.0", "project_id": "P-001", "items": []}
-            dump_json(evidence, out / "evidence.json")
-            base_args = Namespace(
-                profile=str(out / "profile.json"),
-                facts=str(out / "facts.json"),
-                skip_user_inputs=True,
-                research_evidence=str(out / "evidence.json"),
-                section_drafts=None,
-                ai_mode="host_agent",
-                run_mode="test",
-            )
-            with mock_patch("internal.planning.stage.validate_evidence", return_value=({"issues": []}, 0)):
-                code, first = run_chapter_planning_stage(base_args, out)
-            self.assertEqual(code, EXIT_NEEDS_LLM)
-            self.assertTrue(first["draft_worker_metrics_available"])
-            first_perf = load_data(first["performance_summary"])
-            self.assertTrue(first_perf["draft_worker_metrics_available"])
-
-            drafts = {"contract_version": "1.0", "project_id": "P-001", "test_only": True, "drafts": []}
-            dump_json(drafts, out / "drafts.json")
-            restore_args = Namespace(**{**base_args.__dict__, "section_drafts": str(out / "drafts.json")})
-            with mock_patch("internal.planning.stage.validate_evidence", return_value=({"issues": []}, 0)), \
-                 mock_patch("internal.planning.stage.validate_drafts", return_value=({"valid": True, "issues": []}, 0)):
-                code, second = run_chapter_planning_stage(restore_args, out)
-            self.assertEqual(code, 0)
-            self.assertTrue(second["planning_cache_hit"])
-            self.assertTrue(second["draft_worker_metrics_available"])
-            self.assertEqual(second["worker_total_pack_bytes"], first["worker_total_pack_bytes"])
-            self.assertEqual(load_data(second["performance_summary"])["worker_max_pack_bytes"], first["worker_max_pack_bytes"])
-
-            stale = load_data(second["performance_summary"])
-            stale["planning_fingerprint_sha256"] = "stale"
-            dump_json(stale, out / "performance_summary.json")
-            with mock_patch("internal.planning.stage.validate_evidence", return_value=({"issues": []}, 0)), \
-                 mock_patch("internal.planning.stage.validate_drafts", return_value=({"valid": True, "issues": []}, 0)):
-                code, third = run_chapter_planning_stage(restore_args, out)
-            self.assertEqual(code, 0)
-            self.assertFalse(third["draft_worker_metrics_available"])
-            self.assertNotIn("worker_max_pack_bytes", third)
-
-    def test_performance_summary_failure_keeps_status_and_invalid_draft_rejected(self):
-        from unittest.mock import patch as mock_patch
-        import internal.planning.stage as stage
-        real_dump_json = stage.dump_json
-
-        def flaky_dump_json(data, path):
-            if Path(path).name == "performance_summary.json":
-                raise OSError("simulated write failure")
-            return real_dump_json(data, path)
-
-        with tempfile.TemporaryDirectory() as td:
-            out = Path(td)
-            dump_json(PROFILE, out / "profile.json")
-            dump_json(FACTS, out / "facts.json")
-            evidence = {"contract_version": "1.0", "project_id": "P-001", "items": []}
-            dump_json(evidence, out / "evidence.json")
-            args = Namespace(
-                profile=str(out / "profile.json"),
-                facts=str(out / "facts.json"),
-                skip_user_inputs=True,
-                research_evidence=str(out / "evidence.json"),
-                section_drafts=None,
-                ai_mode="host_agent",
-                run_mode="test",
-            )
-            with mock_patch("internal.planning.stage.validate_evidence", return_value=({"issues": []}, 0)), \
-                 mock_patch("internal.planning.stage.dump_json", side_effect=flaky_dump_json):
-                code, summary = run_chapter_planning_stage(args, out)
-            self.assertEqual(code, EXIT_NEEDS_LLM)
-            self.assertEqual(summary["status"], "needs_llm")
-            self.assertIn("performance_summary_error", summary)
-
-            invalid = {"contract_version": "1.0", "project_id": "P-001", "test_only": True, "drafts": []}
-            dump_json(invalid, out / "invalid_drafts.json")
-            restore_args = Namespace(**{**args.__dict__, "section_drafts": str(out / "invalid_drafts.json")})
-            with mock_patch("internal.planning.stage.validate_evidence", return_value=({"issues": []}, 0)), \
-                 mock_patch("internal.planning.stage.dump_json", side_effect=flaky_dump_json):
-                with self.assertRaises(RuntimeError):
-                    run_chapter_planning_stage(restore_args, out)
 
     def test_planning_research_gate_writes_packs_and_workflow(self):
         with tempfile.TemporaryDirectory() as td:
