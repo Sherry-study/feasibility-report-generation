@@ -277,7 +277,13 @@ early-draft 只包含同时满足以下条件的章节：
 3. 不是研究结论或综合结论章节。固定排除 `1.2`，并排除 `plan_status=summary_gate` 的章节；
 4. 不属于 blocked、disabled、not-applicable 或 deterministic-only。
 
-当前代表性案例预期 early-draft 为 `1.1.3`、`4.1.3.2`。该集合来自规则计算与上述过滤条件，不由宿主自行挑选。early-draft 使用空 Evidence 契约，只允许 `source_evidence_ids=[]`，生成后通过现有 draft submit 校验写入当前输出目录的 `draft_fragments/validated/`。它不是跨任务缓存。
+当前代表性案例预期 early-draft 为 `1.1.3`、`4.1.3.2`。该集合来自规则计算与上述过滤条件，不由宿主自行挑选。early-draft 使用空 Evidence 契约，只允许 `source_evidence_ids=[]`。`chapter_planning` 必须落盘独立且明确的校验输入：
+
+- `draft_fragments/early/early_llm_jobs.json`；
+- `draft_fragments/early/early_empty_research_evidence.json`；
+- `draft_fragments/early/early_manifest.json`，记录 `planning_fingerprint_sha256`、每个 early job 的稳定内容摘要和 worker pack 路径。
+
+early worker 的原始输出、submit 状态和 validated 文件全部留在 `draft_fragments/early/` 子目录，不写入最终 collect 扫描的 `draft_fragments/*.json` 或 `draft_fragments/validated/`。`host_workflow` 的 early submit 命令必须显式传入 `--jobs early_llm_jobs.json`、`--evidence early_empty_research_evidence.json` 和 early fragments 目录，不得通过 `--output-dir` 自动定位尚未生成的正式产物。它不是跨任务缓存。
 
 合并的 `host_workflow` 必须要求一次性并行派发所有 Research 与 early-draft worker，总并发任务数不得超过 3；全部完成后只 collect Research 一次，再把 `research_evidence.json` 传回 `chapter_planning`。early-draft 不等待 Research，也不触发单独的 `chapter_planning` 调用。
 
@@ -285,11 +291,12 @@ early-draft 只包含同时满足以下条件的章节：
 
 `chapter_planning` 校验 Research Evidence 并构建当前完整 LLM jobs 后，检查 `draft_fragments/validated/` 中的 early-draft：
 
-1. 只接受 project_id、当前 job、allowed headings 和 Evidence 绑定均通过当前校验的章节；
-2. 当前 planning fingerprint、job 或文件不匹配时忽略，不阻断正常 Draft；
-3. 从本轮 worker packs 中排除已接受章节，但最终 `llm_jobs.json` 仍保留完整章节集合；
-4. 其余章节继续一次性生成最多 3 个非空 worker，不新增第三个串行 Draft 波次；
-5. 最终 collect 仍按完整 `llm_jobs.json` 校验章节覆盖，因此 early-draft 与后续草稿缺一不可。
+1. 读取 `draft_fragments/early/early_manifest.json`，要求 `planning_fingerprint_sha256` 等于当前 planning fingerprint；
+2. 对每个 early validated 草稿，要求 manifest 中的 job digest 等于当前完整 job 的稳定内容摘要，并重新校验 project_id、allowed headings 和 Evidence 绑定；
+3. 只有全部匹配的章节才由确定性代码写入最终 `draft_fragments/validated/<section_id>.json`；缺 manifest、指纹/job/file 不匹配时不提升该章节，也不删除 early 文件，只记录忽略原因并让该章节回到正常 Draft；
+4. 从本轮 worker packs 中排除已提升章节，但最终 `llm_jobs.json` 仍保留完整章节集合；
+5. 其余章节继续一次性生成最多 3 个非空 worker，不新增第三个串行 Draft 波次；
+6. 最终 collect 只扫描 `draft_fragments/*.json` 和 `draft_fragments/validated/`，不扫描 `draft_fragments/early/`，并仍按完整 `llm_jobs.json` 校验章节覆盖，因此 early-draft 与后续草稿缺一不可。
 
 这意味着汇总章节 `1.2`、`26.1`、`26.2` 仍在 Research 完成后的正常 Draft 批次生成；本轮不为了理论依赖再增加单独汇总波次。
 
@@ -299,12 +306,13 @@ early-draft 只包含同时满足以下条件的章节：
 
 为保持门禁等价，`report_generation` 在构建报告模型前必须从同一 `output_dir` 读取：
 
+- `planning_delivery_manifest.json`；
 - `research_tasks.json`；
 - `research_evidence.json`（存在 Research 任务时必需）；
 - `llm_jobs.json`；
 - 调用参数中的 `section_drafts.json`。
 
-按顺序重新执行当前 Research Evidence 校验和完整 Draft 校验，校验通过后才生成报告。缺文件、指纹/项目不一致、Evidence 无效或 Draft 无效时不得生成 DOCX/Markdown；沿用 exit code 3 和 `consistency_blocked`，并返回 `validation_stage` 与 `issues`。四个 MCP Tool 的名称、参数和成功状态不变。
+完整 jobs 与已校验 Evidence 生成后，`chapter_planning` 写入 `planning_delivery_manifest.json`，记录当前 `planning_fingerprint_sha256` 以及 confirmed facts、Profile、Chapter Plan、Research Tasks、Research Evidence、完整 `llm_jobs.json` 的稳定内容摘要。`report_generation` 先按 manifest 校验调用参数与同目录 artifact，再依次执行当前 Research Evidence 校验和完整 Draft 校验；全部通过后才生成报告。缺文件、内容摘要/项目不一致、Evidence 无效或 Draft 无效时不得生成 DOCX/Markdown；沿用 exit code 3 和 `consistency_blocked`，并返回 `validation_stage` 与 `issues`。四个 MCP Tool 的名称、参数和成功状态不变。
 
 `chapter_planning(section_drafts=...) -> planning_ready` 兼容路径继续保留，供旧宿主、诊断和重试使用；新的 Skill 和 HOST_WORKFLOW 走直接报告路径。
 
