@@ -289,7 +289,7 @@ early worker 的原始输出、submit 状态和 validated 文件全部留在 `dr
 
 ### 9.3 Evidence 返回后的增量 Draft
 
-`chapter_planning` 校验 Research Evidence 并构建当前完整 LLM jobs 后，检查 `draft_fragments/validated/` 中的 early-draft：
+`chapter_planning` 校验 Research Evidence 并构建当前完整 LLM jobs 后，检查 `draft_fragments/early/validated/` 中的 early-draft：
 
 1. 读取 `draft_fragments/early/early_manifest.json`，要求 `planning_fingerprint_sha256` 等于当前 planning fingerprint；
 2. 对每个 early validated 草稿，要求 manifest 中的 job digest 等于当前完整 job 的稳定内容摘要，并重新校验 project_id、allowed headings 和 Evidence 绑定；
