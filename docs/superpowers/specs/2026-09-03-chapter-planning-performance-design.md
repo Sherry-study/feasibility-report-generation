@@ -56,7 +56,9 @@
 - `process.retrofit.external_feeds`
 - `process.retrofit.product_streams`
 - `process.retrofit.scheme_changes`
-- `adopted_scheme`
+- `adopted_scheme.scheme_name`
+- `adopted_scheme.scheme_description`
+- `adopted_scheme.status`
 
 不绑定 `process` 根节点，也不绑定完整 `topology.nodes/edges`。外部工艺路线类型与工业化情况只在 `4.1.2` 规划状态为 `full` 且存在该节已校验 Research Evidence 时展开；项目事实用于说明本项目既有路线、改造后路线和是否改变工艺路线。完整流股组成、设备校核参数、分离器明细不属于本节写作输入。
 
@@ -65,7 +67,7 @@
 - `full`：保留当前 `R-TECH-0412-01` Research 路由，正文可基于已校验证据概述国内外路线类型、成熟度和工业化情况，再落到本项目路线；
 - `concise`：不新增 Research，只基于确认后的 `project.process_route_changed`、进出料/产品摘要和采用方案说明沿用或局部调整情况；不得在没有 Evidence 时生成国内外路线、成熟度或商业化应用事实。
 
-实现时同步收紧 `chapter_4.yaml` 的 required structure，使 `concise` 状态不再隐含要求无证据的外部技术概况。此调整不改变章节存在性和正文预算，只改变可写事实范围。
+实现时在 `chapter_4.yaml` 的 `output` 下增加可选的 `required_structure_by_plan_status`，分别定义 `full` 与 `concise` 的要求；`internal/planning/llm_jobs.py` 从 `select_active_rules()` 已提供的 `plan_status` 选择对应结构，没有匹配项时回退现有 `required_structure`。`plan_status` 同时写入 job 和 worker pack，供宿主明确执行，不让 Worker 自行猜测状态。`concise` 结构不再隐含要求无证据的外部技术概况。此调整不改变章节存在性和正文预算，只改变可写事实范围。
 
 投影只改变宿主 Worker 可见上下文，不改变 `confirmed_project_facts.json`，也不改变其他章节的事实绑定。
 
@@ -115,15 +117,20 @@ Worker manifest 需返回每个 Worker 的章节、pack bytes、正文预算、�
 
 ### 4.4 性能摘要
 
-`chapter_planning` 返回并尽力落盘一份轻量性能摘要，至少包含：
+`chapter_planning` 返回并尽力落盘一份轻量性能摘要。所有状态均包含：
 
 - `planning_cache_hit`；
 - `planning_elapsed_ms`；
+
+并增加 `draft_worker_metrics_available`。只有已构建 LLM Jobs 和 draft worker packs 的 `needs_llm` 或 Draft 校验恢复路径，才令其为 `true` 并包含：
+
 - `worker_count`；
 - `worker_total_pack_bytes`；
 - `worker_max_pack_bytes`；
 - 每个 Worker 的章节数、pack bytes、output budget 和 estimated load；
 - `max_to_min_load_ratio`。
+
+在 `needs_research` 等尚未生成 draft worker 的状态，`draft_worker_metrics_available=false`，上述 Worker 字段省略或为 `null`，不得构造虚假指标。
 
 性能摘要属于 best-effort diagnostic，不参与业务放行：落盘失败时在 Tool summary 中增加 `performance_summary_error`，但不改变 `needs_research`、`needs_llm` 或 `planning_ready` 状态码。Evidence/Draft 校验结果仍具有更高优先级；性能摘要失败不得掩盖或放行无效草稿。不把这些内部指标写入正式报告、Markdown 或 DOCX。
 
@@ -169,7 +176,7 @@ confirmed facts + profile + chapter rules
 新增或扩展测试，覆盖：
 
 1. `4.1.2` pack 不再包含完整 `process` 或 `topology.nodes/edges`，仍包含 `project.process_route_changed`、设计/改造摘要和采用方案；
-2. 覆盖 `4.1.2=full` 和 `4.1.2=concise`：`full` 使用已校验 Research Evidence，`concise` 不生成无证据的国内外技术事实；
+2. 覆盖 `4.1.2=full` 和 `4.1.2=concise`：两种状态的 worker pack 包含不同的 `required_structure` 和明确 `plan_status`；`full` 使用已校验 Research Evidence，`concise` 不包含无 Evidence 外部技术概况要求；
 3. 当前代表性输入下，`4.1.2` pack 不超过 80 KB，任一 Worker pack 不超过 100 KB，三个 Worker pack 合计不超过 220 KB；
 4. 三个 Worker 的章节覆盖完整、无重复，顺序稳定；
 5. 负载公式字段、固定系数、复杂度计数和 tie-break 结果符合设计，当前代表性输入的 `max_to_min_load_ratio <= 1.6`；
@@ -178,8 +185,9 @@ confirmed facts + profile + chapter rules
 8. 修改事实、Profile、规则、规划依赖文件摘要或模式时快照失效；
 9. 损坏快照自动重算；
 10. Evidence/Draft 在 cache hit 下仍执行校验；
-11. 性能摘要落盘失败时出现 `performance_summary_error`，业务状态码不变且无效草稿仍被拒绝；
-12. 现有状态码、blocked sections、production guard 和报告生成测试全部通过。
+11. `needs_research` 时 `draft_worker_metrics_available=false` 且没有伪造 Worker 指标；`needs_llm` 时为 `true` 并提供完整指标；
+12. 性能摘要落盘失败时出现 `performance_summary_error`，业务状态码不变且无效草稿仍被拒绝；
+13. 现有状态码、blocked sections、production guard 和报告生成测试全部通过。
 
 运行：
 
@@ -191,7 +199,9 @@ python -X utf8 C:\Users\huangxiaoting\.codex\skills\.system\skill-creator\script
 
 ### 7.2 静态性能验收
 
-对同一个当前代表性输入比较优化前后：
+测试不得依赖当前未跟踪的 `_args_*.json` 或 `report_output/`。在 `tests/test_chapter_rules_runtime.py` 中提供确定性的代表性 fixture builder：固定生成 8 个当前章节 job、3 个 Worker，包含与当前装置级案例同量级的 design/retrofit 流股数组、完整 topology、设备/采用方案冗余字段和 Research Evidence。builder 固定数组数量、字符串内容和字段顺序，禁止随机数和当前时间；宽字段必须存在于源 fixture 中，以证明精确 context paths 确实排除了它们。
+
+由该 builder 生成输入并比较优化前基线常量与优化后输出：
 
 - 8 个 LLM 章节保持不变；
 - 3 个 Worker 保持不变；
@@ -221,6 +231,7 @@ python -X utf8 C:\Users\huangxiaoting\.codex\skills\.system\skill-creator\script
 ## 8. 预期改动文件
 
 - `references/chapter_rules/chapter_4.yaml`
+- `internal/planning/llm_jobs.py`
 - `internal/planning/draft_fragments.py`
 - `internal/planning/stage.py`
 - 必要时在 `internal/common.py` 增加通用内容摘要辅助函数
@@ -233,4 +244,4 @@ python -X utf8 C:\Users\huangxiaoting\.codex\skills\.system\skill-creator\script
 - Schema 与状态码契约
 - 最终报告章节结构和正文预算
 
-实施开始前记录 `SKILL.md` 与 `references/report_rules/writing_constraints.md` 的 SHA-256；完成后再次计算并确认完全一致。不得将两者纳入格式化、批量替换或提交范围；最终同时检查针对这两个文件没有新增 diff。
+实施开始前记录 `SKILL.md` 与 `references/report_rules/writing_constraints.md` 的 SHA-256；完成后再次计算并确认完全一致。若实施前相对 HEAD 已存在 diff，不要求该 diff 为空；只要求实施前后 SHA-256 完全相同，并确认这两个文件没有被 stage 或 commit。不得将两者纳入格式化、批量替换或提交范围。
