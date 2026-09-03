@@ -223,6 +223,33 @@ def _representative_jobs_payload():
     return {"contract_version": "1.0", "project_id": "P-001", "jobs": jobs}
 
 
+def _valid_evidence_for_tasks(tasks_payload, mode="test"):
+    items = []
+    for task in tasks_payload.get("tasks") or []:
+        minimum = int(task.get("minimum_sources") or 1)
+        for i in range(minimum):
+            items.append(_ev(
+                f"EV-{task['task_id']}-{i+1}",
+                task["task_id"],
+                f"https://evidence.example/{task['task_id']}/{i+1}",
+                "official_government",
+            ))
+    payload = {
+        "contract_version": "1.0",
+        "project_id": tasks_payload.get("project_id"),
+        "items": items,
+    }
+    if mode == "test":
+        payload["test_only"] = True
+    return payload
+
+
+def _write_delivery_manifest_for_test(out, fingerprint, facts, profile, plan, research_tasks, evidence, llm_jobs):
+    from internal.planning.stage import _write_planning_delivery_manifest
+    dump_json({"contract_version": "1.0", "fingerprint": fingerprint}, out / "planning_snapshot.json")
+    return _write_planning_delivery_manifest(out, fingerprint, facts, profile, plan, research_tasks, evidence, llm_jobs)
+
+
 def _write_registry_docs(base, docs):
     for index, doc in enumerate(docs, start=1):
         data = {k: v for k, v in doc.items() if k != "_file"}
@@ -926,13 +953,301 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             self.assertIn("batch_worker_01.json", text)
             self.assertIn("--submit", text)
             self.assertIn("HOST_WORKFLOW.md", summary["next_action"])
-            self.assertIn("chapter_planning Tool", summary["next_action"])
-            self.assertIn("chapter_planning", text)
+            self.assertIn("report_generation Tool", summary["next_action"])
+            self.assertIn("report_generation", text)
             self.assertIn("section_drafts", text)
             self.assertNotIn(LEGACY_SKILL_RERUN, text)
             self.assertNotIn(LEGACY_SKILL_RESUME, text)
             self.assertNotIn(LEGACY_SKILL_RERUN, summary["next_action"])
             self.assertNotIn(LEGACY_SKILL_RESUME, summary["next_action"])
+
+    def test_needs_research_combines_research_and_early_draft_workers(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            args = Namespace(
+                profile=str(out / "profile.json"),
+                facts=str(out / "facts.json"),
+                skip_user_inputs=True,
+                research_evidence=None,
+                section_drafts=None,
+                ai_mode="host_agent",
+                run_mode="test",
+            )
+            code, summary = run_chapter_planning_stage(args, out)
+            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
+            self.assertTrue(summary["overlap_enabled"])
+            self.assertLessEqual(summary["research_worker_count"] + summary["early_draft_worker_count"], 3)
+            self.assertLessEqual(summary["early_draft_worker_count"], 1)
+            self.assertNotIn("1.2", summary["early_draft_section_ids"])
+            self.assertFalse({"26.1", "26.2"} & set(summary["early_draft_section_ids"]))
+            early = out / "draft_fragments" / "early"
+            self.assertTrue((early / "early_llm_jobs.json").exists())
+            self.assertTrue((early / "early_empty_research_evidence.json").exists())
+            self.assertTrue((early / "early_manifest.json").exists())
+            self.assertTrue(all(not job.get("research_task_ids") for job in load_data(early / "early_llm_jobs.json")["jobs"]))
+            self.assertFalse((out / "draft_fragments" / "validated").exists())
+            text = Path(summary["host_workflow"]).read_text(encoding="utf-8")
+            self.assertIn("全部 Research task 和 early-draft worker 完成且各自 submit 成功", text)
+            self.assertIn("early-draft Worker", text)
+            self.assertIn("--jobs", text)
+            self.assertIn("early_llm_jobs.json", text)
+            self.assertIn("early_empty_research_evidence.json", text)
+            self.assertIn("draft_fragments/early", text.replace("\\", "/"))
+
+    def test_early_draft_submit_promotes_then_remaining_packs_exclude_it(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            base_args = Namespace(
+                profile=str(out / "profile.json"),
+                facts=str(out / "facts.json"),
+                skip_user_inputs=True,
+                research_evidence=None,
+                section_drafts=None,
+                ai_mode="host_agent",
+                run_mode="test",
+            )
+            code, summary = run_chapter_planning_stage(base_args, out)
+            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
+            early_dir = out / "draft_fragments" / "early"
+            early_jobs = load_data(early_dir / "early_llm_jobs.json")
+            early_evidence = load_data(early_dir / "early_empty_research_evidence.json")
+            early_sections = summary["early_draft_section_ids"]
+            self.assertTrue(early_sections)
+            drafts = []
+            for job in early_jobs["jobs"]:
+                drafts.append(self._draft(job["section_id"], job["allowed_headings"][0], ["提前草稿正文"]))
+            batch = early_dir / "batch_worker_01.json"
+            dump_json({"drafts": drafts}, batch)
+            result, submit_code = submit(early_dir, early_jobs, early_evidence, batch, "test")
+            self.assertEqual(submit_code, 0)
+            self.assertEqual(set(result["accepted_sections"]), set(early_sections))
+            self.assertFalse((out / "draft_fragments" / "batch_worker_01.json").exists())
+
+            tasks_payload = load_data(summary["research_tasks"])
+            evidence = _valid_evidence_for_tasks(tasks_payload, "test")
+            dump_json(evidence, out / "research_evidence.json")
+            restore_args = Namespace(**{**base_args.__dict__, "research_evidence": str(out / "research_evidence.json")})
+            code, restored = run_chapter_planning_stage(restore_args, out)
+            self.assertEqual(code, EXIT_NEEDS_LLM)
+            self.assertEqual(set(restored["accepted_early_draft_section_ids"]), set(early_sections))
+            self.assertFalse(set(early_sections) & set(restored["remaining_draft_section_ids"]))
+            for sid in early_sections:
+                self.assertTrue((out / "draft_fragments" / "validated" / f"{sid.replace('.', '_')}.json").exists())
+            self.assertEqual(len(load_data(out / "llm_jobs.json")["jobs"]), len(early_sections) + len(restored["remaining_draft_section_ids"]))
+
+    def test_stale_early_draft_is_ignored_and_returns_to_normal_draft(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            base_args = Namespace(
+                profile=str(out / "profile.json"),
+                facts=str(out / "facts.json"),
+                skip_user_inputs=True,
+                research_evidence=None,
+                section_drafts=None,
+                ai_mode="host_agent",
+                run_mode="test",
+            )
+            code, summary = run_chapter_planning_stage(base_args, out)
+            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
+            early_dir = out / "draft_fragments" / "early"
+            early_jobs = load_data(early_dir / "early_llm_jobs.json")
+            early_evidence = load_data(early_dir / "early_empty_research_evidence.json")
+            batch = early_dir / "batch_worker_01.json"
+            dump_json({"drafts": [self._draft(job["section_id"], job["allowed_headings"][0], ["提前草稿正文"]) for job in early_jobs["jobs"]]}, batch)
+            self.assertEqual(submit(early_dir, early_jobs, early_evidence, batch, "test")[1], 0)
+            manifest = load_data(early_dir / "early_manifest.json")
+            manifest["planning_fingerprint_sha256"] = "stale"
+            dump_json(manifest, early_dir / "early_manifest.json")
+
+            tasks_payload = load_data(summary["research_tasks"])
+            dump_json(_valid_evidence_for_tasks(tasks_payload, "test"), out / "research_evidence.json")
+            restore_args = Namespace(**{**base_args.__dict__, "research_evidence": str(out / "research_evidence.json")})
+            code, restored = run_chapter_planning_stage(restore_args, out)
+            self.assertEqual(code, EXIT_NEEDS_LLM)
+            self.assertFalse(restored["accepted_early_draft_section_ids"])
+            self.assertTrue(set(summary["early_draft_section_ids"]) <= set(restored["remaining_draft_section_ids"]))
+            self.assertFalse((out / "draft_fragments" / "validated").exists())
+
+    def test_missing_or_damaged_early_contract_degrades_to_normal_draft(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            base_args = Namespace(
+                profile=str(out / "profile.json"),
+                facts=str(out / "facts.json"),
+                skip_user_inputs=True,
+                research_evidence=None,
+                section_drafts=None,
+                ai_mode="host_agent",
+                run_mode="test",
+            )
+            code, summary = run_chapter_planning_stage(base_args, out)
+            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
+            tasks_payload = load_data(summary["research_tasks"])
+            dump_json(_valid_evidence_for_tasks(tasks_payload, "test"), out / "research_evidence.json")
+            restore_args = Namespace(**{**base_args.__dict__, "research_evidence": str(out / "research_evidence.json")})
+
+            (out / "draft_fragments" / "early" / "early_manifest.json").write_text("{broken", encoding="utf-8")
+            code, restored = run_chapter_planning_stage(restore_args, out)
+            self.assertEqual(code, EXIT_NEEDS_LLM)
+            self.assertFalse(restored["accepted_early_draft_section_ids"])
+            self.assertEqual(restored["ignored_early_draft_items"][0]["reason"], "early_manifest_unavailable")
+
+            (out / "research_evidence.json").unlink()
+            code, summary = run_chapter_planning_stage(base_args, out)
+            self.assertEqual(code, EXIT_NEEDS_RESEARCH)
+            dump_json(_valid_evidence_for_tasks(load_data(summary["research_tasks"]), "test"), out / "research_evidence.json")
+            (out / "draft_fragments" / "early" / "early_llm_jobs.json").unlink()
+            code, restored = run_chapter_planning_stage(restore_args, out)
+            self.assertEqual(code, EXIT_NEEDS_LLM)
+            self.assertFalse(restored["accepted_early_draft_section_ids"])
+            self.assertEqual(restored["ignored_early_draft_items"][0]["reason"], "early_llm_jobs_unavailable")
+
+    def test_report_generation_direct_path_revalidates_and_rejects_invalid_drafts(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            tasks = build_tasks(PROFILE, PLAN, FACTS)
+            dump_json(tasks, out / "research_tasks.json")
+            evidence = _valid_evidence_for_tasks(tasks, "test")
+            dump_json(evidence, out / "research_evidence.json")
+            jobs = build_jobs(PROFILE, PLAN, FACTS, tasks, evidence)
+            dump_json({"contract_version": "1.0", "project_id": jobs["project_id"], "jobs": [
+                {"section_id": job["section_id"], "plan_status": job.get("plan_status"), "allowed_headings": job["allowed_headings"], "research_task_ids": job["research_task_ids"]}
+                for job in jobs["jobs"]
+            ]}, out / "llm_jobs.json")
+            plan = out / "chapter_plan.json"
+            dump_json(PLAN, plan)
+            _write_delivery_manifest_for_test(out, {"test": "fingerprint"}, out / "facts.json", out / "profile.json", plan, out / "research_tasks.json", out / "research_evidence.json", out / "llm_jobs.json")
+            invalid = out / "invalid_drafts.json"
+            dump_json({"contract_version": "1.0", "project_id": jobs["project_id"], "test_only": True, "drafts": []}, invalid)
+            code, result = run_report_generation_stage(Namespace(
+                facts=str(out / "facts.json"),
+                profile=str(out / "profile.json"),
+                chapter_plan=str(plan),
+                section_drafts=str(invalid),
+                strict_consistency=False,
+                run_mode="test",
+            ), out)
+            self.assertEqual(code, 3)
+            self.assertEqual(result["status"], "consistency_blocked")
+            self.assertEqual(result["validation_stage"], "section_drafts")
+            self.assertTrue(result["issues"])
+            self.assertFalse((out / "可行性研究报告_初稿.docx").exists())
+            self.assertFalse((out / "可行性研究报告_初稿.md").exists())
+
+    def _valid_drafts_for_jobs(self, jobs, evidence):
+        by_task = {}
+        for item in evidence.get("items") or []:
+            by_task.setdefault(item["task_id"], []).append(item["evidence_id"])
+        drafts = []
+        for job in jobs["jobs"]:
+            cited = []
+            for task_id in job.get("research_task_ids") or []:
+                cited.extend(by_task.get(task_id) or [])
+            draft = self._draft(job["section_id"], job["allowed_headings"][0], ["有效章节正文"])
+            draft["source_evidence_ids"] = cited
+            drafts.append(draft)
+        return {
+            "contract_version": "1.0",
+            "project_id": jobs["project_id"],
+            "test_only": True,
+            "drafts": drafts,
+        }
+
+    def test_report_generation_direct_path_accepts_valid_nonempty_jobs_and_drafts(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            plan = out / "chapter_plan.json"
+            dump_json(PLAN, plan)
+            dump_json({"blocked_sections": []}, out / "gap_analysis.json")
+            tasks = build_tasks(PROFILE, PLAN, FACTS)
+            dump_json(tasks, out / "research_tasks.json")
+            evidence = _valid_evidence_for_tasks(tasks, "test")
+            dump_json(evidence, out / "research_evidence.json")
+            jobs = build_jobs(PROFILE, PLAN, FACTS, tasks, evidence)
+            from internal.planning.llm_jobs import compact_jobs_for_validation
+            dump_json(compact_jobs_for_validation(jobs), out / "llm_jobs.json")
+            drafts = out / "section_drafts.json"
+            dump_json(self._valid_drafts_for_jobs(jobs, evidence), drafts)
+            _write_delivery_manifest_for_test(out, {"test": "fingerprint"}, out / "facts.json", out / "profile.json", plan, out / "research_tasks.json", out / "research_evidence.json", out / "llm_jobs.json")
+
+            code, result = run_report_generation_stage(Namespace(
+                facts=str(out / "facts.json"),
+                profile=str(out / "profile.json"),
+                chapter_plan=str(plan),
+                section_drafts=str(drafts),
+                strict_consistency=False,
+                run_mode="test",
+            ), out)
+            self.assertEqual(code, 0)
+            self.assertEqual(result["status"], "generated")
+            self.assertTrue((out / "可行性研究报告_初稿.docx").exists())
+            self.assertTrue((out / "可行性研究报告_初稿.md").exists())
+
+    def test_report_generation_blocks_invalid_draft_json_without_outputs(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            plan = out / "chapter_plan.json"
+            dump_json(PLAN, plan)
+            dump_json({"contract_version": "1.0", "project_id": "P-001", "tasks": []}, out / "research_tasks.json")
+            dump_json({"contract_version": "1.0", "project_id": "P-001", "jobs": [{"section_id": "1.2", "allowed_headings": ["1.2 研究结论"], "research_task_ids": []}]}, out / "llm_jobs.json")
+            bad = out / "section_drafts.json"
+            bad.write_text("{broken", encoding="utf-8")
+            _write_delivery_manifest_for_test(out, {"test": "fingerprint"}, out / "facts.json", out / "profile.json", plan, out / "research_tasks.json", None, out / "llm_jobs.json")
+            code, result = run_report_generation_stage(Namespace(
+                facts=str(out / "facts.json"),
+                profile=str(out / "profile.json"),
+                chapter_plan=str(plan),
+                section_drafts=str(bad),
+                strict_consistency=False,
+                run_mode="test",
+            ), out)
+            self.assertEqual(code, 3)
+            self.assertEqual(result["validation_stage"], "section_drafts")
+            self.assertFalse((out / "可行性研究报告_初稿.docx").exists())
+            self.assertFalse((out / "可行性研究报告_初稿.md").exists())
+
+    def test_report_generation_blocks_manifest_fingerprint_and_path_anomalies(self):
+        with tempfile.TemporaryDirectory() as td:
+            out = Path(td)
+            outside = Path(td) / "outside"
+            outside.mkdir()
+            dump_json(PROFILE, out / "profile.json")
+            dump_json(FACTS, out / "facts.json")
+            plan = out / "chapter_plan.json"
+            dump_json(PLAN, plan)
+            dump_json({"contract_version": "1.0", "project_id": "P-001", "tasks": []}, out / "research_tasks.json")
+            dump_json({"contract_version": "1.0", "project_id": "P-001", "jobs": []}, out / "llm_jobs.json")
+            _write_delivery_manifest_for_test(out, {"test": "fingerprint"}, out / "facts.json", out / "profile.json", plan, out / "research_tasks.json", None, out / "llm_jobs.json")
+            snapshot = load_data(out / "planning_snapshot.json")
+            snapshot["fingerprint"] = {"test": "changed"}
+            dump_json(snapshot, out / "planning_snapshot.json")
+            args = Namespace(facts=str(out / "facts.json"), profile=str(out / "profile.json"), chapter_plan=str(plan), section_drafts=None, strict_consistency=False, run_mode="test")
+            code, result = run_report_generation_stage(args, out)
+            self.assertEqual(code, 3)
+            self.assertEqual(result["validation_stage"], "planning_snapshot")
+
+            _write_delivery_manifest_for_test(out, {"test": "fingerprint"}, out / "facts.json", out / "profile.json", plan, out / "research_tasks.json", None, out / "llm_jobs.json")
+            manifest = load_data(out / "planning_delivery_manifest.json")
+            dump_json({"contract_version": "1.0", "project_id": "P-001", "jobs": []}, outside / "llm_jobs.json")
+            manifest["artifacts"]["llm_jobs"]["path"] = str(outside / "llm_jobs.json")
+            dump_json(manifest, out / "planning_delivery_manifest.json")
+            code, result = run_report_generation_stage(args, out)
+            self.assertEqual(code, 3)
+            self.assertEqual(result["validation_stage"], "planning_delivery_manifest")
 
     def _draft(self, sid, heading, paragraphs=("正文",)):
         return {
@@ -1058,6 +1373,9 @@ class ChapterRulesRuntimeTests(unittest.TestCase):
             dump_json({"project": {"project_id": "P-001", "project_name": "示例改造项目"}, "adopted_scheme": {}}, facts)
             dump_json({"chapter_plan": []}, plan)
             dump_json({"blocked_sections": [{"section_id": "4.1.3", "rule_id": "chapter_4", "fact_id": "adopted_scheme", "reason": "missing"}]}, out / "gap_analysis.json")
+            dump_json({"contract_version": "1.0", "project_id": "P-001", "tasks": []}, out / "research_tasks.json")
+            dump_json({"contract_version": "1.0", "project_id": "P-001", "jobs": []}, out / "llm_jobs.json")
+            _write_delivery_manifest_for_test(out, {"test": "fingerprint"}, facts, profile, plan, out / "research_tasks.json", None, out / "llm_jobs.json")
             code, summary = run_report_generation_stage(Namespace(facts=str(facts), profile=str(profile), chapter_plan=str(plan), section_drafts=None, strict_consistency=False), out)
             self.assertEqual(code, 0)
             self.assertEqual(summary["completion_status"], "generated_with_blocked_sections")

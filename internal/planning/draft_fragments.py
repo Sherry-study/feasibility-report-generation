@@ -588,7 +588,7 @@ def write_worker_packs(jobs_payload, frag_dir, worker_count=DEFAULT_WORKER_COUNT
     }
 
 
-def write_host_workflow(jobs_payload, frag_dir, output_dir, evidence_path, skill_root, worker_manifest=None):
+def write_host_workflow(jobs_payload, frag_dir, output_dir, evidence_path, skill_root, worker_manifest=None, facts_path=None, profile_path=None, chapter_plan_path=None):
     """写入宿主并行 draft worker 执行说明，作为 needs_llm 后的唯一入口。"""
     fdir=Path(frag_dir); fdir.mkdir(parents=True,exist_ok=True)
     jobs=jobs_payload.get('jobs') or []
@@ -601,7 +601,7 @@ def write_host_workflow(jobs_payload, frag_dir, output_dir, evidence_path, skill
       '1. **一次性并行派发全部 worker**。每个 subAgent 只读取自己的 worker pack；生成对应 batch JSON；然后执行一次 submit。',
       '2. worker pack 内 `length_budget_chars` 是正文长度上限目标：优先精炼，不重复表格数字，不输出 claims/open_items。',
       '3. submit 部分失败时只重写 `retry_sections`，已通过章节不得返工。',
-      '4. 全部 worker 完成后只运行一次 collect；collect exit 0 后立即重新调用 chapter_planning Tool，传入 collect 产物 section_drafts.json，再进入最终报告生成，中间不总结、不重新规划。','',
+      '4. 全部 worker 完成后只运行一次 collect；collect exit 0 后直接调用 report_generation Tool，传入 collect 产物 section_drafts.json，由 report_generation 完成最终 Evidence/Draft 门禁。','',
       '## Worker','```'
     ]
     for b in batches:
@@ -613,7 +613,7 @@ def write_host_workflow(jobs_payload, frag_dir, output_dir, evidence_path, skill
       '## collect（全部 worker 后一次）','```',
       f'python "{skill_root}\\internal\\planning\\draft_fragments.py" --output-dir "{outdir}" --fragments-dir "{fdir}" --output "{outdir}\\section_drafts.json"',
       '```','',
-      f'collect exit 0 后立即重新调用 `chapter_planning` Tool，并设置 `section_drafts="{outdir}\\section_drafts.json"`。'
+      f'collect exit 0 后直接调用 `report_generation` Tool：facts="{facts_path or "<confirmed_project_facts.json>"}", profile="{profile_path or "<project_profile.json>"}", chapter_plan="{chapter_plan_path or str(outdir/"chapter_plan.json")}", output_dir="{outdir}", section_drafts="{outdir}\\section_drafts.json"。'
     ]
     wf=fdir/'HOST_WORKFLOW.md'; wf.write_text('\n'.join(L)+'\n',encoding='utf-8')
     return str(wf)

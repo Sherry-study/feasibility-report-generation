@@ -139,23 +139,40 @@ def write_research_packs(tasks_payload, frag_dir):
     return {'contexts_dir':str(cdir),'packs':len(worker_rows),'workers':len(worker_rows),'task_count':len(tasks),'total_pack_bytes':total_bytes,'manifest_data':manifest}
 
 
-def write_research_host_workflow(tasks_payload, frag_dir, output_dir, skill_root, worker_manifest=None):
+def write_research_host_workflow(tasks_payload, frag_dir, output_dir, skill_root, worker_manifest=None, early_draft=None):
     """写入宿主执行说明，作为首次 Research 的唯一入口。"""
     fdir=Path(frag_dir); outdir=Path(output_dir)
     manifest=worker_manifest or {'workers':[]}
     workers=manifest.get('workers') or []
+    early=early_draft or {}
+    early_workers=int(early.get('worker_count') or 0)
+    total_workers=len(workers)+early_workers
     L=[
       '# Research 执行入口（严格执行）','',
-      f'共 {len(tasks_payload.get("tasks") or [])} 个任务，已固定为 {len(workers)} 个 worker。不要扫描目录、不要读取 research_tasks.json、不要重新分配任务。','',
-      '1. **一次性并行派发全部 Research Worker**；每个 subAgent 只读自己的 worker pack。',
+      f'共 {len(tasks_payload.get("tasks") or [])} 个 Research 任务；并行入口已固定为 {len(workers)} 个 Research worker + {early_workers} 个 early-draft worker，总数 {total_workers}，不得超过 3。不要扫描目录、不要读取 research_tasks.json、不要重新分配任务。','',
+      '1. **一次性并行派发全部 Research Worker 和 early-draft Worker**；每个 subAgent 只读自己的 worker pack。',
       '2. 严格遵守 `search_budget`：先 primary_queries；达到 minimum_sources 且足够支撑正文后立即停止；非必要不跑 fallback_queries。',
       '3. 每完成一个 task 写 evidence_<task_id>.json 并 submit；失败只修当前 task。',
-      '4. 全部完成后只 collect 一次；collect exit 0 后立即重新调用 chapter_planning Tool，传入 collect 产物 research_evidence.json。若返回 needs_llm，直接执行 Draft HOST_WORKFLOW，中间不总结、不重新规划。','',
-      '## Worker','```'
+      '4. early-draft 不等待 Research，也不触发单独 chapter_planning；其原始输出、submit 状态和 validated 文件都留在 draft_fragments/early/。',
+      '5. 等待全部 Research task 和 early-draft worker 完成且各自 submit 成功后，只 collect Research 一次；collect exit 0 后立即重新调用 chapter_planning Tool，传入 collect 产物 research_evidence.json。若返回 needs_llm，直接执行 Draft HOST_WORKFLOW，中间不总结、不重新规划。','',
+      '## Research Worker','```'
     ]
     for w in workers:
         L.append(f"{w['worker_id']}: {w['context_pack']} ; lane={w['lane']} ; tasks={', '.join(w['task_ids'])}")
-    L += ['```','',
+    L += ['```','']
+    if early_workers:
+        L += [
+          '## Early Draft Worker','```',
+        ]
+        early_dir=Path(early.get('early_dir'))
+        for pack in early.get('manifest_data',{}).get('worker_packs') or []:
+            output_file=f"batch_{pack.get('worker_id')}.json"
+            L.append(f"{pack.get('worker_id')}: {Path(pack.get('context_pack')).relative_to(early_dir)} -> {output_file} ; sections={', '.join(pack.get('section_ids') or [])}")
+        L += ['```','',
+          '## early submit（early worker 一次）','```',
+          f'python "{skill_root}/internal/planning/draft_fragments.py" --jobs "{early.get("jobs_path")}" --evidence "{early.get("evidence_path")}" --fragments-dir "{early.get("early_dir")}" --submit "{Path(early.get("early_dir"))}/batch_worker_01.json"',
+          '```','']
+    L += [
       '## submit（每 task）','```',
       f'python "{skill_root}/internal/planning/research_fragments.py" --tasks "{outdir}/research_tasks.json" --fragments-dir "{fdir}" --submit "{outdir}/research_fragments/evidence_<task_id>.json"',
       '```','',
