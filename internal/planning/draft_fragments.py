@@ -42,6 +42,9 @@ MAX_SECTIONS_PER_BATCH=6
 BATCH_CHAR_TARGET=12000
 BATCH_CHAR_MIN=4000
 DEFAULT_WORKER_COUNT=3
+LOAD_OUTPUT_CHAR_WEIGHT=6
+LOAD_HEADING_WEIGHT=2048
+LOAD_REQUIREMENT_WEIGHT=512
 
 
 def _section_char_budget(section_id):
@@ -59,6 +62,25 @@ def _section_char_budget(section_id):
 
 def _estimate(job):
     """估算章节输出字符数，供 worker 负载均衡使用。"""
+    return _section_char_budget(job.get('section_id'))
+
+
+def _allowed_heading_count(job):
+    return len(job.get('allowed_headings') or [])
+
+
+def _requirement_count(job):
+    count=0
+    for item in job.get('required_structure') or []:
+        count+=len((item or {}).get('requirements') or [])
+    return count
+
+
+def _section_complexity_weight(job):
+    return _allowed_heading_count(job)*LOAD_HEADING_WEIGHT + _requirement_count(job)*LOAD_REQUIREMENT_WEIGHT
+
+
+def _job_output_budget(job):
     return _section_char_budget(job.get('section_id'))
 
 
@@ -285,6 +307,7 @@ def _build_worker_pack(jobs_payload, worker_id, section_jobs):
         sections.append({
             'section_id':sid,
             'title':job.get('title') or sid,
+            'plan_status':job.get('plan_status'),
             'allowed_headings':job.get('allowed_headings') or [],
             'required_structure':job.get('required_structure') or [],
             'generation_rules':job.get('generation_rules') or {},
@@ -311,7 +334,25 @@ def _build_worker_pack(jobs_payload, worker_id, section_jobs):
 def _worker_load(jobs_payload, worker_id, jobs):
     """估算某 worker 当前任务包的总负载。"""
     pack=_build_worker_pack(jobs_payload, worker_id, jobs)
-    return _json_bytes(pack)+sum(_estimate(j) for j in jobs)
+    return _json_bytes(pack)+sum(_job_output_budget(j)*LOAD_OUTPUT_CHAR_WEIGHT+_section_complexity_weight(j) for j in jobs)
+
+
+def _worker_metrics(jobs_payload, worker_id, jobs, pack_bytes=None):
+    """生成 worker manifest 中的可解释负载字段。"""
+    actual_pack_bytes=_json_bytes(_build_worker_pack(jobs_payload, worker_id, jobs)) if pack_bytes is None else int(pack_bytes)
+    output_budget=sum(_job_output_budget(j) for j in jobs)
+    allowed_headings=sum(_allowed_heading_count(j) for j in jobs)
+    requirements=sum(_requirement_count(j) for j in jobs)
+    complexity=allowed_headings*LOAD_HEADING_WEIGHT+requirements*LOAD_REQUIREMENT_WEIGHT
+    estimated_load=actual_pack_bytes+output_budget*LOAD_OUTPUT_CHAR_WEIGHT+complexity
+    return {
+        'pack_bytes':actual_pack_bytes,
+        'output_budget_chars':output_budget,
+        'allowed_heading_count':allowed_headings,
+        'requirement_count':requirements,
+        'section_complexity_weight':complexity,
+        'estimated_load':estimated_load,
+    }
 
 
 def _job_ordered_copy(jobs):
@@ -333,7 +374,13 @@ def plan_worker_batches(jobs_payload, worker_count=DEFAULT_WORKER_COUNT):
           'plan_type':'draft_workers',
           'jobs_total':0,
           'defaults':{'worker_count':worker_count},
-          'assignment_strategy':'greedy_by_slimmed_context_increment_plus_estimated_output',
+          'assignment_strategy':'deterministic_greedy_estimated_load_v1',
+          'load_formula':{
+              'estimated_load':'pack_bytes + output_budget_chars*6 + allowed_heading_count*2048 + requirement_count*512',
+              'output_budget_weight':LOAD_OUTPUT_CHAR_WEIGHT,
+              'allowed_heading_weight':LOAD_HEADING_WEIGHT,
+              'requirement_weight':LOAD_REQUIREMENT_WEIGHT,
+          },
           'batches':[],
         }
     count=max(1,min(int(worker_count or DEFAULT_WORKER_COUNT),len(jobs)))
@@ -358,6 +405,7 @@ def plan_worker_batches(jobs_payload, worker_count=DEFAULT_WORKER_COUNT):
         if not section_ids:
             continue
         pack=_build_worker_pack(jobs_payload, worker['worker_id'], section_jobs)
+        metrics=_worker_metrics(jobs_payload, worker['worker_id'], section_jobs, _json_bytes(pack))
         batches.append({
             'batch_id':worker['worker_id'],
             'worker_id':worker['worker_id'],
@@ -365,16 +413,28 @@ def plan_worker_batches(jobs_payload, worker_count=DEFAULT_WORKER_COUNT):
             'context_pack':f"worker_contexts/{worker['worker_id']}.json",
             'section_ids':section_ids,
             'sections':len(section_ids),
-            'est_chars':sum(_estimate(j) for j in section_jobs),
-            'estimated_pack_bytes':_json_bytes(pack),
-            'estimated_total_load':_json_bytes(pack)+sum(_estimate(j) for j in section_jobs),
+            'est_chars':metrics['output_budget_chars'],
+            'estimated_pack_bytes':metrics['pack_bytes'],
+            'estimated_total_load':metrics['estimated_load'],
+            **metrics,
         })
+    loads=[b.get('estimated_load',0) for b in batches]
+    nonzero_loads=[x for x in loads if x>0]
     return {
       'contract_version':'1.0',
       'plan_type':'draft_workers',
       'jobs_total':len(jobs),
       'defaults':{'worker_count':worker_count,'actual_workers':len(batches)},
-      'assignment_strategy':'greedy_by_slimmed_context_increment_plus_estimated_output',
+      'assignment_strategy':'deterministic_greedy_estimated_load_v1',
+      'load_formula':{
+          'estimated_load':'pack_bytes + output_budget_chars*6 + allowed_heading_count*2048 + requirement_count*512',
+          'output_budget_weight':LOAD_OUTPUT_CHAR_WEIGHT,
+          'allowed_heading_weight':LOAD_HEADING_WEIGHT,
+          'requirement_weight':LOAD_REQUIREMENT_WEIGHT,
+      },
+      'total_output_budget_chars':sum(b.get('output_budget_chars',0) for b in batches),
+      'total_estimated_load':sum(loads),
+      'max_to_min_load_ratio':(max(nonzero_loads)/min(nonzero_loads)) if nonzero_loads else None,
       'batches':batches,
     }
 
@@ -504,11 +564,20 @@ def write_worker_packs(jobs_payload, frag_dir, worker_count=DEFAULT_WORKER_COUNT
         dump_json(pack,path)
         pack_bytes=path.stat().st_size
         total_bytes+= pack_bytes
-        batch['pack_bytes']=pack_bytes
+        batch.update(_worker_metrics(jobs_payload,batch['worker_id'],section_jobs,pack_bytes))
+        batch['estimated_pack_bytes']=pack_bytes
+        batch['estimated_total_load']=batch['estimated_load']
+        batch['est_chars']=batch['output_budget_chars']
         batch['context_pack']=f"worker_contexts/{batch['worker_id']}.json"
         batch['file']=f"batch_{batch['worker_id']}.json"
     plan['total_pack_bytes']=total_bytes
     plan['max_pack_bytes']=max((b.get('pack_bytes',0) for b in plan['batches']), default=0)
+    plan['worker_total_pack_bytes']=total_bytes
+    plan['worker_max_pack_bytes']=plan['max_pack_bytes']
+    loads=[b.get('estimated_load',0) for b in plan['batches']]
+    nonzero_loads=[x for x in loads if x>0]
+    plan['total_estimated_load']=sum(loads)
+    plan['max_to_min_load_ratio']=(max(nonzero_loads)/min(nonzero_loads)) if nonzero_loads else None
     return {
         'contexts_dir':str(cdir),
         'packs':len(plan['batches']),

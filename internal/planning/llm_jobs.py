@@ -37,6 +37,7 @@ def compact_jobs_for_validation(payload):
       'project_id':payload.get('project_id'),
       'jobs':[{
         'section_id':j.get('section_id'),
+        'plan_status':j.get('plan_status'),
         'allowed_headings':j.get('allowed_headings') or [],
         'research_task_ids':j.get('research_task_ids') or [],
       } for j in (payload.get('jobs') or [])],
@@ -66,6 +67,15 @@ def _open_items(findings):
     ]
 
 
+def _required_structure_for_plan_status(output, plan_status):
+    """按规划状态选择章节结构要求；缺省回退到原 required_structure。"""
+    by_status=output.get('required_structure_by_plan_status') or {}
+    status_key=str(plan_status or '')
+    if status_key and isinstance(by_status,dict) and by_status.get(status_key):
+        return by_status.get(status_key) or []
+    return output.get('required_structure') or []
+
+
 def build_jobs(profile_file, plan_file, facts, tasks, evidence):
     """Pure function entry: rules + confirmed facts + tasks/evidence -> jobs payload."""
     profile=profile_file.get('project_profile',profile_file)
@@ -92,11 +102,13 @@ def build_jobs(profile_file, plan_file, facts, tasks, evidence):
         context['open_items'].extend(_open_items([x for x in findings if x.get('missing_action')=='allow_open_item']))
         output=rule.get('output') or {}
         allowed=output.get('allowed_headings') or []
+        plan_status=rule.get('plan_status')
         jobs.append({
           'job_id':f"LLM-SEC-{sid.replace('.','')}-01",
           'rule_id':rule.get('rule_id'),
           'rule_version':rule.get('rule_version'),
           'rule_status':rule.get('rule_status'),
+          'plan_status':plan_status,
           'section_id':sid,
           'title':rule.get('title') or sid,
           'research_task_ids':tids,
@@ -104,7 +116,7 @@ def build_jobs(profile_file, plan_file, facts, tasks, evidence):
           'chapter_context':context,
           'project_context':context,
           'research_evidence':ev,
-          'required_structure':output.get('required_structure') or [],
+          'required_structure':_required_structure_for_plan_status(output,plan_status),
           'allowed_headings':allowed,
           'generation_rules':rule.get('generation_rules') or {},
           'quality_checks':rule.get('quality_checks') or [],
