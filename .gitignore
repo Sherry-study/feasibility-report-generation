@@ -16,6 +16,16 @@ yarn-error.log*
 # uv 缓存
 .uv-cache/
 
+# 本地运行产物
+/report_output_dir/
+/skill-tool优化参考文档/
+mcp_runs/
+tsconfig.tsbuildinfo
+
+# 临时调试文件
+_facts_*.txt
+_wp_*.txt
+_tmp_*.txt
+
 # IDE / AI 工具本地配置
 .trae/
-

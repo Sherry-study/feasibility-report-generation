@@ -1,0 +1,517 @@
+{
+  "reactors": [
+    {
+      "id": "1",
+      "tag": "R5103",
+      "name": "醚化反应器",
+      "form": "固定床",
+      "has_heat_transfer": false,
+      "evaluation": {
+        "space_velocity": {
+          "available": true,
+          "status": "fail",
+          "exceeded": true,
+          "reference_LHSV_h1": 0.713817,
+          "new_LHSV_h1": 1.847117,
+          "LHSV_ratio": 2.587662,
+          "conclusion": "改造工况空速(1.847117 h-1)超出参考空速(0.713817 h-1)158.8%"
+        },
+        "adiabatic_temperature": {
+          "available": true,
+          "status": "pass",
+          "exceeded": false,
+          "bottleneck_type": "none_identified",
+          "known_target_outlet_temperature_c": 68.01,
+          "equipment_process_design_temperature_c": 120.0,
+          "equipment_temperature_sufficient": true,
+          "process_temperature_limits_c": {
+            "min": null,
+            "max": 120.0
+          },
+          "process_temperature_sufficient": true,
+          "adiabatic_temperature_change_C": 17.13,
+          "adiabatic_temperature_rise_C": 17.13,
+          "adiabatic_temperature_drop_C": 0.0,
+          "adiabatic_metric_used_as_outlet_temperature": true,
+          "conclusion": "改造工况绝热出口温度为60.35℃；允许最高温度为120.00℃；温度处于允许范围内"
+        }
+      },
+      "conclusion": "改造方案经重新计算校核通过",
+      "evaluation_status": "fail",
+      "retrofit": {
+        "required_effective_volume_m3": 45.801614,
+        "current_effective_volume_per_unit_m3": 17.7,
+        "current_operating_quantity": 1,
+        "current_operating_total_effective_volume_m3": 17.7,
+        "volume_increase_m3": 28.101614,
+        "schemes": [
+          {
+            "scheme_type": "add_parallel",
+            "scheme_index": 1,
+            "description": "并联方案：增设并联反应器分担处理量以降低单台空速",
+            "total_volume": 29.1,
+            "diameter": 1600,
+            "cylinder_height": 13900,
+            "catalyst_volume": 17.7,
+            "heat_exchange_area": null,
+            "tube_count": null,
+            "quantity": 3,
+            "total_effective_volume_m3": 53.1,
+            "total_weight": 27720,
+            "operating_conditions": {
+              "inlet_temperature_c": 43.22,
+              "inlet_pressure_mpag": 1.08,
+              "mass_flow_kg_h": 8855.6691
+            }
+          },
+          {
+            "scheme_type": "increase_volume",
+            "scheme_index": 2,
+            "description": "扩容方案：更换更大规格反应器",
+            "total_volume": 94.549373,
+            "diameter": 2400,
+            "cylinder_height": 20900,
+            "catalyst_volume": 57.509412,
+            "heat_exchange_area": null,
+            "tube_count": null,
+            "quantity": 1,
+            "total_effective_volume_m3": 57.509412,
+            "total_weight": 90066.0,
+            "operating_conditions": {
+              "inlet_temperature_c": 43.22,
+              "inlet_pressure_mpag": 1.08,
+              "mass_flow_kg_h": 26567.0072
+            }
+          }
+        ]
+      },
+      "validation": true,
+      "operating_conditions": {
+        "design": {
+          "temperature": {
+            "value": 55.62,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 1.08,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": 12.634567,
+            "unit": "m3/h"
+          }
+        },
+        "run": {
+          "temperature": {
+            "value": null,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 0.6846428571428571,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": null,
+            "unit": "m3/h"
+          }
+        },
+        "retrofit": {
+          "temperature": {
+            "value": 55.62,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 1.08,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": 32.693976,
+            "unit": "m3/h"
+          }
+        }
+      }
+    },
+    {
+      "id": "7",
+      "tag": "R5201",
+      "name": "醚解反应器",
+      "form": "列管式",
+      "has_heat_transfer": true,
+      "evaluation": {
+        "space_velocity": {
+          "available": true,
+          "status": "fail",
+          "exceeded": true,
+          "reference_LHSV_h1": 44.539371,
+          "new_LHSV_h1": 81.102561,
+          "LHSV_ratio": 1.820918,
+          "conclusion": "改造工况空速(81.102561 h-1)超出参考空速(44.539371 h-1)82.1%"
+        },
+        "heat_load": {
+          "available": true,
+          "status": "fail",
+          "exceeded": true,
+          "has_heat_transfer": true,
+          "new_heat_load_abs_W": 651126.77,
+          "Q_max_W": 329816.526,
+          "heat_load_ratio": 1.974209,
+          "conclusion": "改造工况绝对热负荷(651126.77 W)超出当前换热能力(329816.53 W)97.4%",
+          "heat_capacity_sufficient": false
+        }
+      },
+      "conclusion": "改造工况指标超出参考基准，采用并联反应器方案可满足要求",
+      "evaluation_status": "fail",
+      "retrofit": {
+        "required_effective_volume_m3": 11.107602,
+        "current_effective_volume_per_unit_m3": 6.1,
+        "current_operating_quantity": 1,
+        "current_operating_total_effective_volume_m3": 6.1,
+        "volume_increase_m3": 5.007602,
+        "schemes": [
+          {
+            "scheme_type": "add_parallel",
+            "scheme_index": 1,
+            "description": "并联方案：增设并联反应器分担处理量以降低单台空速",
+            "total_volume": null,
+            "diameter": 1700,
+            "cylinder_height": 9000,
+            "catalyst_volume": 6.1,
+            "heat_exchange_area": 1273,
+            "tube_count": 1431,
+            "quantity": 2,
+            "total_effective_volume_m3": 12.2,
+            "total_weight": 34150,
+            "operating_conditions": {
+              "inlet_temperature_c": 200.0,
+              "inlet_pressure_mpag": 0.2258,
+              "mass_flow_kg_h": 2098.9454,
+              "utility": {
+                "medium": "HO",
+                "inlet_temperature_c": 250.0,
+                "outlet_temperature_c": 220.0,
+                "mass_flow_kg_h": 14284.3167
+              }
+            }
+          }
+        ]
+      },
+      "validation": true,
+      "operating_conditions": {
+        "design": {
+          "temperature": {
+            "value": 230.0,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 0.2258,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": 271.690165,
+            "unit": "m3/h"
+          }
+        },
+        "run": {
+          "temperature": {
+            "value": 214.0,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": null,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": null,
+            "unit": "m3/h"
+          }
+        },
+        "retrofit": {
+          "temperature": {
+            "value": 215.0,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 0.2258,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": 494.72562,
+            "unit": "m3/h"
+          }
+        }
+      }
+    },
+    {
+      "id": "9",
+      "tag": "R5202A/B",
+      "name": "异构化反应器",
+      "form": "列管式",
+      "has_heat_transfer": true,
+      "evaluation": {
+        "space_velocity": {
+          "available": true,
+          "status": "fail",
+          "exceeded": true,
+          "reference_LHSV_h1": 3.149602,
+          "new_LHSV_h1": 4.57804,
+          "LHSV_ratio": 1.45353,
+          "conclusion": "改造工况空速(4.578040 h-1)超出参考空速(3.149602 h-1)45.4%"
+        },
+        "heat_load": {
+          "available": true,
+          "status": "pass",
+          "exceeded": false,
+          "has_heat_transfer": true,
+          "new_heat_load_abs_W": 17162.91,
+          "Q_max_W": 45761.143721,
+          "heat_load_ratio": 0.375054,
+          "conclusion": "改造工况绝对热负荷(17162.91 W)未超出当前换热能力(45761.14 W)",
+          "heat_capacity_sufficient": true
+        }
+      },
+      "conclusion": "基于现有备用反应器采用并联运行方案可满足改造工况要求；如备用反应器尚未与当前反应器形成并联连接，需调整进出口管线、阀门及仪表配置",
+      "evaluation_status": "fail",
+      "retrofit": {
+        "required_effective_volume_m3": 1.308177,
+        "current_effective_volume_per_unit_m3": 0.9,
+        "current_operating_quantity": 1,
+        "current_operating_total_effective_volume_m3": 0.9,
+        "volume_increase_m3": 0.408177,
+        "schemes": [
+          {
+            "scheme_type": "add_parallel",
+            "scheme_index": 1,
+            "description": "并联方案：启用1台现有备用反应器与当前运行反应器并联；如尚未形成并联连接，需调整进出口管线、阀门及仪表配置",
+            "total_volume": null,
+            "diameter": 1100,
+            "cylinder_height": 3000,
+            "catalyst_volume": 0.9,
+            "heat_exchange_area": 73,
+            "tube_count": 157,
+            "quantity": 2,
+            "total_effective_volume_m3": 1.8,
+            "total_weight": 5600,
+            "operating_conditions": {
+              "inlet_temperature_c": 39.72,
+              "inlet_pressure_mpag": 0.4,
+              "mass_flow_kg_h": 1614.5782,
+              "utility": {
+                "medium": "CW",
+                "inlet_temperature_c": 7.0,
+                "outlet_temperature_c": 15.0,
+                "mass_flow_kg_h": 923.8408
+              }
+            }
+          }
+        ]
+      },
+      "validation": true,
+      "operating_conditions": {
+        "design": {
+          "temperature": {
+            "value": 45.75,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 0.4,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": 1.897422,
+            "unit": "m3/h"
+          }
+        },
+        "run": {
+          "temperature": {
+            "value": 24.91,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 0.41910714285714284,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": 2.834642,
+            "unit": "m3/h"
+          }
+        },
+        "retrofit": {
+          "temperature": {
+            "value": 45.11,
+            "unit": "℃"
+          },
+          "pressure": {
+            "value": 0.4,
+            "unit": "MPag"
+          },
+          "volumetric_flow": {
+            "value": 4.120236,
+            "unit": "m3/h"
+          }
+        }
+      }
+    },
+    {
+      "id": "17",
+      "tag": "",
+      "name": "新醚化反应器",
+      "form": "固定床",
+      "is_new_reactor": true,
+      "has_heat_transfer": false,
+      "volumetric_flow_m3_h": 22.750431,
+      "target_LHSV_h1": 1.6,
+      "required_volume_m3": 14.2191,
+      "retrofit": {
+        "schemes": [
+          {
+            "scheme_type": "reuse",
+            "scheme_index": 1,
+            "description": "利旧方案：复用醚化反应器旧设备",
+            "reused_from": "1",
+            "total_volume": 29.1,
+            "diameter": 1600,
+            "cylinder_height": 13900,
+            "catalyst_volume": 17.7,
+            "heat_exchange_area": null,
+            "tube_count": null,
+            "quantity": 1,
+            "total_effective_volume_m3": 17.7,
+            "total_weight": 27720,
+            "operating_conditions": {
+              "inlet_temperature_c": 88.48,
+              "inlet_pressure_mpag": 0.45,
+              "mass_flow_kg_h": 17364.96648854787
+            }
+          },
+          {
+            "scheme_type": "new_reactor",
+            "scheme_index": 2,
+            "description": "新增方案：新增反应器设备",
+            "total_volume": null,
+            "diameter": null,
+            "cylinder_height": null,
+            "catalyst_volume": 14.2191,
+            "heat_exchange_area": null,
+            "tube_count": null,
+            "quantity": 1,
+            "total_effective_volume_m3": 14.2191,
+            "total_weight": null,
+            "operating_conditions": {
+              "inlet_temperature_c": 88.48,
+              "inlet_pressure_mpag": 0.45,
+              "mass_flow_kg_h": 17364.96648854787
+            }
+          }
+        ]
+      },
+      "conclusion": "新反应器：入口体积流量22.75 m³/h，目标空速1.6 h⁻¹，所需体积14.2191 m³"
+    }
+  ],
+  "retrofit_required": true,
+  "combined_schemes": [
+    {
+      "total_new_equipment_volume_m3": 52.8016,
+      "reuse": [
+        {
+          "id": "17",
+          "name": "新醚化反应器",
+          "scheme_type": "reuse",
+          "reused_from": "1"
+        }
+      ],
+      "addition": [
+        {
+          "id": "1",
+          "name": "醚化反应器",
+          "scheme_type": "increase_volume"
+        }
+      ],
+      "parallel": [
+        {
+          "id": "7",
+          "name": "醚解反应器",
+          "scheme_type": "add_parallel"
+        },
+        {
+          "id": "9",
+          "name": "异构化反应器",
+          "scheme_type": "add_parallel"
+        }
+      ],
+      "heat_transfer": [],
+      "no_retrofit": [],
+      "conclusion": "方案1：醚化反应器扩容（旧设备复用给新醚化反应器），醚解反应器并联，异构化反应器并联，新醚化反应器复用醚化反应器旧设备，新增有效体积52.8 m³",
+      "scheme_index": 1,
+      "scheme_id": "combined_1"
+    },
+    {
+      "total_new_equipment_volume_m3": 56.6191,
+      "reuse": [],
+      "addition": [
+        {
+          "id": "17",
+          "name": "新醚化反应器",
+          "scheme_type": "new_reactor"
+        }
+      ],
+      "parallel": [
+        {
+          "id": "1",
+          "name": "醚化反应器",
+          "scheme_type": "add_parallel"
+        },
+        {
+          "id": "7",
+          "name": "醚解反应器",
+          "scheme_type": "add_parallel"
+        },
+        {
+          "id": "9",
+          "name": "异构化反应器",
+          "scheme_type": "add_parallel"
+        }
+      ],
+      "heat_transfer": [],
+      "no_retrofit": [],
+      "conclusion": "方案2：醚化反应器并联，醚解反应器并联，异构化反应器并联，新醚化反应器新增，新增有效体积56.62 m³",
+      "scheme_index": 2,
+      "scheme_id": "combined_2"
+    }
+  ],
+  "conclusion": "装置共4台反应器需改造，推荐方案1：醚化反应器扩容（旧设备复用给新醚化反应器），醚解反应器并联，异构化反应器并联，新醚化反应器复用醚化反应器旧设备，新增有效体积52.8 m³",
+  "selected_combined_scheme": {
+    "total_new_equipment_volume_m3": 52.8016,
+    "reuse": [
+      {
+        "id": "17",
+        "name": "新醚化反应器",
+        "scheme_type": "reuse",
+        "reused_from": "1"
+      }
+    ],
+    "addition": [
+      {
+        "id": "1",
+        "name": "醚化反应器",
+        "scheme_type": "increase_volume"
+      }
+    ],
+    "parallel": [
+      {
+        "id": "7",
+        "name": "醚解反应器",
+        "scheme_type": "add_parallel"
+      },
+      {
+        "id": "9",
+        "name": "异构化反应器",
+        "scheme_type": "add_parallel"
+      }
+    ],
+    "heat_transfer": [],
+    "no_retrofit": [],
+    "conclusion": "方案1：醚化反应器扩容（旧设备复用给新醚化反应器），醚解反应器并联，异构化反应器并联，新醚化反应器复用醚化反应器旧设备，新增有效体积52.8 m³",
+    "scheme_index": 1,
+    "scheme_id": "combined_1"
+  }
+}

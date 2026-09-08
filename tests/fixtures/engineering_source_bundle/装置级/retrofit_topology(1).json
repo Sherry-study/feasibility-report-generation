@@ -1,0 +1,443 @@
+{
+  "nodes": [
+    {
+      "id": "0",
+      "name": "原料预处理",
+      "type": "preprocess"
+    },
+    {
+      "id": "1",
+      "name": "醚化反应器",
+      "type": "reactor"
+    },
+    {
+      "id": "2",
+      "name": "催化蒸馏塔B",
+      "type": "separator",
+      "condenser": true,
+      "reboiler": true
+    },
+    {
+      "id": "3",
+      "name": "催化蒸馏塔A",
+      "type": "reactor_separator",
+      "condenser": true,
+      "reboiler": true
+    },
+    {
+      "id": "4",
+      "name": "甲醇水洗塔",
+      "type": "extractor",
+      "condenser": false,
+      "reboiler": false
+    },
+    {
+      "id": "5",
+      "name": "甲醇回收塔",
+      "type": "separator",
+      "condenser": true,
+      "reboiler": true
+    },
+    {
+      "id": "6",
+      "name": "TAME精制塔",
+      "type": "separator",
+      "condenser": true,
+      "reboiler": true
+    },
+    {
+      "id": "7",
+      "name": "醚解反应器",
+      "type": "reactor"
+    },
+    {
+      "id": "8",
+      "name": "反应物水洗塔",
+      "type": "extractor",
+      "condenser": false,
+      "reboiler": false
+    },
+    {
+      "id": "9",
+      "name": "异构化反应器",
+      "type": "reactor"
+    },
+    {
+      "id": "10",
+      "name": "异戊烯精制塔",
+      "type": "separator",
+      "condenser": true,
+      "reboiler": true
+    },
+    {
+      "id": "11",
+      "name": "分离器",
+      "type": "tee"
+    },
+    {
+      "id": "12",
+      "name": "混合器",
+      "type": "mixer"
+    },
+    {
+      "id": "13",
+      "name": "分离器",
+      "type": "tee"
+    },
+    {
+      "id": "14",
+      "name": "混合器",
+      "type": "mixer"
+    },
+    {
+      "id": "15",
+      "name": "混合器",
+      "type": "mixer"
+    },
+    {
+      "id": "16",
+      "name": "混合器",
+      "type": "mixer"
+    },
+    {
+      "id": "17",
+      "name": "新醚化反应器",
+      "type": "reactor",
+      "isNew": true
+    },
+    {
+      "id": "18",
+      "name": "异戊烯精制塔_串联",
+      "type": "separator",
+      "isNew": true,
+      "retrofit_role": "series",
+      "original_tower": "10",
+      "condenser": true,
+      "reboiler": true
+    }
+  ],
+  "edges": [
+    {
+      "id": "stream_1",
+      "source": "0",
+      "target": "12",
+      "name": "流股1"
+    },
+    {
+      "id": "stream_2",
+      "source": "",
+      "target": "0",
+      "name": "粗异戊烯"
+    },
+    {
+      "id": "stream_3",
+      "source": "",
+      "target": "12",
+      "name": "补充甲醇"
+    },
+    {
+      "id": "stream_4",
+      "source": "12",
+      "target": "1",
+      "name": "流股4"
+    },
+    {
+      "id": "stream_5",
+      "source": "13",
+      "target": "12",
+      "name": "流股5"
+    },
+    {
+      "id": "stream_6",
+      "source": "5",
+      "target": "12",
+      "name": "流股6"
+    },
+    {
+      "id": "stream_7",
+      "source": "1",
+      "target": "13",
+      "name": "流股7"
+    },
+    {
+      "id": "stream_8",
+      "source": "6",
+      "target": "14",
+      "name": "流股8"
+    },
+    {
+      "id": "stream_9",
+      "source": "2",
+      "target": "17",
+      "name": "流股9",
+      "modified": true,
+      "originalTarget": "3"
+    },
+    {
+      "id": "stream_10",
+      "source": "2",
+      "target": "6",
+      "name": "流股10"
+    },
+    {
+      "id": "stream_11",
+      "source": "3",
+      "target": "4",
+      "name": "流股11"
+    },
+    {
+      "id": "stream_12",
+      "source": "3",
+      "target": "14",
+      "name": "流股12"
+    },
+    {
+      "id": "stream_13",
+      "source": "4",
+      "target": "16",
+      "name": "流股13"
+    },
+    {
+      "id": "stream_14",
+      "source": "4",
+      "target": "",
+      "name": "醚后碳五"
+    },
+    {
+      "id": "stream_15",
+      "source": "5",
+      "target": "11",
+      "name": "流股15"
+    },
+    {
+      "id": "stream_16",
+      "source": "11",
+      "target": "4",
+      "name": "流股16"
+    },
+    {
+      "id": "stream_17",
+      "source": "11",
+      "target": "",
+      "name": "污水"
+    },
+    {
+      "id": "stream_18",
+      "source": "11",
+      "target": "8",
+      "name": "流股18"
+    },
+    {
+      "id": "stream_19",
+      "source": "6",
+      "target": "",
+      "name": "污油"
+    },
+    {
+      "id": "stream_20",
+      "source": "6",
+      "target": "7",
+      "name": "流股20"
+    },
+    {
+      "id": "stream_21",
+      "source": "7",
+      "target": "15",
+      "name": "流股21"
+    },
+    {
+      "id": "stream_22",
+      "source": "8",
+      "target": "9",
+      "name": "流股22"
+    },
+    {
+      "id": "stream_23",
+      "source": "8",
+      "target": "16",
+      "name": "流股23"
+    },
+    {
+      "id": "stream_24",
+      "source": "9",
+      "target": "10",
+      "name": "流股24"
+    },
+    {
+      "id": "stream_25",
+      "source": "10",
+      "target": "15",
+      "name": "流股25"
+    },
+    {
+      "id": "stream_26",
+      "source": "18",
+      "target": "",
+      "name": "污油",
+      "modified": true
+    },
+    {
+      "id": "stream_27",
+      "source": "18",
+      "target": "",
+      "name": "异戊烯产品",
+      "modified": true
+    },
+    {
+      "id": "stream_30",
+      "source": "13",
+      "target": "14",
+      "name": "流股30"
+    },
+    {
+      "id": "stream_31",
+      "source": "14",
+      "target": "2",
+      "name": "流股31"
+    },
+    {
+      "id": "stream_32",
+      "source": "15",
+      "target": "8",
+      "name": "流股32"
+    },
+    {
+      "id": "stream_33",
+      "source": "16",
+      "target": "5",
+      "name": "流股32"
+    },
+    {
+      "id": "stream_34",
+      "source": "17",
+      "target": "3",
+      "name": "流股 34",
+      "isNew": true,
+      "description": "连接17至催化蒸馏塔A"
+    },
+    {
+      "id": "stream_35",
+      "source": "10",
+      "target": "18",
+      "name": "流股35",
+      "isNew": true,
+      "temperature": {
+        "value": 74.79,
+        "unit": "℃"
+      },
+      "pressure": {
+        "value": 0.3,
+        "unit": "MPa"
+      },
+      "target_product_stream": false,
+      "is_top": false,
+      "is_middle": false,
+      "is_bottom": true,
+      "phase": "Liq",
+      "position": [
+        0,
+        0
+      ]
+    }
+  ],
+  "schemeInfo": [
+    {
+      "name": "方案C（新增设备：前置预反应强化系统）",
+      "description": "位置：催化蒸馏塔B至催化蒸馏塔A的进料管线。单元作用：增设独立反应单元，进行高转化率预反应。机理：在物料进入催化蒸馏塔A前增设新醚化反应器，提前消耗大部分异戊烯，大幅降低进入塔A的反应负荷。预反应与催化蒸馏塔A形成“反应-分离-反应”梯级转化结构，缓解塔内平衡压力，提升系统整体收率。",
+      "rank": 4,
+      "newEquipment": {
+        "id": "17",
+        "name": "新醚化反应器",
+        "type": "reactor",
+        "position": "催化蒸馏塔B 出口与催化蒸馏塔A 入口之间"
+      },
+      "modifiedEquipment": null,
+      "modifiedEdges": [
+        "stream_9"
+      ],
+      "newEdges": [
+        "stream_34"
+      ],
+      "newStreams": []
+    },
+    {
+      "name": "series_retrofit",
+      "brief": "串联改造：原塔出口改接至新塔/混合器",
+      "retrofitType": "series",
+      "retrofitTypeLabel": "串联改造",
+      "description": "基于 separator_feedback_result 的串联反馈，新增串联塔与必要的混合器，调整原塔出口流股的连接关系。",
+      "newEquipment": [
+        {
+          "id": "18",
+          "name": "异戊烯精制塔_串联",
+          "type": "separator"
+        }
+      ],
+      "newEquipment_list": [
+        {
+          "newEquipment_id": "18",
+          "newEquipment": "异戊烯精制塔_串联",
+          "type": "separator",
+          "upEquipment": [
+            "异戊烯精制塔"
+          ],
+          "downEquipment": [],
+          "upEquipment_id": [
+            "10"
+          ],
+          "downEquipment_id": []
+        }
+      ],
+      "removedEquipment_list": [],
+      "newStream_list": [
+        {
+          "stream": "stream_35",
+          "name": "流股35",
+          "from": "异戊烯精制塔",
+          "to": "异戊烯精制塔_串联",
+          "from_id": "10",
+          "to_id": "18",
+          "sourceOutletPosition": "bottom",
+          "targetInletPosition": "feed"
+        }
+      ],
+      "modifiedStream_list": [
+        {
+          "stream": "流股26",
+          "id": "stream_26",
+          "changeType": "connection",
+          "newfrom_id": "18",
+          "newto_id": "",
+          "newfrom": "异戊烯精制塔_串联",
+          "newto": "",
+          "sourceOutletPosition": "bottom",
+          "targetInletPosition": "feed"
+        },
+        {
+          "stream": "流股27",
+          "id": "stream_27",
+          "changeType": "connection",
+          "newfrom_id": "18",
+          "newto_id": "",
+          "newfrom": "异戊烯精制塔_串联",
+          "newto": "",
+          "sourceOutletPosition": "top",
+          "targetInletPosition": "feed"
+        }
+      ],
+      "removedStream_list": [],
+      "modifiedEdges": [
+        "stream_26",
+        "stream_27"
+      ],
+      "newEdges": [
+        "stream_35"
+      ],
+      "removedEdges": [],
+      "idMapping": {
+        "10_1": "18"
+      },
+      "sourceType": "separator_feedback"
+    }
+  ]
+}

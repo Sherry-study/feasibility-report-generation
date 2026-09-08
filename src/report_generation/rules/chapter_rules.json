@@ -1,0 +1,331 @@
+{
+  "schema_version": "1.0",
+  "writing": {
+    "1.1.2": {
+      "purpose": "说明主办单位基本情况。",
+      "fact_paths": [
+        "basic_info"
+      ],
+      "research_group": "enterprise_profile",
+      "research_objectives": [
+        "核验建设单位公开基本信息、主营业务和项目相关资质线索。"
+      ],
+      "prohibited_content": [
+        "不得杜撰企业规模、资质、荣誉或经营数据。"
+      ]
+    },
+    "1.1.3": {
+      "purpose": "说明项目背景和必要性。",
+      "fact_paths": [
+        "unit.name",
+        "unit.type",
+        "unit.design_case.products",
+        "unit.retrofit_case.products",
+        "diagnosis.bottlenecks",
+        "diagnosis.yield_summary",
+        "scheme_analysis",
+        "adopted_scheme"
+      ],
+      "research_group": "",
+      "research_objectives": [],
+      "prohibited_content": [
+        "不得生成未经确认的经济效益、收益率或政策符合性结论。"
+      ]
+    },
+    "2.1.1": {
+      "purpose": "说明产品用途和下游领域。",
+      "fact_paths": [
+        "unit.design_case.products",
+        "unit.retrofit_case.products",
+        "component_catalog"
+      ],
+      "research_group": "market_research",
+      "research_objectives": [
+        "检索并归纳产品用途和主要下游领域。"
+      ],
+      "prohibited_content": [
+        "不得生成无来源的市场占比。"
+      ]
+    },
+    "2.1.2": {
+      "purpose": "分析市场供需。",
+      "fact_paths": [
+        "unit.design_case.products",
+        "unit.retrofit_case.products"
+      ],
+      "research_group": "market_research",
+      "research_objectives": [
+        "检索产品供需、产能、需求趋势和预测区间。"
+      ],
+      "prohibited_content": [
+        "不得生成无来源的市场规模或增长率。"
+      ]
+    },
+    "2.2": {
+      "purpose": "分析产品竞争力。",
+      "fact_paths": [
+        "unit.design_case.products",
+        "unit.retrofit_case.products",
+        "diagnosis.yield_summary",
+        "diagnosis.bottlenecks",
+        "adopted_scheme"
+      ],
+      "research_group": "market_research",
+      "research_objectives": [
+        "结合产品定位和公开行业资料归纳竞争要素。"
+      ],
+      "prohibited_content": [
+        "不得编造客户、成本和销售价格。"
+      ]
+    },
+    "2.4": {
+      "purpose": "说明价格预测依据。",
+      "fact_paths": [
+        "unit.design_case.products",
+        "unit.retrofit_case.products"
+      ],
+      "research_group": "market_research",
+      "research_objectives": [
+        "检索产品公开价格口径和影响因素。"
+      ],
+      "prohibited_content": [
+        "不得把公开报价直接作为财务评价确认价格。"
+      ]
+    },
+    "4.1.2": {
+      "purpose": "说明工艺技术概况。",
+      "fact_paths": [
+        "unit.name",
+        "unit.type",
+        "unit.design_case.feeds",
+        "unit.design_case.products",
+        "unit.retrofit_case.feeds",
+        "unit.retrofit_case.products"
+      ],
+      "research_group": "technology_research",
+      "research_objectives": [
+        "检索产品对应主流工艺路线和工业应用资料。"
+      ],
+      "prohibited_content": [
+        "不得编造技术许可、装置业绩或专利状态。"
+      ]
+    },
+    "4.1.3.2": {
+      "purpose": "比较候选方案，并结合 Tool 确定性表格说明关键设备候选路线的选定/备选状态。",
+      "fact_paths": [
+        "scheme_analysis.candidates",
+        "scheme_analysis.user_candidates"
+      ],
+      "research_group": "",
+      "research_objectives": [],
+      "prohibited_content": [
+        "不得混写最终采用方案或算法推荐理由。",
+        "不得把表4.2的选定/备选状态改写为4.1.3.3的推荐算法。",
+        "不得生成未经确认的投资费用。"
+      ]
+    },
+    "4.1.3.1": {
+      "purpose": "概述候选改造方案池，分别说明算法候选与用户自定义候选。",
+      "fact_paths": [
+        "scheme_analysis.candidates",
+        "scheme_analysis.user_candidates"
+      ],
+      "research_group": "",
+      "research_objectives": [],
+      "prohibited_content": [
+        "不得把算法推荐或最终采用方案写成本节结论。",
+        "不得补写工程事实中不存在的候选方案。"
+      ]
+    },
+    "4.1.3.3": {
+      "purpose": "说明算法推荐方案、推荐理由和用户最终采用方案；当 adopted_scheme.optimized 为 true 时，必须基于 adopted_scheme.schemes[].brief 与 description 融合总结最终方案描述。",
+      "fact_paths": [
+        "scheme_analysis.recommendation",
+        "adopted_scheme"
+      ],
+      "research_group": "",
+      "research_objectives": [],
+      "prohibited_content": [
+        "不得把 recommendation 等同于 user_selected。",
+        "不得原样拼接优化前后的 brief 与 description。",
+        "不得在报告正文输出 optimized=true 或 optimizated=true。",
+        "不得生成未经确认的投资费用、收益率或回收期。"
+      ]
+    },
+    "4.1.4": {
+      "purpose": "基于最终采用方案、流程拓扑和设备专业结果描述工艺技术方案。",
+      "fact_paths": [
+        "unit.name",
+        "unit.type",
+        "unit.retrofit_case",
+        "process.retrofit",
+        "diagnosis",
+        "adopted_scheme",
+        "equipment.reactor.selected_scheme",
+        "equipment.reactor.evaluations",
+        "equipment.tower.combined_schemes",
+        "equipment.tower.evaluations"
+      ],
+      "research_group": "",
+      "research_objectives": [],
+      "prohibited_content": [
+        "不得编造未确认的技术许可、催化剂牌号、投资或经济指标。",
+        "不得暴露算法排序、失败迭代或内部推理过程。"
+      ]
+    },
+    "4.2.1": {
+      "purpose": "根据改造前后流程拓扑和流股连接说明工艺流程。",
+      "fact_paths": [
+        "process.design",
+        "process.retrofit",
+        "adopted_scheme"
+      ],
+      "research_group": "",
+      "research_objectives": [],
+      "prohibited_content": [
+        "不得创造工程事实中不存在的流股、设备连接或操作条件。",
+        "不得输出未经确认的投资、经济或达产承诺。"
+      ]
+    },
+    "18.2": {
+      "purpose": "说明进度计划，并提供 implementation_schedule.rows[] 供 Tool 固定生成表18.1。",
+      "fact_paths": [
+        "equipment.object_catalog",
+        "adopted_scheme"
+      ],
+      "research_group": "implementation_reference",
+      "research_objectives": [
+        "参考同类工业装置技术改造的常见实施阶段。"
+      ],
+      "prohibited_content": [
+        "不得承诺确定工期。",
+        "预计时长必须使用 X～Y个月 的可研估算区间。"
+      ]
+    }
+  },
+  "synthesis": {
+    "1.2": {
+      "purpose": "综合各章摘要形成阶段性研究结论。",
+      "source_section_ids": [
+        "1.1.3",
+        "2.2",
+        "3.1",
+        "4.1.3.2",
+        "4.1.3.3",
+        "4.2.4",
+        "5.4",
+        "8.1",
+        "10.5",
+        "18.2",
+        "19",
+        "21"
+      ],
+      "prohibited_content": [
+        "不得新增章节摘要之外的新事实。"
+      ]
+    },
+    "26.1.1": {
+      "purpose": "评价技术方案。",
+      "source_section_ids": [
+        "1.1.3",
+        "2.2",
+        "3.1",
+        "4.1.2",
+        "4.1.3.2",
+        "4.1.3.3",
+        "4.1.4",
+        "4.2.1",
+        "4.2.4",
+        "5.4"
+      ],
+      "prohibited_content": [
+        "不得新增章节摘要之外的新事实。"
+      ]
+    },
+    "26.1.2": {
+      "purpose": "评价实施条件。",
+      "source_section_ids": [
+        "4.2.4",
+        "5.4",
+        "7.1",
+        "7.2",
+        "7.3",
+        "8.1",
+        "10.5",
+        "18.2"
+      ],
+      "prohibited_content": [
+        "不得新增章节摘要之外的新事实。"
+      ]
+    },
+    "26.1.3": {
+      "purpose": "评价投资经济性。",
+      "source_section_ids": [
+        "19",
+        "20",
+        "21"
+      ],
+      "prohibited_content": [
+        "不得生成投资回收期、IRR、NPV或收益结论。"
+      ]
+    },
+    "26.2": {
+      "purpose": "形成报告结论。",
+      "source_section_ids": [
+        "1.1.2",
+        "1.1.3",
+        "2.2",
+        "3.1",
+        "4.1.3.2",
+        "4.1.3.3",
+        "4.2.4",
+        "5.4",
+        "7.1",
+        "8.1",
+        "10.5",
+        "18.2",
+        "19",
+        "20",
+        "21"
+      ],
+      "prohibited_content": [
+        "不得新增章节摘要之外的新事实。"
+      ]
+    },
+    "26.3": {
+      "purpose": "归纳存在问题。",
+      "source_section_ids": [
+        "1.1.2",
+        "5.4",
+        "7.1",
+        "7.2",
+        "7.3",
+        "8.1",
+        "19",
+        "21"
+      ],
+      "prohibited_content": [
+        "不得新增章节摘要之外的新事实。"
+      ]
+    },
+    "26.4": {
+      "purpose": "提出建议和实施条件。",
+      "source_section_ids": [
+        "1.1.2",
+        "4.1.3.2",
+        "4.2.4",
+        "5.4",
+        "7.1",
+        "7.2",
+        "7.3",
+        "8.1",
+        "18.2",
+        "19",
+        "21"
+      ],
+      "prohibited_content": [
+        "不得新增章节摘要之外的新事实。"
+      ]
+    }
+  }
+}

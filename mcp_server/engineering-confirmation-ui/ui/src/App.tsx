@@ -1,7 +1,7 @@
 /**
  * 应用根组件 -- MCP Apps 架构。
  *
- * 单工具单项目:本 UI 只服务 engineering_confirmation 一个工具,直接渲染 EngineeringConfirmationPage。
+ * 单工具单项目:本 UI 只服务 engineering_facts 一个工具,直接渲染工程事实页。
  * 启动时通过 useMcpInitialize 发起 ui/initialize 握手。
  */
 
@@ -10,7 +10,7 @@ import { Layout } from '@/components/Layout';
 import { LoadingScreen } from '@/components/LoadingScreen';
 import { ErrorBoundary } from '@/components/ErrorBoundary';
 import { useTheme } from '@/hooks/useTheme';
-import { EngineeringConfirmationPage } from '@/pages/EngineeringConfirmationPage';
+import { EngineeringFactsPage } from '@/pages/EngineeringFactsPage';
 
 export default function App() {
   useMcpInitialize();
@@ -48,7 +48,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <div className="h-full animate-fade-in">
-        <EngineeringConfirmationPage />
+        <EngineeringFactsPage />
       </div>
     </ErrorBoundary>
   );

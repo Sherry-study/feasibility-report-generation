@@ -1,0 +1,277 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Report Work Package",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "created_at",
+    "status",
+    "project_name",
+    "engineering_facts",
+    "template",
+    "sections",
+    "research_tasks",
+    "writing_tasks",
+    "deterministic_summaries",
+    "synthesis_tasks"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "created_at": {"type": "string"},
+    "status": {"const": "prepared"},
+    "project_name": {"type": "string"},
+    "engineering_facts": {
+      "type": "object",
+      "required": ["uri", "root_keys"],
+      "additionalProperties": false,
+      "properties": {
+        "uri": {"type": "string"},
+        "root_keys": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "template": {
+      "type": "object",
+      "required": ["id", "version"],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "version": {"type": "string"}
+      }
+    },
+    "sections": {"type": "array", "items": {"$ref": "#/$defs/prepared_section"}},
+    "research_tasks": {"type": "array", "items": {"$ref": "#/$defs/research_task"}},
+    "writing_tasks": {"type": "array", "items": {"$ref": "#/$defs/writing_task"}},
+    "deterministic_summaries": {
+      "type": "object",
+      "additionalProperties": {"$ref": "#/$defs/summary"}
+    },
+    "synthesis_tasks": {"type": "array", "items": {"$ref": "#/$defs/synthesis_task"}}
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "required": [
+        "conclusions",
+        "key_facts",
+        "conditions",
+        "risks",
+        "recommendations",
+        "unresolved_items"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "conclusions": {"type": "array", "items": {"type": "string"}},
+        "key_facts": {"type": "array", "items": {"type": "string"}},
+        "conditions": {"type": "array", "items": {"type": "string"}},
+        "risks": {"type": "array", "items": {"type": "string"}},
+        "recommendations": {"type": "array", "items": {"type": "string"}},
+        "unresolved_items": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "prepared_section": {
+      "type": "object",
+      "required": [
+        "id",
+        "title",
+        "level",
+        "order",
+        "table_id",
+        "caption",
+        "fallback",
+        "deterministic_blocks",
+        "agent_slot"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "title": {"type": "string"},
+        "level": {"type": "integer", "minimum": 1},
+        "order": {"type": "integer", "minimum": 1},
+        "table_id": {"type": ["string", "null"]},
+        "caption": {"type": ["string", "null"]},
+        "fallback": {"type": "string"},
+        "deterministic_blocks": {
+          "type": "array",
+          "items": {
+            "oneOf": [
+              {"$ref": "#/$defs/paragraph"},
+              {"$ref": "#/$defs/list_block"},
+              {"$ref": "#/$defs/table"}
+            ]
+          }
+        },
+        "agent_slot": {"enum": ["writing", "synthesis", null]}
+      }
+    },
+    "research_task": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "research_group",
+        "target_section_ids",
+        "objectives"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {"type": "string"},
+        "research_group": {"type": "string"},
+        "target_section_ids": {"type": "array", "items": {"type": "string"}},
+        "objectives": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "writing_task": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "section_id",
+        "section_title",
+        "contract",
+        "fact_paths",
+        "context_uri",
+        "research_task_id",
+        "output_contract"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {"type": "string"},
+        "section_id": {"type": "string"},
+        "section_title": {"type": "string"},
+        "contract": {"type": "object"},
+        "fact_paths": {"type": "array", "items": {"type": "string"}},
+        "context_uri": {"type": "string"},
+        "research_task_id": {"type": ["string", "null"]},
+        "output_contract": {"$ref": "#/$defs/output_contract"}
+      }
+    },
+    "synthesis_task": {
+      "type": "object",
+      "required": [
+        "task_id",
+        "section_id",
+        "section_title",
+        "contract",
+        "context",
+        "output_contract"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "task_id": {"type": "string"},
+        "section_id": {"type": "string"},
+        "section_title": {"type": "string"},
+        "contract": {"type": "object"},
+        "context": {
+          "type": "object",
+          "required": ["source_section_ids", "summary_fields"],
+          "additionalProperties": false,
+          "properties": {
+            "source_section_ids": {"type": "array", "items": {"type": "string"}},
+            "summary_fields": {"type": "array", "items": {"type": "string"}}
+          }
+        },
+        "output_contract": {"$ref": "#/$defs/output_contract"}
+      }
+    },
+    "output_contract": {
+      "type": "object",
+      "required": ["allowed_blocks", "summary_fields", "agent_must_not_control"],
+      "additionalProperties": false,
+      "properties": {
+        "allowed_blocks": {
+          "type": "array",
+          "items": {"enum": ["bullet_list", "numbered_list", "paragraph"]}
+        },
+        "summary_fields": {"type": "array", "items": {"type": "string"}},
+        "agent_must_not_control": {"type": "array", "items": {"type": "string"}},
+        "implementation_schedule": {
+          "type": "object",
+          "required": [
+            "required",
+            "table_id",
+            "caption",
+            "headers",
+            "stages",
+            "row_fields",
+            "duration_range_pattern"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "required": {"const": true},
+            "table_id": {"const": "表18.1"},
+            "caption": {"const": "项目实施进度计划表"},
+            "headers": {
+              "type": "array",
+              "prefixItems": [
+                {"const": "阶段"},
+                {"const": "主要内容"},
+                {"const": "预计时长"},
+                {"const": "前置条件"}
+              ],
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "stages": {
+              "type": "array",
+              "prefixItems": [
+                {"const": "项目前期（各报告编制及审批）"},
+                {"const": "基础设计"},
+                {"const": "施工图设计"},
+                {"const": "设备采购"},
+                {"const": "土建施工"},
+                {"const": "安装工程"},
+                {"const": "试生产"}
+              ],
+              "minItems": 7,
+              "maxItems": 7
+            },
+            "row_fields": {
+              "type": "array",
+              "prefixItems": [
+                {"const": "stage"},
+                {"const": "main_content"},
+                {"const": "duration_range"},
+                {"const": "prerequisites"}
+              ],
+              "minItems": 4,
+              "maxItems": 4
+            },
+            "duration_range_pattern": {"const": "X～Y个月"}
+          }
+        }
+      }
+    },
+    "paragraph": {
+      "type": "object",
+      "required": ["type", "text"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"const": "paragraph"},
+        "text": {"type": "string"}
+      }
+    },
+    "list_block": {
+      "type": "object",
+      "required": ["type", "items"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"enum": ["bullet_list", "numbered_list"]},
+        "items": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "table": {
+      "type": "object",
+      "required": ["type", "table_id", "caption", "headers", "rows"],
+      "additionalProperties": false,
+      "properties": {
+        "type": {"const": "table"},
+        "table_id": {"type": ["string", "null"]},
+        "caption": {"type": ["string", "null"]},
+        "headers": {"type": "array", "items": {"type": "string"}},
+        "rows": {
+          "type": "array",
+          "items": {"type": "array", "items": {"type": "string"}}
+        }
+      }
+    }
+  }
+}

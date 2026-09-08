@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """校验 report_generation 输出目录中的关键交付物。
 
-该脚本只检查最终交付物和可复用 JSON 证据文件是否存在、是否可解析；
+该脚本只检查最终交付物和两 Tool 链路可复用 JSON 文件是否存在、是否可解析；
 它不重新生成报告，也不接管 Skill 主流程。
 """
 from __future__ import annotations
@@ -16,13 +16,12 @@ import yaml
 REQUIRED_DELIVERABLES = (
     "可行性研究报告_初稿.docx",
     "可行性研究报告_初稿.md",
-    "confirmed_project_facts.json",
 )
 # 可选 JSON 是调试和追溯资产：存在则校验可解析，不存在不视为失败。
 OPTIONAL_JSON = (
-    "research_evidence.json",
-    "run_summary.json",
-    "report_trace.json",
+    "engineering_facts.json",
+    "work_package.json",
+    "work_results.json",
 )
 
 
@@ -43,7 +42,7 @@ def validate_output_dir(output_dir: Path) -> tuple[dict, int]:
             issues.append(f"缺少必需交付物: {name}")
         else:
             present.append(name)
-    for name in ("confirmed_project_facts.json",) + OPTIONAL_JSON:
+    for name in OPTIONAL_JSON:
         path = output_dir / name
         if path.exists():
             try:

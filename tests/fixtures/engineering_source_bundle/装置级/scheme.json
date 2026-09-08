@@ -1,0 +1,513 @@
+{
+  "schemaVersion": "topology_retrofit_v1",
+  "schemeKind": "diagnosis",
+  "issues": [
+    {
+      "issueId": "问题1",
+      "diagnosis": {
+        "constraintComponent": "异戊烯",
+        "associatedComponent": "TAME",
+        "boilingPointDiff": "未知",
+        "bottleneckEquipment": "催化蒸馏塔A",
+        "currentTopologyPattern": "reaction_separation_coupling",
+        "currentTopologyPatternLabel": "反应-分离耦合",
+        "bottleneckType": "equilibrium_or_conversion_limit",
+        "bottleneckTypeLabel": "反应平衡/转化率受限",
+        "recommendedRetrofitPattern": "pre_reaction_plus_separation",
+        "recommendedRetrofitPatternLabel": "预反应+分离",
+        "basis": "催化蒸馏塔A运行转化率40.10%，远低于设计值82.61%，导致总收率偏低。",
+        "assumptions": "催化剂可能失活或操作条件未优化，需提高转化率。",
+        "risks": "改造可能影响催化蒸馏塔B和甲醇水洗塔的操作。"
+      }
+    }
+  ],
+  "candidates": [
+    {
+      "name": "方案A",
+      "brief": "催化蒸馏塔A设备改造",
+      "retrofitType": "equipment_modification",
+      "retrofitTypeLabel": "设备改造",
+      "description": "对催化蒸馏塔A进行催化剂更换或操作条件优化，提高转化率。",
+      "newEquipment_list": [],
+      "removedEquipment_list": [],
+      "newStream_list": [],
+      "modifiedStream_list": [],
+      "removedStream_list": [],
+      "outletDisposition": [
+        "无变化"
+      ],
+      "resultingTopologyPattern": "unchanged",
+      "resultingTopologyPatternLabel": "拓扑不变",
+      "expectedEffect": "提高催化蒸馏塔A转化率，提升总收率。",
+      "sourceType": "diagnosis",
+      "schemeDetails": "无拓扑变化",
+      "evaluation": {
+        "technicalFeasibility": {
+          "level": "高",
+          "comment": "塔内改造，技术成熟",
+          "keyBasis": "仅涉及催化剂更换或操作参数调整，无新增设备，催化蒸馏塔内件改造有大量工业实践。",
+          "keyMetrics": "催化剂活性、操作温度/压力窗口、转化率提升幅度",
+          "pendingItems": "现有塔内件与新型催化剂的匹配性需确认；改造后催化剂寿命与再生周期需监控"
+        },
+        "implementationComplexity": {
+          "level": "低",
+          "comment": "施工简单，停工短",
+          "keyBasis": "无拓扑变化，仅需停塔更换催化剂或调整内件，施工周期短，对周边系统无影响。",
+          "keyMetrics": "停工时间（预计3-5天）、施工人力需求",
+          "pendingItems": "催化剂装填方案需提前准备；停工期间上下游物料平衡方案"
+        },
+        "operationalRisk": {
+          "level": "低",
+          "comment": "操作平稳，风险小",
+          "keyBasis": "不改变现有流程结构，操作人员熟悉，无新增安全风险；可能因转化率提高轻微影响下游负荷。",
+          "keyMetrics": "塔压降变化、产品质量稳定性、能耗变化",
+          "pendingItems": "改造后需跟踪塔顶/塔底组成变化，防止产品夹带；监控催化剂失活速率"
+        }
+      },
+      "score": 72
+    },
+    {
+      "name": "方案B",
+      "brief": "增设醚化预反应器、异戊烯精制塔串联改造",
+      "retrofitType": "add_equipment、series",
+      "retrofitTypeLabel": "新增设备、串联改造",
+      "description": "在催化蒸馏塔A前增设醚化预反应器，提高异戊烯转化率。新增串联塔，调整原塔出口流股的连接关系。",
+      "newEquipment_list": [
+      {
+        "newEquipment": "醚化预反应器",
+        "type": "reactor",
+        "upEquipment": [
+          "催化蒸馏塔B"
+        ],
+        "downEquipment": [
+          "催化蒸馏塔A"
+        ],
+        "newEquipment_id": "new_equipment_1",
+        "upEquipment_id": [
+          "2"
+        ],
+        "downEquipment_id": [
+          "3"
+        ]
+      },
+      {
+        "newEquipment_id": "18",
+        "newEquipment": "异戊烯精制塔_串联",
+        "type": "separator",
+        "upEquipment": [
+          "异戊烯精制塔"
+        ],
+        "downEquipment": [],
+        "upEquipment_id": [
+          "10"
+        ],
+        "downEquipment_id": []
+      }
+      ],
+      "removedEquipment_list": [],
+      "newStream_list": [
+      {
+        "stream": "预反应器进料",
+        "from": "催化蒸馏塔B",
+        "to": "醚化预反应器",
+        "sourceOutletPosition": "top",
+        "targetInletPosition": "feed",
+        "role": "feed",
+        "roleLabel": "进料",
+        "basis": "催化蒸馏塔B塔顶流股引入预反应器",
+        "from_id": "2",
+        "to_id": "new_equipment_1"
+      },
+      {
+        "stream": "预反应器出料",
+        "from": "醚化预反应器",
+        "to": "催化蒸馏塔A",
+        "sourceOutletPosition": "bottom",
+        "targetInletPosition": "feed",
+        "role": "feed",
+        "roleLabel": "进料",
+        "basis": "预反应后进入催化蒸馏塔A",
+        "from_id": "new_equipment_1",
+        "to_id": "3"
+      },
+      {
+        "stream": "stream_35",
+        "name": "流股35",
+        "from": "异戊烯精制塔",
+        "to": "异戊烯精制塔_串联",
+        "from_id": "10",
+        "to_id": "18",
+        "sourceOutletPosition": "bottom",
+        "targetInletPosition": "feed"
+      }
+      ],
+      "modifiedStream_list": [
+      {
+        "stream": "流股9",
+        "changeType": "connection",
+        "unchangedEndpoint": "source",
+        "sourceOutletPosition": "top",
+        "targetInletPosition": "feed",
+        "role": "feed",
+        "roleLabel": "进料",
+        "basis": "改接至预反应器",
+        "id": "stream_9",
+        "oldfrom": "催化蒸馏塔B",
+        "oldto": "催化蒸馏塔A",
+        "newfrom": "催化蒸馏塔B",
+        "newto": "醚化预反应器",
+        "newfrom_id": "2",
+        "newto_id": "new_equipment_1"
+      },
+      {
+        "stream": "异戊烯产品",
+        "id": "stream_27",
+        "changeType": "connection",
+        "newfrom_id": "18",
+        "newto_id": "",
+        "newfrom": "异戊烯精制塔_串联",
+        "newto": "",
+        "sourceOutletPosition": "top",
+        "targetInletPosition": "feed"
+      },
+      {
+        "stream": "污油",
+        "id": "stream_26",
+        "changeType": "connection",
+        "newfrom_id": "18",
+        "newto_id": "",
+        "newfrom": "异戊烯精制塔_串联",
+        "newto": "",
+        "sourceOutletPosition": "bottom",
+        "targetInletPosition": "feed"
+      }
+      ],
+      "removedStream_list": [],
+      "outletDisposition": [
+        "预反应器出料去催化蒸馏塔A"
+       ],
+      "resultingTopologyPattern": "pre_reaction_plus_reactive_distillation",
+      "resultingTopologyPatternLabel": "预反应+反应精馏",
+      "expectedEffect": "提高异戊烯总转化率，提升TAME收率。",
+      "sourceType": "diagnosis",
+      "schemeDetails": "新增设备：醚化预反应器；新增流股：（从催化蒸馏塔B到醚化预反应器）；新增流股：（从醚化预反应器到催化蒸馏塔A）；改接流股：（从催化蒸馏塔B到催化蒸馏塔A 改为 从催化蒸馏塔B到醚化预反应器）",
+      "evaluation": {
+        "technicalFeasibility": {
+          "level": "高",
+          "comment": "预反应器技术成熟",
+          "keyBasis": "醚化预反应器在MTBE/TAME装置中广泛应用，与催化蒸馏塔组合是经典工艺，设备设计、催化剂选型均有成熟方案。",
+          "keyMetrics": "预反应器转化率、温升控制、催化剂装填量",
+          "pendingItems": "需确认催化蒸馏塔B引出流股的组成与流量是否满足预反应器进料要求；预反应器与塔A的匹配性模拟"
+        },
+        "implementationComplexity": {
+          "level": "中",
+          "comment": "新增设备，配管改造",
+          "keyBasis": "需新增一台反应器及附属仪表管线，同时改接催化蒸馏塔B至塔A的流股，涉及部分管廊改动，但可依托现有框架。",
+          "keyMetrics": "施工周期（预计15-20天）、新增占地、动火点数量",
+          "pendingItems": "设备布置需避开现有管线密集区；停工窗口需与全厂检修协调；新增流股控制逻辑需组态"
+        },
+        "operationalRisk": {
+          "level": "中",
+          "comment": "操作复杂度增加，需监控",
+          "keyBasis": "增加预反应器后，需控制其入口温度、醇烯比，并与塔A联动；可能出现飞温或催化剂失活，但整体风险可控。",
+          "keyMetrics": "预反应器出口异戊烯转化率、床层压降、TAME选择性",
+          "pendingItems": "需建立预反应器温度联锁保护；监控催化剂运行周期与再生需求；评估对塔A操作弹性的影响"
+        }
+      },
+      "score": 85
+    },
+    {
+      "name": "方案C",
+      "brief": "增设催化蒸馏塔C处理塔顶未反应物",
+      "retrofitType": "add_equipment",
+      "retrofitTypeLabel": "新增设备",
+      "description": "在催化蒸馏塔A后增设催化蒸馏塔C，进一步转化未反应异戊烯。",
+      "newEquipment_list": [
+        {
+          "newEquipment": "催化蒸馏塔C",
+          "type": "reactor_separator",
+          "upEquipment": [
+            "催化蒸馏塔A"
+          ],
+          "downEquipment": [
+            "催化蒸馏塔B",
+            "甲醇水洗塔"
+          ],
+          "newEquipment_id": "new_equipment_2",
+          "upEquipment_id": [
+            "3"
+          ],
+          "downEquipment_id": [
+            "2",
+            "4"
+          ]
+        }
+      ],
+      "removedEquipment_list": [],
+      "newStream_list": [
+        {
+          "stream": "催化蒸馏塔C进料",
+          "from": "催化蒸馏塔A",
+          "to": "催化蒸馏塔C",
+          "sourceOutletPosition": "top",
+          "targetInletPosition": "feed",
+          "role": "feed",
+          "roleLabel": "进料",
+          "basis": "催化蒸馏塔A塔顶流股引入催化蒸馏塔C",
+          "from_id": "3",
+          "to_id": "new_equipment_2"
+        },
+        {
+          "stream": "催化蒸馏塔C塔釜出料",
+          "from": "催化蒸馏塔C",
+          "to": "催化蒸馏塔B",
+          "sourceOutletPosition": "bottom",
+          "targetInletPosition": "feed",
+          "role": "recycle",
+          "roleLabel": "循环",
+          "basis": "生成的TAME返回催化蒸馏塔B",
+          "from_id": "new_equipment_2",
+          "to_id": "2"
+        },
+        {
+          "stream": "催化蒸馏塔C塔顶出料",
+          "from": "催化蒸馏塔C",
+          "to": "甲醇水洗塔",
+          "sourceOutletPosition": "top",
+          "targetInletPosition": "feed",
+          "role": "product",
+          "roleLabel": "产品",
+          "basis": "未反应碳五和甲醇去水洗",
+          "from_id": "new_equipment_2",
+          "to_id": "4"
+        }
+      ],
+      "modifiedStream_list": [
+        {
+          "stream": "流股11",
+          "changeType": "connection",
+          "unchangedEndpoint": "source",
+          "sourceOutletPosition": "top",
+          "targetInletPosition": "feed",
+          "role": "feed",
+          "roleLabel": "进料",
+          "basis": "改接至催化蒸馏塔C",
+          "id": "stream_11",
+          "oldfrom": "催化蒸馏塔A",
+          "oldto": "甲醇水洗塔",
+          "newfrom": "催化蒸馏塔A",
+          "newto": "催化蒸馏塔C",
+          "newfrom_id": "3",
+          "newto_id": "new_equipment_2"
+        }
+      ],
+      "removedStream_list": [],
+      "outletDisposition": [
+        "催化蒸馏塔C塔釜去催化蒸馏塔B，塔顶去甲醇水洗塔"
+      ],
+      "resultingTopologyPattern": "post_reaction_separation_coupling",
+      "resultingTopologyPatternLabel": "后置反应-分离耦合",
+      "expectedEffect": "提高未反应异戊烯的转化率，减少损失，提升总收率。",
+      "sourceType": "diagnosis",
+      "schemeDetails": "新增设备：催化蒸馏塔C；新增流股：（从催化蒸馏塔A到催化蒸馏塔C）；新增流股：（从催化蒸馏塔C到催化蒸馏塔B）；新增流股：（从催化蒸馏塔C到甲醇水洗塔）；改接流股：（从催化蒸馏塔A到甲醇水洗塔 改为 从催化蒸馏塔A到催化蒸馏塔C）",
+      "evaluation": {
+        "technicalFeasibility": {
+          "level": "中",
+          "comment": "新增催化蒸馏塔可行",
+          "keyBasis": "催化蒸馏塔技术本身成熟，但串联第二塔处理未反应物在工业上案例较少，需详细工艺模拟和塔内件设计。",
+          "keyMetrics": "塔C转化率、塔顶/塔底组成、能耗增量",
+          "pendingItems": "需进行全流程模拟确认塔C操作条件；塔C与现有甲醇水洗塔的衔接设计"
+        },
+        "implementationComplexity": {
+          "level": "高",
+          "comment": "改造范围大，停工长",
+          "keyBasis": "新增一台催化蒸馏塔及附属系统，改接塔A至甲醇水洗塔流股，新增多条管线，施工量大，对现有装置布局影响显著。",
+          "keyMetrics": "施工周期（预计30天以上）、投资额、占地面积",
+          "pendingItems": "需评估现有公用工程余量；塔C基础施工可能涉及地下管线迁移；长期停工对全厂物料平衡的影响"
+        },
+        "operationalRisk": {
+          "level": "中",
+          "comment": "系统复杂，能耗增加",
+          "keyBasis": "增加塔C后，流程变长，操作变量增多，对控制水平要求高；再沸器/冷凝器负荷增加，整体能耗上升，且塔C故障可能影响前序系统。",
+          "keyMetrics": "蒸汽消耗、循环水消耗、产品纯度波动",
+          "pendingItems": "需制定塔C开车及异常停车预案；监控塔C催化剂寿命与压差；评估甲醇回收系统负荷"
+        }
+      },
+      "score": 74
+    },
+    {
+      "name": "方案D",
+      "brief": "催化蒸馏塔A塔顶部分循环",
+      "retrofitType": "add_equipment",
+      "retrofitTypeLabel": "新增设备",
+      "description": "将催化蒸馏塔A塔顶未反应物部分循环回进料，提高转化率。",
+      "newEquipment_list": [
+        {
+          "newEquipment": "分流器",
+          "type": "separator",
+          "upEquipment": [
+            "催化蒸馏塔A"
+          ],
+          "downEquipment": [
+            "甲醇水洗塔",
+            "催化蒸馏塔A"
+          ],
+          "newEquipment_id": "new_equipment_3",
+          "upEquipment_id": [
+            "3"
+          ],
+          "downEquipment_id": [
+            "4",
+            "3"
+          ]
+        }
+      ],
+      "removedEquipment_list": [],
+      "newStream_list": [
+        {
+          "stream": "分流器进料",
+          "from": "催化蒸馏塔A",
+          "to": "分流器",
+          "sourceOutletPosition": "top",
+          "targetInletPosition": "feed",
+          "role": "feed",
+          "roleLabel": "进料",
+          "basis": "催化蒸馏塔A塔顶流股引入分流器",
+          "from_id": "3",
+          "to_id": "new_equipment_3"
+        },
+        {
+          "stream": "循环流股",
+          "from": "分流器",
+          "to": "催化蒸馏塔A",
+          "sourceOutletPosition": "top",
+          "targetInletPosition": "feed",
+          "role": "recycle",
+          "roleLabel": "循环",
+          "basis": "部分未反应物返回催化蒸馏塔A进料",
+          "from_id": "new_equipment_3",
+          "to_id": "3"
+        },
+        {
+          "stream": "去水洗流股",
+          "from": "分流器",
+          "to": "甲醇水洗塔",
+          "sourceOutletPosition": "bottom",
+          "targetInletPosition": "feed",
+          "role": "product",
+          "roleLabel": "产品",
+          "basis": "其余去甲醇水洗塔",
+          "from_id": "new_equipment_3",
+          "to_id": "4"
+        }
+      ],
+      "modifiedStream_list": [
+        {
+          "stream": "流股11",
+          "changeType": "connection",
+          "unchangedEndpoint": "source",
+          "sourceOutletPosition": "top",
+          "targetInletPosition": "feed",
+          "role": "feed",
+          "roleLabel": "进料",
+          "basis": "改接至分流器",
+          "id": "stream_11",
+          "oldfrom": "催化蒸馏塔A",
+          "oldto": "甲醇水洗塔",
+          "newfrom": "催化蒸馏塔A",
+          "newto": "分流器",
+          "newfrom_id": "3",
+          "newto_id": "new_equipment_3"
+        }
+      ],
+      "removedStream_list": [],
+      "outletDisposition": [
+        "分流器一路去甲醇水洗塔，一路循环回催化蒸馏塔A"
+      ],
+      "resultingTopologyPattern": "recycle_unreacted",
+      "resultingTopologyPatternLabel": "未反应物循环",
+      "expectedEffect": "提高催化蒸馏塔A单程转化率，减少异戊烯损失。",
+      "sourceType": "diagnosis",
+      "schemeDetails": "新增设备：分流器；新增流股：（从催化蒸馏塔A到分流器）；新增流股：（从分流器到催化蒸馏塔A）；新增流股：（从分流器到甲醇水洗塔）；改接流股：（从催化蒸馏塔A到甲醇水洗塔 改为 从催化蒸馏塔A到分流器）",
+      "evaluation": {
+        "technicalFeasibility": {
+          "level": "高",
+          "comment": "循环回路技术成熟",
+          "keyBasis": "塔顶部分循环是提高转化率的常用手段，仅需增加分流器和管线，无复杂设备，控制逻辑简单。",
+          "keyMetrics": "循环比、分流器压降、塔A进料组成变化",
+          "pendingItems": "需通过模拟确定最优循环比例，避免惰性组分累积"
+        },
+        "implementationComplexity": {
+          "level": "低",
+          "comment": "改动小，施工快",
+          "keyBasis": "新增一台分流器及少量管线，改接塔A至甲醇水洗塔流股，施工量小，可在线预制，短时间停工碰头。",
+          "keyMetrics": "施工周期（预计7-10天）、新增静设备数量",
+          "pendingItems": "分流器安装位置需靠近塔A顶；管线材质需与介质匹配"
+        },
+        "operationalRisk": {
+          "level": "中",
+          "comment": "杂质累积风险需监控",
+          "keyBasis": "循环操作可能导致轻组分或惰性物质在塔内累积，影响塔效率；循环比控制不当可能引起塔液泛或产品夹带。",
+          "keyMetrics": "塔顶惰性组分浓度、塔压差、塔底产品纯度",
+          "pendingItems": "需设置在线分析监控循环回路组成；建立循环比与塔操作的关联报警；定期排放部分塔顶物料防止累积"
+        }
+      },
+      "score": 80
+    }
+  ],
+  "user_candidates":[
+    {
+      "name": "自定义方案_1",
+      "brief": "催化蒸馏塔A内件改造",
+      "sourceType": "custom",
+      "modificationType": "设备改造",
+      "retrofitType": "equipment_service_change",
+      "retrofitTypeLabel": "设备服务方式调整",
+      "description": "对催化蒸馏塔A进行内构件更换，采用高效催化填料或新型塔板，强化反应段传质与催化效率。",
+      "newEquipment_list": [],
+      "removedEquipment_list": [],
+      "newStream_list": [],
+      "modifiedStream_list": [],
+      "removedStream_list": [],
+      "outletDisposition": [
+        "催化蒸馏塔A塔顶出料仍去催化蒸馏塔B，塔底出料仍去甲醇水洗塔，无新增或改变出口。"
+      ],
+      "expectedEffect": "提高催化蒸馏塔A的反应转化率，降低副反应，提升TAME收率，降低能耗。",
+      "schemeDetails": "无拓扑变化",
+      "evaluation": {
+        "technicalFeasibility": {
+          "level": "高",
+          "comment": "催化蒸馏内件改造技术成熟",
+          "keyBasis": "催化蒸馏塔内件更换为高效催化填料或新型塔板在同类装置已有工业应用，主流内件供应商可提供定制方案。",
+          "keyMetrics": "反应段传质效率、催化剂装填密度、塔压降、转化率提升幅度",
+          "pendingItems": "现有塔体空间与内件尺寸匹配性；催化剂与新型内件的兼容性及装填方式；是否需要塔体局部改造"
+        },
+        "implementationComplexity": {
+          "level": "中",
+          "comment": "需停工更换，施工量中等",
+          "keyBasis": "内件更换需装置全系统停车，涉及塔体人孔打开、旧内件拆除、新内件吊装与安装，施工周期通常2-4周。",
+          "keyMetrics": "停工时间、施工费用、对上下游装置的影响范围、塔体腐蚀检查与修复工作量",
+          "pendingItems": "塔体当前腐蚀或结垢状况评估；施工期间催化剂保护与置换方案；施工队伍资质与经验"
+        },
+        "operationalRisk": {
+          "level": "低",
+          "comment": "风险可控，需参数调优",
+          "keyBasis": "内件改造后反应段流体力学与传质特性改变，需重新建立操作窗口，但无本质安全风险；预期副反应降低、能耗下降。",
+          "keyMetrics": "操作弹性、催化剂失活速率、副产物生成量、蒸汽或热媒消耗",
+          "pendingItems": "改造后操作参数优化方案（回流比、进料位置、反应段温度分布）；催化剂在线监控与再生策略；初期产品质量波动监控"
+        }
+      },
+      "score": 85
+    }
+  ],
+  "recommendation": {
+    "combination": [
+      "方案B"
+    ],
+    "reason": "方案B得分最高（85分），其通过增设醚化预反应器，在成熟技术基础上显著提升异戊烯总转化率和TAME收率，技术可行性高且工业案例丰富；实施复杂度中等，新增设备及配管改造可依托现有框架，施工周期可控；运行风险虽略有增加，但通过温度联锁和监控可有效管理。相比方案C，投资和停工时间大幅减少；相比方案D，转化率提升更彻底且无杂质累积隐患；相比方案A，效果提升显著。因此推荐方案B。"
+  },
+  "user_selected":[
+    "方案B"
+  ],
+  "optimizated": true
+}

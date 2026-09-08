@@ -1,11 +1,11 @@
 /**
  * 阶段④报告生成页面。
  *
- * 对应 MCP 工具 ``report_generation``。结果就绪后提供两个工作台：
+ * 对应 MCP 工具 ``report_generation``。同一页面覆盖 prepare / finalize：
  *   - 报告编制（默认）：可研成果 / 可研报告目录 / 正文展示 三栏。
- *     目录与正文由 ``report_output_dir/可行性研究报告_初稿.md`` 的标题结构动态解析，
+ *     目录与正文由 finalize 返回的 markdown_content 动态解析，
  *     不写死章节、不新增报告数据结构。
- *   - 资料确认：展示 exit_code / 阻断章节 / 产物路径等生成结果摘要。
+ *   - 资料确认：展示 prepared 工作包或 completed 报告产物摘要。
  *
  * 视觉：浅蓝白工业软件风格（对齐 AI for Redesign Demo，见 index.css 的 .ef-* 类）。
  */
@@ -39,25 +39,36 @@ interface ConsistencyIssue {
 
 /** report_generation 返回结构（structuredContent）。 */
 interface ReportGenerationResult {
-  exit_code?: number;
   status?: string;
+  artifact?: {
+    uri?: string;
+    schema_version?: string;
+    media_type?: string;
+  } | null;
+  artifacts?: {
+    docx?: string;
+    markdown?: string;
+  } | null;
+  markdown_content?: string;
+  summary?: Record<string, unknown>;
+  diagnostics?: Array<{ level?: string; code?: string; message?: string }>;
+  issues?: ConsistencyIssue[];
   completion_status?: string;
-  resume_exit_code?: number;
   blocked_section_count?: number;
   blocked_sections?: BlockedSection[];
   docx?: string;
   markdown?: string;
-  /** 报告 Markdown 正文（算法生成后内联进返回结果，前端直接回显）。 */
-  markdown_content?: string;
   facts?: string;
   report_model?: string;
   consistency_check?: string;
   report_trace?: string;
-  issues?: ConsistencyIssue[];
 }
 
 /** 状态 -> 文案与语义色。 */
 const STATUS_META: Record<string, { label: string; color: 'green' | 'orange' | 'red' }> = {
+  prepared: { label: '工作包已准备', color: 'orange' },
+  completed: { label: '报告已完成', color: 'green' },
+  failed: { label: '执行失败', color: 'red' },
   generated: { label: '生成完成', color: 'green' },
   consistency_blocked: { label: '一致性阻断', color: 'red' },
 };
@@ -78,6 +89,8 @@ const ARTIFACT_FIELDS: Array<{ key: keyof ReportGenerationResult; label: string 
 
 /** 报告文件状态文案。 */
 function reportStatusText(status: string | undefined): string {
+  if (status === 'completed') return '初稿生成完成';
+  if (status === 'prepared') return '等待 Agent 研究与写作';
   if (status === 'generated') return '初稿生成完成';
   if (status === 'consistency_blocked') return '一致性阻断';
   return '初稿已生成';
@@ -89,7 +102,11 @@ export function ReportGenerationPage() {
   const error = isError ? app.error : null;
   const result = (rawFinalResult ?? null) as ReportGenerationResult | null;
 
-  const markdownPath = typeof result?.markdown === 'string' ? result.markdown : null;
+  const markdownPath = typeof result?.artifacts?.markdown === 'string'
+    ? result.artifacts.markdown
+    : typeof result?.markdown === 'string'
+      ? result.markdown
+      : null;
   const markdownContent = typeof result?.markdown_content === 'string' ? result.markdown_content : null;
   const {
     doc,
@@ -103,11 +120,12 @@ export function ReportGenerationPage() {
   const isDone = !!result;
   const isProcessing = !isDone && !error;
   const hasMarkdown = !!markdownPath || !!markdownContent;
+  const canShowReport = result?.status === 'completed' && hasMarkdown;
 
-  // 结果就绪但无 Markdown 产物（如一致性阻断）时，默认切到「资料确认」。
+  // prepared 或失败分支不渲染报告正文，避免出现空白报告。
   useEffect(() => {
-    if (result && !hasMarkdown) setMode('confirm');
-  }, [result, hasMarkdown]);
+    if (result && !canShowReport) setMode('confirm');
+  }, [result, canShowReport]);
 
   return (
     <Layout>
@@ -154,7 +172,7 @@ export function ReportGenerationPage() {
           {error && !result && (
             <ErrorBanner error={error} onRetry={() => window.location.reload()} />
           )}
-          {result && (mode === 'authoring' ? (
+          {result && (mode === 'authoring' && canShowReport ? (
             <ReportAuthoring
               result={result}
               doc={doc}
@@ -421,6 +439,10 @@ function GenerationSummary({ result }: { result: ReportGenerationResult }) {
     () => ARTIFACT_FIELDS.filter((f) => typeof result[f.key] === 'string' && result[f.key]),
     [result],
   );
+  const summaryItems = Object.entries(result.summary ?? {});
+  const diagnostics = result.diagnostics ?? [];
+  const markdown = result.artifacts?.markdown ?? result.markdown;
+  const docx = result.artifacts?.docx ?? result.docx;
 
   return (
     <div className="thin-scroll flex h-full flex-col gap-3 overflow-y-auto p-1">
@@ -430,7 +452,9 @@ function GenerationSummary({ result }: { result: ReportGenerationResult }) {
           <InfoCell
             label="完成情况"
             value={
-              result.completion_status
+              status === 'prepared'
+                ? '工作包已准备，等待 Agent 研究与写作'
+                : result.completion_status
                 ? COMPLETION_LABEL[result.completion_status] ?? result.completion_status
                 : '-'
             }
@@ -441,29 +465,65 @@ function GenerationSummary({ result }: { result: ReportGenerationResult }) {
             value={result.blocked_section_count ?? result.blocked_sections?.length ?? 0}
             highlight={result.blocked_section_count ? 'orange' : 'green'}
           />
-          <InfoCell label="exit_code" value={result.exit_code ?? '-'} />
+          <InfoCell label="诊断数" value={diagnostics.length} />
         </div>
       </SectionCard>
 
-      {(result.markdown || result.docx) && (
+      {result.status === 'prepared' && result.artifact?.uri && (
+        <SectionCard title="工作包" accent="orange">
+          <div className="rounded-lg bg-bg px-3 py-2">
+            <div className="text-[10px] uppercase tracking-wider text-text-3">work_package.json</div>
+            <div className="mt-0.5 truncate font-mono text-xs text-text" title={result.artifact.uri}>
+              {result.artifact.uri}
+            </div>
+          </div>
+        </SectionCard>
+      )}
+
+      {(markdown || docx) && (
         <SectionCard title="报告文件" accent="green">
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            {result.markdown && (
+            {markdown && (
               <div className="rounded-lg bg-bg px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-text-3">Markdown</div>
-                <div className="mt-0.5 truncate font-mono text-xs text-text" title={result.markdown}>
-                  {result.markdown}
+                <div className="mt-0.5 truncate font-mono text-xs text-text" title={markdown}>
+                  {markdown}
                 </div>
               </div>
             )}
-            {result.docx && (
+            {docx && (
               <div className="rounded-lg bg-bg px-3 py-2">
                 <div className="text-[10px] uppercase tracking-wider text-text-3">DOCX</div>
-                <div className="mt-0.5 truncate font-mono text-xs text-text" title={result.docx}>
-                  {result.docx}
+                <div className="mt-0.5 truncate font-mono text-xs text-text" title={docx}>
+                  {docx}
                 </div>
               </div>
             )}
+          </div>
+        </SectionCard>
+      )}
+
+      {summaryItems.length > 0 && (
+        <SectionCard title="摘要">
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+            {summaryItems.map(([key, value]) => (
+              <InfoCell key={key} label={key} value={String(value)} />
+            ))}
+          </div>
+        </SectionCard>
+      )}
+
+      {diagnostics.length > 0 && (
+        <SectionCard title={`诊断信息（${diagnostics.length}）`} accent={status === 'failed' ? 'red' : 'orange'}>
+          <div className="flex flex-col gap-1.5">
+            {diagnostics.map((item, i) => (
+              <div key={`${item.code}-${i}`} className="rounded-lg bg-bg px-3 py-2 text-xs">
+                <div className={item.level === 'fatal' ? 'text-red' : 'text-orange'}>
+                  {item.code ?? item.level ?? '-'}
+                </div>
+                <div className="mt-0.5 text-text-2">{item.message ?? '-'}</div>
+              </div>
+            ))}
           </div>
         </SectionCard>
       )}

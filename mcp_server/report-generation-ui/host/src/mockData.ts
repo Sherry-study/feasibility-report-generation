@@ -2,11 +2,8 @@
  * report_generation 的 mock 数据。
  *
  * 本 host 控制台只服务 report_generation 一个工具:有进度推送,无审核。
- * 进度步骤镜像 server 中真实的 ctx.report_progress 调用:
- *   1. 工艺拓扑分析与报告表格 (progress=1, total=4)
- *   2. 报告生成完成 (progress=4, total=4)
- * 结果按 exit_code 分两支:
- *   0=generated(成功导出 DOCX/Markdown) / 3=consistency_blocked(一致性门槛阻断)。
+ * 进度步骤镜像 server 中真实的 ctx.report_progress 调用。
+ * 同一工具通过 operation=prepare|finalize 覆盖工作包准备与报告定稿两个分支。
  */
 
 export interface UiEvent {
@@ -53,167 +50,130 @@ export interface ToolGroup {
 
 const OUT = 'report_output_dir';
 
-/** 与 server 真实 report_progress 调用一致的进度步骤。 */
-function progressSteps(): ProgressStep[] {
-  return [
-    { progress: 1, total: 4, message: '工艺拓扑分析与报告表格' },
-    { progress: 4, total: 4, message: '报告生成完成' },
-  ];
-}
-
-/** 报告文件路径（镜像 summary 中的 docx/markdown 字段）。 */
-function reportFiles(): Record<string, unknown> {
+function preparedResult(): Record<string, unknown> {
   return {
-    docx: `${OUT}/可行性研究报告_初稿.docx`,
-    markdown: `${OUT}/可行性研究报告_初稿.md`,
-  };
-}
-
-/** 阻断章节示例（blocked_sections 单项，镜像 gap_analysis.blocked_sections）。 */
-function blockedSections(): Array<Record<string, unknown>> {
-  return [
-    {
-      section_id: '4.1.1',
-      field: 'chapter_rule.CH-411.raw_material_route',
-      reason: '原料路线发生变化，缺少原料路线论证所需工程事实',
-      affected_sections: ['4.1.1'],
-      recommended_action: 'request_upstream_professional_result',
+    status: 'prepared',
+    artifact: {
+      uri: `${OUT}/mcp_runs/report_generation_prepare/work_package.json`,
+      schema_version: '1.0',
+      media_type: 'application/json',
     },
-  ];
-}
-
-/** 正常:数据闭合生成(exit 0)。 */
-function generatedResult(): Record<string, unknown> {
-  return {
-    ...reportFiles(),
-    exit_code: 0,
-    status: 'generated',
-    completion_status: 'generated',
-    blocked_section_count: 0,
-    blocked_sections: [],
-    resume_exit_code: 0,
-    facts: `${OUT}/confirmed_project_facts.json`,
-    report_model: `${OUT}/report_model.json`,
-    consistency_check: `${OUT}/consistency_check.json`,
-    report_trace: `${OUT}/report_trace.json`,
+    summary: {
+      research_task_count: 3,
+      writing_task_count: 13,
+      deterministic_summary_count: 7,
+      synthesis_task_count: 7,
+    },
+    diagnostics: [],
   };
 }
 
-/** 含阻断章节生成(exit 0,但部分章节缺事实)。 */
-function generatedWithBlockedSectionsResult(): Record<string, unknown> {
+function completedResult(): Record<string, unknown> {
   return {
-    ...reportFiles(),
-    exit_code: 0,
-    status: 'generated',
-    completion_status: 'generated_with_blocked_sections',
-    blocked_section_count: 1,
-    blocked_sections: blockedSections(),
-    resume_exit_code: 0,
-    facts: `${OUT}/confirmed_project_facts.json`,
-    report_model: `${OUT}/report_model.json`,
-    consistency_check: `${OUT}/consistency_check.json`,
-    report_trace: `${OUT}/report_trace.json`,
+    status: 'completed',
+    artifacts: {
+      docx: `${OUT}/mcp_runs/report_generation_finalize/可行性研究报告_初稿.docx`,
+      markdown: `${OUT}/mcp_runs/report_generation_finalize/可行性研究报告_初稿.md`,
+    },
+    markdown_content: REPORT_MARKDOWN,
+    summary: {
+      section_count: 42,
+      fallback_section_count: 0,
+    },
+    diagnostics: [],
   };
 }
 
-/** 一致性阻断(exit 3)。 */
-function consistencyBlockedResult(): Record<string, unknown> {
+function finalizeFailedResult(): Record<string, unknown> {
   return {
-    exit_code: 3,
-    status: 'consistency_blocked',
-    consistency_check: `${OUT}/consistency_check.json`,
-    report_model: `${OUT}/report_model.json`,
-    issues: [
-      {
-        severity: 'high',
-        code: 'FACTS_CONFLICT_HIGH',
-        message: '方案采用设备与确认事实不一致：催化蒸馏塔A的改造类型冲突。',
-        section_id: '4.1.3',
-      },
-      {
-        severity: 'high',
-        code: 'MISSING_REQUIRED_FACT',
-        message: '第10.5节必需能耗折算系数缺失，无法计算综合能耗。',
-        section_id: '10.5',
-      },
+    status: 'failed',
+    artifact: null,
+    artifacts: null,
+    summary: {},
+    diagnostics: [
+      { level: 'fatal', code: 'REPORT_TOOL_FAILED', message: 'work_results missing required fields: writing_results' },
     ],
   };
 }
 
-// --- report_generation: 有进度,无审核 ---
-function generatedScenario(): MockScenario {
+function reportProgressSteps(operation: 'prepare' | 'finalize'): ProgressStep[] {
+  const total = operation === 'finalize' ? 4 : 3;
+  return [
+    { progress: 1, total, message: '校验报告生成参数' },
+    { progress: 2, total, message: '执行业务核心' },
+    { progress: total, total, message: '报告生成分支完成' },
+  ];
+}
+
+function prepareScenario(): MockScenario {
   return {
-    id: 'generated',
-    label: '正常:生成完成(exit 0)',
+    id: 'prepare',
+    label: 'prepare:工作包已准备',
     toolName: 'report_generation',
     args: {
-      facts: `${OUT}/confirmed_project_facts.json`,
-      profile: `${OUT}/_resolved/project_profile.yaml`,
-      chapter_plan: `${OUT}/chapter_plan.json`,
-      output_dir: OUT,
+      operation: 'prepare',
+      engineering_facts_uri: `${OUT}/mcp_runs/engineering_facts/engineering_facts.json`,
+      report_context: { project_name: '1万吨/年异戊烯联合生产装置技术改造项目' },
     },
-    steps: progressSteps(),
+    steps: reportProgressSteps('prepare'),
     review: {
-      reviewId: 'review-report-001',
-      finalResult: generatedResult(),
-      result: generatedResult(),
+      reviewId: 'review-report-prepare',
+      finalResult: preparedResult(),
+      result: preparedResult(),
     },
     skipReview: true,
   };
 }
 
-function generatedWithBlockedSectionsScenario(): MockScenario {
+function finalizeScenario(): MockScenario {
   return {
-    id: 'generated-blocked',
-    label: '含阻断章节生成(exit 0)',
+    id: 'finalize',
+    label: 'finalize:报告完成',
     toolName: 'report_generation',
     args: {
-      facts: `${OUT}/confirmed_project_facts.json`,
-      profile: `${OUT}/_resolved/project_profile.yaml`,
-      chapter_plan: `${OUT}/chapter_plan.json`,
-      output_dir: OUT,
+      operation: 'finalize',
+      work_package_uri: `${OUT}/mcp_runs/report_generation_prepare/work_package.json`,
+      work_results_uri: `${OUT}/work_results.json`,
     },
-    steps: progressSteps(),
+    steps: reportProgressSteps('finalize'),
     review: {
-      reviewId: 'review-report-002',
-      finalResult: generatedWithBlockedSectionsResult(),
-      result: generatedWithBlockedSectionsResult(),
+      reviewId: 'review-report-finalize',
+      finalResult: completedResult(),
+      result: completedResult(),
     },
     skipReview: true,
   };
 }
 
-function consistencyBlockedScenario(): MockScenario {
+function finalizeFailedScenario(): MockScenario {
   return {
-    id: 'consistency-blocked',
-    label: '一致性阻断(exit 3)',
+    id: 'finalize-failed',
+    label: 'finalize:工作结果缺字段',
     toolName: 'report_generation',
     args: {
-      facts: `${OUT}/confirmed_project_facts.json`,
-      profile: `${OUT}/_resolved/project_profile.yaml`,
-      chapter_plan: `${OUT}/chapter_plan.json`,
-      output_dir: OUT,
-      strict_consistency: true,
+      operation: 'finalize',
+      work_package_uri: `${OUT}/mcp_runs/report_generation_prepare/work_package.json`,
+      work_results_uri: `${OUT}/broken_work_results.json`,
     },
-    steps: progressSteps(),
+    steps: reportProgressSteps('finalize'),
     review: {
-      reviewId: 'review-report-003',
-      finalResult: consistencyBlockedResult(),
-      result: consistencyBlockedResult(),
+      reviewId: 'review-report-finalize-failed',
+      finalResult: finalizeFailedResult(),
+      result: finalizeFailedResult(),
     },
     skipReview: true,
   };
 }
 
-function missingArgsScenario(): MockScenario {
+function missingOperationArgsScenario(): MockScenario {
   return {
-    id: 'missing-args',
-    label: '异常:缺少 chapter_plan',
+    id: 'missing-prepare-uri',
+    label: 'prepare:缺少工程事实 URI',
     toolName: 'report_generation',
-    args: { facts: `${OUT}/confirmed_project_facts.json`, output_dir: OUT },
-    steps: progressSteps(),
+    args: { operation: 'prepare' },
+    steps: reportProgressSteps('prepare'),
     errorResult: {
-      content: [{ type: 'text', text: '缺少必填参数 profile 或 chapter_plan' }],
+      content: [{ type: 'text', text: 'engineering_facts_uri must be a non-empty string' }],
     },
   };
 }
@@ -224,10 +184,10 @@ export const MOCK_TOOLS: ToolGroup[] = [
     label: '报告生成',
     page: 'ReportGenerationPage',
     scenarios: [
-      generatedScenario(),
-      generatedWithBlockedSectionsScenario(),
-      consistencyBlockedScenario(),
-      missingArgsScenario(),
+      prepareScenario(),
+      finalizeScenario(),
+      finalizeFailedScenario(),
+      missingOperationArgsScenario(),
     ],
   },
 ];

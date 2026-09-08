@@ -1,0 +1,381 @@
+{
+  "reactors": {
+    "17": [
+      {
+        "id": "reaction1",
+        "equation": "2MOH→H2O+DIM",
+        "reactants": [
+          {
+            "component": "MOH",
+            "stoichiometric_coefficient": 2
+          }
+        ],
+        "products": [
+          {
+            "component": "H2O",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "DIM",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "",
+        "main_reaction": false,
+        "conversion": 0.014,
+        "limiting_reactant": "MOH"
+      },
+      {
+        "id": "reaction2",
+        "equation": "MOH+1P=→OE",
+        "reactants": [
+          {
+            "component": "MOH",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "1P=",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "products": [
+          {
+            "component": "OE",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "",
+        "main_reaction": false,
+        "conversion": 0.002294,
+        "limiting_reactant": "1P="
+      },
+      {
+        "id": "reaction3",
+        "equation": "H2O+TAME→MOH+2M2BOH",
+        "reactants": [
+          {
+            "component": "H2O",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "TAME",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "products": [
+          {
+            "component": "MOH",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "2M2BOH",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "",
+        "main_reaction": false,
+        "conversion": 0.069,
+        "limiting_reactant": "TAME"
+      },
+      {
+        "id": "reaction4",
+        "equation": "H2O+2M1B=→2M2BOH",
+        "reactants": [
+          {
+            "component": "H2O",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "2M1B=",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "products": [
+          {
+            "component": "2M2BOH",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "",
+        "main_reaction": false,
+        "conversion": 0.6,
+        "limiting_reactant": "2M1B="
+      },
+      {
+        "id": "reaction5",
+        "equation": "MOH+2M2B=→TAME",
+        "reactants": [
+          {
+            "component": "MOH",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "2M2B=",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "products": [
+          {
+            "component": "TAME",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "etherification",
+        "main_reaction": true,
+        "conversion": 0.6,
+        "limiting_reactant": "2M2B="
+      },
+      {
+        "id": "reaction6",
+        "equation": "22M2B==→HC",
+        "reactants": [
+          {
+            "component": "2M2B==",
+            "stoichiometric_coefficient": 2
+          }
+        ],
+        "products": [
+          {
+            "component": "HC",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "",
+        "main_reaction": false,
+        "conversion": 0.295669,
+        "limiting_reactant": "2M2B=="
+      },
+      {
+        "id": "reaction7",
+        "equation": "2M1B=+2M2B==→HC2",
+        "reactants": [
+          {
+            "component": "2M1B=",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "2M2B==",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "products": [
+          {
+            "component": "HC2",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "",
+        "main_reaction": false,
+        "conversion": 0.318269,
+        "limiting_reactant": "2M2B=="
+      },
+      {
+        "id": "reaction8",
+        "equation": "MOH+3M1B=→TAME",
+        "reactants": [
+          {
+            "component": "MOH",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "3M1B=",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "products": [
+          {
+            "component": "TAME",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "etherification",
+        "main_reaction": true,
+        "conversion": 0.1,
+        "limiting_reactant": "3M1B="
+      },
+      {
+        "id": "reaction9",
+        "equation": "H2O+1P=→N-POH",
+        "reactants": [
+          {
+            "component": "H2O",
+            "stoichiometric_coefficient": 1
+          },
+          {
+            "component": "1P=",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "products": [
+          {
+            "component": "N-POH",
+            "stoichiometric_coefficient": 1
+          }
+        ],
+        "catalyst": "",
+        "conditions": {
+          "temperature": "",
+          "pressure": ""
+        },
+        "type": "",
+        "main_reaction": false,
+        "conversion": 0.00222,
+        "limiting_reactant": "1P="
+      }
+    ]
+  },
+  "separators": {
+    "10": {
+      "stream_25": {
+        "H2O": 0.9999480928662668,
+        "MOH": 0.0,
+        "DIM": 0.0,
+        "3M1B=": 0.9950560864333828,
+        "I-P": 0.8744839530976712,
+        "14P==": 0.9434904939447872,
+        "1P=": 0.7795096213601193,
+        "2M1B=": 0.7222545716145252,
+        "N-P": 0.24032808414652962,
+        "T-2P=": 0.23311623477160626,
+        "C-2P=": 0.1944502298328177,
+        "2M2B=": 0.08062167313955089,
+        "NEOP": 0.0,
+        "TAME": 6.340316492107221e-17,
+        "H2": 0.0,
+        "2M2B==": 0.43416977355368336,
+        "2M2BOH": 5.318727231872653e-26,
+        "N-POH": 0.0,
+        "HC": 0.0,
+        "HC2": 0.0,
+        "OE": 2.157429348795873e-21,
+        "1P3-": 0.04127389084916629,
+        "T-13P==": 0.00901251167799393,
+        "CYC-P==": 0.009423257191629017,
+        "CYC-P": 4.834817371741287e-05
+      },
+      "stream_35": {
+        "H2O": 5.1907133733108324e-05,
+        "MOH": 1.0,
+        "DIM": 1.0,
+        "3M1B=": 0.004943913566617117,
+        "I-P": 0.1255160469023288,
+        "14P==": 0.056509506055212703,
+        "1P=": 0.22049037863988077,
+        "2M1B=": 0.2777454283854748,
+        "N-P": 0.7596719158534703,
+        "T-2P=": 0.7668837652283937,
+        "C-2P=": 0.8055497701671822,
+        "2M2B=": 0.9193783268604492,
+        "NEOP": 1.0,
+        "TAME": 1.0,
+        "H2": 1.0,
+        "2M2B==": 0.5658302264463166,
+        "2M2BOH": 1.0,
+        "N-POH": 1.0,
+        "HC": 1.0,
+        "HC2": 1.0,
+        "OE": 1.0,
+        "1P3-": 0.9587261091508337,
+        "T-13P==": 0.990987488322006,
+        "CYC-P==": 0.9905767428083709,
+        "CYC-P": 0.9999516518262827
+      }
+    },
+    "18": {
+      "stream_27": {
+        "H2O": 0.9999844520993689,
+        "MOH": 0.0,
+        "DIM": 0.0,
+        "3M1B=": 0.9999715298411653,
+        "I-P": 0.9996602348608051,
+        "14P==": 0.999830667562753,
+        "1P=": 0.9993889161376811,
+        "2M1B=": 0.9991949631842728,
+        "N-P": 0.9956317967199263,
+        "T-2P=": 0.9955284599454187,
+        "C-2P=": 0.9948189766320114,
+        "2M2B=": 0.9906763761012436,
+        "NEOP": 0.0,
+        "TAME": 0.22951923887788675,
+        "H2": 0.0,
+        "2M2B==": 0.9977316879025379,
+        "2M2BOH": 0.09136627328332766,
+        "N-POH": 0.0,
+        "HC": 0.0,
+        "HC2": 0.0,
+        "OE": 0.14586934663642087,
+        "1P3-": 0.9869105003209172,
+        "T-13P==": 0.9726567413585389,
+        "CYC-P==": 0.972632227368518,
+        "CYC-P": 0.8348207410247218
+      },
+      "stream_26": {
+        "H2O": 1.554790063107579e-05,
+        "MOH": 1.0,
+        "DIM": 1.0,
+        "3M1B=": 2.8470158834549727e-05,
+        "I-P": 0.0003397651391948701,
+        "14P==": 0.00016933243724695095,
+        "1P=": 0.0006110838623188087,
+        "2M1B=": 0.000805036815727256,
+        "N-P": 0.0043682032800736416,
+        "T-2P=": 0.004471540054581193,
+        "C-2P=": 0.005181023367988567,
+        "2M2B=": 0.009323623898756399,
+        "NEOP": 1.0,
+        "TAME": 0.7704807611221134,
+        "H2": 1.0,
+        "2M2B==": 0.0022683120974620915,
+        "2M2BOH": 0.9086337267166724,
+        "N-POH": 1.0,
+        "HC": 1.0,
+        "HC2": 1.0,
+        "OE": 0.8541306533635791,
+        "1P3-": 0.013089499679082694,
+        "T-13P==": 0.02734325864146114,
+        "CYC-P==": 0.027367772631482025,
+        "CYC-P": 0.16517925897527821
+      }
+    }
+  }
+}

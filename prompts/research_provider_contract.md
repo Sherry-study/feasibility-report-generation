@@ -1,19 +1,20 @@
 # Research Provider Contract
 
-宿主 Agent 只执行 `research_tasks.v0_8.json` 中实际生成的 task，不得自行扩展到稳定规范/法律/标杆搜索。
+宿主 Agent 只执行 `work_package.research_tasks` 中实际生成的 task，不得自行扩展到稳定规范、法律或标杆搜索。
 
 要求：
 
-- 每条 evidence 必须绑定 task_id 与来源；
+- 每条 evidence 必须绑定 task_id 与来源，并只服务于 `work_package` 指定的目标章节；
 - Search snippet 不能直接作为最终 evidence；
 - Web 不得替代企业内部事实或 PA/EA 专业结果；
 - 设计规范、编制标准、一般法律法规当前使用包内固定规范库，不重复联网；
 - 10.5 仅对 `missing_energy_conversion_media` 补折标系数；
 - 10.6 当前不进行行业能效标杆搜索；
-- 资料不足时输出 partial/blocked，不得补造。
+- 资料不足时输出 partial/blocked，不得补造；
+- 研究结果由宿主 Agent 转化为章节写作所需材料，并最终并入满足 `schemas/report_work_results.schema.json` 的 `work_results.json`；不得新增 Schema 未声明的顶层 `research_results`。
 
 
-## V0.14.9 检索预算（首跑性能硬约束）
+## 检索预算（首跑性能硬约束）
 
 研究目标是取得“足以支撑章节”的最小充分证据，不是执行 Deep Research。
 

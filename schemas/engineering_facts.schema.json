@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Engineering Facts Contract",
+  "type": "object",
+  "required": [
+    "meta",
+    "sources",
+    "basic_info",
+    "unit",
+    "component_catalog",
+    "process",
+    "diagnosis",
+    "scheme_analysis",
+    "adopted_scheme",
+    "equipment",
+    "derived_facts"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "meta": {
+      "type": "object",
+      "required": ["schema_version"],
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {"const": "2.0"},
+        "generated_at": {"type": "string"}
+      }
+    },
+    "sources": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "source_id": {"type": "string"},
+          "source_type": {"type": "string"},
+          "location": {"type": "string"},
+          "schema_version": {"type": "string"}
+        }
+      }
+    },
+    "basic_info": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "construction_unit": {"type": "string"}
+      }
+    },
+    "unit": {"type": "object"},
+    "component_catalog": {"type": "array"},
+    "process": {"type": "object"},
+    "diagnosis": {"type": "object"},
+    "scheme_analysis": {"type": "object"},
+    "adopted_scheme": {"type": "object"},
+    "equipment": {"type": "object"},
+    "derived_facts": {"type": "object"}
+  }
+}

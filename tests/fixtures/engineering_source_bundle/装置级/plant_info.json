@@ -1,0 +1,731 @@
+{
+  "plant_info": {
+    "plant_name": "1万吨/年异戊烯联合生产装置",
+    "plant_type": "异戊烯联合生产装置",
+    "annual_operating_hours": 8000,
+    "unit": "吨/年",
+    "stream_mapping_notes": "通过 design_topology.json 中 source/target 为空字符串的边识别装置边界流股，再用 design_streams.json 的流量数值匹配 plant_info 设计流量；组分关联用 components.json 的 formula 字段作为流股 composition[].component 的 key",
+    "design_case": {
+      "case_name": "设计工况",
+      "capacity_ratio": 1.0,
+      "feeds": [
+        {
+          "name": "粗异戊烯进料",
+          "stream_id": "stream_2",
+          "annual_capacity": {
+            "value": 48000,
+            "unit": "吨/年"
+          },
+          "hourly_rate": {
+            "value": 6000,
+            "unit": "kg/h"
+          },
+          "stream": {
+            "id": "stream_2",
+            "name": "流股2",
+            "source": "",
+            "target": "0",
+            "flow_rate": {
+              "value": 6294.7232785603,
+              "unit": "kg/h"
+            },
+            "composition": [
+              {
+                "component": "H2O",
+                "mole_fraction": 0.0011664911479736667,
+                "mass_fraction": 0.00029711513430660526
+              },
+              {
+                "component": "MOH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "DIM",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "3M1B=",
+                "mole_fraction": 0.002095936604776579,
+                "mass_fraction": 0.002078315797741714
+              },
+              {
+                "component": "I-P",
+                "mole_fraction": 0.07283568612096318,
+                "mass_fraction": 0.07429927001049874
+              },
+              {
+                "component": "14P==",
+                "mole_fraction": 0.0022728514618884357,
+                "mass_fraction": 0.002188963742057004
+              },
+              {
+                "component": "1P=",
+                "mole_fraction": 0.07176355950409406,
+                "mass_fraction": 0.07116023408324171
+              },
+              {
+                "component": "2M1B=",
+                "mole_fraction": 0.1502487062927115,
+                "mass_fraction": 0.148985546207245
+              },
+              {
+                "component": "N-P",
+                "mole_fraction": 0.4886112004856806,
+                "mass_fraction": 0.4984295123512381
+              },
+              {
+                "component": "T-2P=",
+                "mole_fraction": 0.07805249546946576,
+                "mass_fraction": 0.077396298159813
+              },
+              {
+                "component": "C-2P=",
+                "mole_fraction": 0.039849529339874686,
+                "mass_fraction": 0.03951450925132436
+              },
+              {
+                "component": "2M2B=",
+                "mole_fraction": 0.08289675972507467,
+                "mass_fraction": 0.08219983606640952
+              },
+              {
+                "component": "NEOP",
+                "mole_fraction": 0.003186278486298905,
+                "mass_fraction": 0.003250304599163086
+              },
+              {
+                "component": "TAME",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "H2",
+                "mole_fraction": 0.007020505361198034,
+                "mass_fraction": 0.00020009459696124324
+              },
+              {
+                "component": "2M2B==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2BOH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "N-POH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC2",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "OE",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "1P3-",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "T-13P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "CYC-P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "CYC-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              }
+            ],
+            "target_product_stream": false,
+            "temperature": {
+              "value": 25.0,
+              "unit": "℃"
+            },
+            "pressure": {
+              "value": 0.5,
+              "unit": "MPa"
+            },
+            "is_top": false,
+            "is_middle": false,
+            "is_bottom": false,
+            "phase": "Liq",
+            "position": [
+              0,
+              0
+            ]
+          }
+        },
+        {
+          "name": "甲醇进料",
+          "stream_id": "stream_3",
+          "stream": {
+            "id": "stream_3",
+            "name": "流股3甲醇进料",
+            "source": "",
+            "target": "12",
+            "flow_rate": {
+              "value": 66.7418650355829,
+              "unit": "kg/h"
+            },
+            "composition": [
+              {
+                "component": "H2O",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "MOH",
+                "mole_fraction": 1.0,
+                "mass_fraction": 1.0
+              },
+              {
+                "component": "DIM",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "3M1B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "I-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "14P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "1P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M1B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "N-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "T-2P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "C-2P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "NEOP",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "TAME",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "H2",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2B==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2BOH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "N-POH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC2",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "OE",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "1P3-",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "T-13P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "CYC-P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "CYC-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              }
+            ],
+            "target_product_stream": false,
+            "temperature": {
+              "value": 33.0,
+              "unit": "℃"
+            },
+            "pressure": {
+              "value": 0.55,
+              "unit": "MPa"
+            },
+            "is_top": false,
+            "is_middle": false,
+            "is_bottom": false,
+            "phase": "Vap",
+            "position": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "products": [
+        {
+          "name": "异戊烯产品",
+          "is_main_product": true,
+          "stream_id": "stream_27",
+          "annual_capacity": {
+            "value": 10000,
+            "unit": "吨/年"
+          },
+          "hourly_rate": {
+            "value": 1250,
+            "unit": "kg/h"
+          }
+        }
+      ]
+    },
+    "retrofit_case": {
+      "case_name": "改造工况",
+      "capacity_ratio": 2.0,
+      "feeds": [
+        {
+          "name": "粗异戊烯进料",
+          "stream_id": "stream_2",
+          "stream": {
+            "id": "stream_2",
+            "name": "粗异戊烯进料",
+            "source": "",
+            "target": "0",
+            "flow_rate": {
+              "value": 14992.447695573,
+              "unit": "kg/h"
+            },
+            "composition": [
+              {
+                "component": "H2O",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.000457861341
+              },
+              {
+                "component": "MOH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "DIM",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "3M1B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.000820602498
+              },
+              {
+                "component": "I-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.165956820896
+              },
+              {
+                "component": "14P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.006770531634
+              },
+              {
+                "component": "1P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.072983492237
+              },
+              {
+                "component": "2M1B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.137967305406
+              },
+              {
+                "component": "N-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.442946844494
+              },
+              {
+                "component": "T-2P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.066649785391
+              },
+              {
+                "component": "C-2P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.040384394383
+              },
+              {
+                "component": "2M2B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.063898150652
+              },
+              {
+                "component": "NEOP",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "TAME",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "H2",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2B==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 8.053903e-05
+              },
+              {
+                "component": "2M2BOH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "N-POH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC2",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "OE",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "1P3-",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.000199651186
+              },
+              {
+                "component": "T-13P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 9.9195363e-05
+              },
+              {
+                "component": "CYC-P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.000684830933
+              },
+              {
+                "component": "CYC-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 9.9994556e-05
+              }
+            ],
+            "target_product_stream": false,
+            "temperature": {
+              "value": 25.0,
+              "unit": "℃"
+            },
+            "pressure": {
+              "value": 0.5,
+              "unit": "MPa"
+            },
+            "is_top": false,
+            "is_middle": false,
+            "is_bottom": false,
+            "phase": "Liq",
+            "position": [
+              0,
+              0
+            ]
+          },
+          "annual_capacity": {
+            "value": 48000,
+            "unit": "吨/年"
+          },
+          "hourly_rate": {
+            "value": 6000,
+            "unit": "kg/h"
+          },
+          "flow_rate": {
+            "value": 14992.447695573,
+            "unit": "kg/h"
+          },
+          "is_main_feed": true
+        },
+        {
+          "name": "甲醇进料",
+          "stream_id": "stream_3",
+          "stream": {
+            "id": "stream_3",
+            "name": "流股3甲醇进料",
+            "source": "",
+            "target": "12",
+            "flow_rate": {
+              "value": 133.48373,
+              "unit": "kg/h"
+            },
+            "composition": [
+              {
+                "component": "H2O",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "MOH",
+                "mole_fraction": 1.0,
+                "mass_fraction": 1.0
+              },
+              {
+                "component": "DIM",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "3M1B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "I-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "14P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "1P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M1B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "N-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "T-2P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "C-2P=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2B=",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "NEOP",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "TAME",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "H2",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2B==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "2M2BOH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "N-POH",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "HC2",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "OE",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "1P3-",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "T-13P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "CYC-P==",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              },
+              {
+                "component": "CYC-P",
+                "mole_fraction": 0.0,
+                "mass_fraction": 0.0
+              }
+            ],
+            "target_product_stream": false,
+            "temperature": {
+              "value": 33.0,
+              "unit": "℃"
+            },
+            "pressure": {
+              "value": 0.55,
+              "unit": "MPa"
+            },
+            "is_top": false,
+            "is_middle": false,
+            "is_bottom": false,
+            "phase": "Vap",
+            "position": [
+              0,
+              0
+            ]
+          }
+        }
+      ],
+      "products": [
+        {
+          "name": "异戊烯产品",
+          "is_main_product": true,
+          "stream_id": "stream_27",
+          "annual_capacity": {
+            "value": 20000.0,
+            "unit": "吨/年"
+          },
+          "hourly_rate": {
+            "value": 2500.0,
+            "unit": "kg/h"
+          }
+        }
+      ],
+      "target_alignment": {
+        "mode": "product_target",
+        "target_product_annual_capacity": 20000.0,
+        "target_product_annual_unit": "吨/年",
+        "target_product_flow": 2500.0,
+        "target_product_flow_unit": "kg/h",
+        "yield_used": 0.95,
+        "yield_applied": false,
+        "operating_hours": 8000.0,
+        "design_main_feed_flow": 6000.0,
+        "design_main_product_flow": 1250.0,
+        "design_main_product_annual_capacity": 10000.0,
+        "target_main_feed_flow": 14992.447696,
+        "product_scale_factor": 2.0,
+        "annual_scale_factor": 2.0,
+        "scale_factor": 2.0,
+        "retrofit_feed_matched_stream_ids": [
+          "stream_2"
+        ],
+        "retrofit_feed_unmatched_stream_ids": [
+          "stream_3"
+        ],
+        "total_reactant_flow": 14992.447696,
+        "total_feed_flow": 14992.447696,
+        "main_feed_stream_id": "stream_2",
+        "main_product_stream_id": "stream_27"
+      }
+    }
+  }
+}

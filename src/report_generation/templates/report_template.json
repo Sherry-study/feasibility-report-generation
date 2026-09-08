@@ -1,0 +1,823 @@
+{
+  "template_id": "industrial_retrofit_feasibility_report_mvp",
+  "version": "1.0",
+  "sections": [
+    {
+      "id": "1",
+      "title": "1. 总论",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "本章当前仅形成可研阶段资料边界说明，后续应结合建设单位资料、工程条件和投资测算结果进一步完善。",
+      "blocks": []
+    },
+    {
+      "id": "1.1",
+      "title": "1.1 概述",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "本节当前仅能概述已取得的工程事实，建设单位背景和项目外部条件需后续补充核实。",
+      "blocks": []
+    },
+    {
+      "id": "1.1.1",
+      "title": "1.1.1 项目名称、建设单位及项目性质",
+      "level": 3,
+      "table_id": "表1.1",
+      "caption": "项目基本信息表",
+      "fallback": "本节当前仅列示已确认的项目名称、建设单位和装置信息；项目性质以技术改造阶段性描述为限，后续应由建设单位确认。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "project_identity"
+        }
+      ]
+    },
+    {
+      "id": "1.1.2",
+      "title": "1.1.2 主办单位基本情况",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "主办单位基本情况尚需建设单位提供正式资料或可核验公开信息，本节暂不作实质判断。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "1.1.2"
+        }
+      ]
+    },
+    {
+      "id": "1.1.3",
+      "title": "1.1.3 项目提出的背景、投资的目的、意义和必要性",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "项目背景与必要性当前只能基于已识别的装置问题和改造目标作阶段说明，投资目的和经济意义需待投资及财务资料完善后补充。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "1.1.3"
+        }
+      ]
+    },
+    {
+      "id": "1.1.4",
+      "title": "1.1.4 编制依据和原则",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "编制依据和原则需结合项目适用行业、建设单位要求和设计深度确定，当前仅列示通用可研编制边界。",
+      "blocks": [
+        {
+          "type": "standards_reference",
+          "group": "feasibility_compilation_principles"
+        }
+      ]
+    },
+    {
+      "id": "1.1.5",
+      "title": "1.1.5 研究范围",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "研究范围按已取得工程事实覆盖生产规模、工艺、设备、原辅料、公用工程、节能、实施计划、投资估算、财务分析及结论框架，缺失专业条件后续补充。",
+      "blocks": [
+        {
+          "type": "static_text",
+          "text": "研究范围包括生产规模和产品方案、工艺技术方案、主要设备、原辅料与动力、公用工程、节能、项目实施计划、投资估算、财务分析及研究结论。各专业深度以本项目已取得的设计条件和专业计算成果为边界。"
+        }
+      ]
+    },
+    {
+      "id": "1.2",
+      "title": "1.2 研究结论",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "当前研究结论仅能反映已取得工程事实和待补充资料边界，投资决策、财务指标和最终实施条件需后续核实。",
+      "blocks": [
+        {
+          "type": "synthesis_section",
+          "contract_ref": "1.2"
+        }
+      ]
+    },
+    {
+      "id": "2",
+      "title": "2. 市场预测分析",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "市场预测分析需要外部市场资料和建设单位销售资料支撑，当前仅保留章节结构和资料补充边界。",
+      "blocks": []
+    },
+    {
+      "id": "2.1.1",
+      "title": "2.1.1 产品用途及下游领域",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "产品用途及下游领域需依据公开资料或企业销售资料核实，当前不生成未经来源支持的市场判断。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "2.1.1"
+        }
+      ]
+    },
+    {
+      "id": "2.1.2",
+      "title": "2.1.2 市场供需现状及预测",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "市场供需现状及预测需补充可核验市场资料，当前不形成确定预测数据。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "2.1.2"
+        }
+      ]
+    },
+    {
+      "id": "2.2",
+      "title": "2.2 产品的竞争力分析",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "产品竞争力需结合成本、质量、客户和销售渠道资料评价；资料未闭合前不形成定量竞争结论。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "2.2"
+        }
+      ]
+    },
+    {
+      "id": "2.4",
+      "title": "2.4 价格预测",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "价格预测需由建设单位结合销售渠道和可核验市场价格确认，当前不生成预测价格。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "2.4"
+        }
+      ]
+    },
+    {
+      "id": "3",
+      "title": "3. 生产规模和产品方案",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "生产规模和产品方案以工程事实为边界，缺失产品规格或质量指标时保留待补充。",
+      "blocks": []
+    },
+    {
+      "id": "3.1",
+      "title": "3.1 生产规模和产品方案",
+      "level": 2,
+      "table_id": "表3.1",
+      "caption": "改造前后生产规模及产品指标对比表",
+      "fallback": "生产规模和产品指标按已取得工程事实列示，缺失指标后续由专业计算和建设单位确认。",
+      "blocks": [
+        {
+          "type": "static_text",
+          "text": "改造前后生产规模和产品指标按工程事实统一列示；缺失的规格、质量和运行口径需后续补充确认。"
+        },
+        {
+          "type": "deterministic_table",
+          "builder": "scale_table"
+        }
+      ]
+    },
+    {
+      "id": "4",
+      "title": "4. 工艺技术方案",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "工艺技术方案章节以已取得流程、诊断和方案事实为边界，缺失专业条件后续补充。",
+      "blocks": []
+    },
+    {
+      "id": "4.1",
+      "title": "4.1 工艺技术方案的选择",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "工艺技术方案选择需结合工程比选资料，本节暂以已取得候选方案和诊断结果为边界。",
+      "blocks": []
+    },
+    {
+      "id": "4.1.1",
+      "title": "4.1.1 原料路线确定的原则和依据",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "原料路线是否调整需由工艺专业确认；当前按工程事实中已取得的进料和产品信息说明资料边界。",
+      "blocks": []
+    },
+    {
+      "id": "4.1.2",
+      "title": "4.1.2 国内、外工艺技术概况",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "国内外工艺技术概况需补充可核验资料，当前不形成无来源的技术应用判断。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "4.1.2"
+        }
+      ]
+    },
+    {
+      "id": "4.1.3",
+      "title": "4.1.3 工艺技术方案的比较和选择",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "方案比较和选择需依据候选方案、工程影响和待补充投资资料，当前只保留已取得比选边界。",
+      "blocks": []
+    },
+    {
+      "id": "4.1.3.1",
+      "title": "4.1.3.1 候选改造方案概述",
+      "level": 4,
+      "table_id": null,
+      "caption": null,
+      "fallback": "候选改造方案概述以工程事实中的候选池为边界，缺失方案不作补写。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "4.1.3.1"
+        }
+      ]
+    },
+    {
+      "id": "4.1.3.2",
+      "title": "4.1.3.2 技术、消耗、设备、投资与风险比较",
+      "level": 4,
+      "table_id": "表4.1",
+      "caption": "候选工艺技术方案比选表",
+      "fallback": "技术、消耗、设备、投资与风险比较当前只能列示已有候选方案评价，投资和费用比较需后续补充。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "scheme_comparison"
+        },
+        {
+          "type": "deterministic_table",
+          "builder": "key_equipment_comparison",
+          "table_id": "表4.2",
+          "caption": "关键设备方案比较表"
+        },
+        {
+          "type": "llm_section",
+          "contract_ref": "4.1.3.2"
+        }
+      ]
+    },
+    {
+      "id": "4.1.3.3",
+      "title": "4.1.3.3 推荐方案及推荐理由",
+      "level": 4,
+      "table_id": null,
+      "caption": null,
+      "fallback": "推荐方案及理由需以已确认采用方案为准；缺少采用方案时仅说明后续需确认最终选择。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "4.1.3.3"
+        }
+      ]
+    },
+    {
+      "id": "4.1.4",
+      "title": "4.1.4 工艺技术描述",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "工艺技术描述需以流程和采用方案事实为依据，缺少流程细节时保留待补充。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "4.1.4"
+        }
+      ]
+    },
+    {
+      "id": "4.2",
+      "title": "4.2 工艺流程和消耗定额",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "工艺流程和消耗定额按已取得工艺计算结果列示，缺失公用工程实物量后续补充。",
+      "blocks": []
+    },
+    {
+      "id": "4.2.1",
+      "title": "4.2.1 工艺流程说明",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "工艺流程说明需依据流程拓扑和专业资料，当前以已取得流程事实为边界。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "4.2.1"
+        }
+      ]
+    },
+    {
+      "id": "4.2.2",
+      "title": "4.2.2 物料平衡说明",
+      "level": 3,
+      "table_id": "表4.3",
+      "caption": "改造前后物料平衡摘要表",
+      "fallback": "物料平衡说明按已取得流股数据列示，缺失或未闭合流股需后续由工艺专业补充。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "material_balance"
+        }
+      ]
+    },
+    {
+      "id": "4.2.3",
+      "title": "4.2.3 工艺消耗定额",
+      "level": 3,
+      "table_id": "表4.4",
+      "caption": "主要消耗定额及改造前后对比表",
+      "fallback": "工艺消耗定额按已取得原辅料和公用工程线索列示，缺失实物量不作推算。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "consumption"
+        }
+      ]
+    },
+    {
+      "id": "4.2.4",
+      "title": "4.2.4 主要工艺设备一览表",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "主要工艺设备按已取得设备目录和专业结果列示，缺失位号、数量或规格时保留待补充。",
+      "blocks": [
+        {
+          "type": "static_text",
+          "text": "本节仅汇总因本项目产生设备工程动作的对象，包括新增设备、原设备本体改造设备，以及调整为新用途、位置或工程角色的利旧设备。继续保持原用途且设备本体无变化的既有设备不列入以下三类设备表；规格参数采用相应设备专业结果。"
+        },
+        {
+          "type": "deterministic_table",
+          "builder": "new_equipment",
+          "table_id": "表4.5",
+          "caption": "新增工艺设备汇总表"
+        },
+        {
+          "type": "deterministic_table",
+          "builder": "reused_equipment",
+          "table_id": "表4.6",
+          "caption": "利旧工艺设备汇总表"
+        },
+        {
+          "type": "deterministic_table",
+          "builder": "modified_equipment",
+          "table_id": "表4.7",
+          "caption": "改造工艺设备汇总表"
+        }
+      ]
+    },
+    {
+      "id": "4.2.4.1",
+      "title": "4.2.4.1 主要设备设计、制造及检验规范",
+      "level": 4,
+      "table_id": null,
+      "caption": null,
+      "fallback": "主要设备设计、制造及检验规范需由设备专业结合设备类型确认，当前仅保留待核实边界。",
+      "blocks": [
+        {
+          "type": "standards_reference",
+          "group": "process_equipment"
+        }
+      ]
+    },
+    {
+      "id": "4.4",
+      "title": "4.4 自动控制",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "自动控制改造范围需与工艺和设备改造边界匹配，新增测点、控制回路及联锁要求待自控专业确定。",
+      "blocks": []
+    },
+    {
+      "id": "4.4.1",
+      "title": "4.4.1 主要设计标准和规范",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "自控设计标准和规范需由自控专业结合项目边界确认，当前保留待核实清单边界。",
+      "blocks": [
+        {
+          "type": "standards_reference",
+          "group": "automatic_control"
+        }
+      ]
+    },
+    {
+      "id": "5",
+      "title": "5. 原材料、辅助材料、燃料和动力供应",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "原辅料、燃料和动力供应需结合专业计算和企业供应条件核实，当前保留资料边界。",
+      "blocks": []
+    },
+    {
+      "id": "5.1",
+      "title": "5.1 主要原材料、辅助材料、燃料的种类、规格、年需用量",
+      "level": 2,
+      "table_id": "表5.1",
+      "caption": "主要原辅料及燃料需求表",
+      "fallback": "主要原辅料及燃料需求按已取得数据列示，规格和供应方式需后续补充。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "consumption"
+        }
+      ]
+    },
+    {
+      "id": "5.4",
+      "title": "5.4 水、电、汽和其他动力供应",
+      "level": 2,
+      "table_id": "表5.2",
+      "caption": "水、电、汽和其他动力需求表（已识别部分）",
+      "fallback": "水、电、汽和其他动力供应需企业系统能力和运行负荷校核，当前仅列示已识别需求线索。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "utilities"
+        }
+      ]
+    },
+    {
+      "id": "7",
+      "title": "7. 总图运输、储运、土建、界区内外管网",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "总图运输、储运、土建和界区内外管网需现场条件与专业资料支撑，当前保留待核实边界。",
+      "blocks": []
+    },
+    {
+      "id": "7.1",
+      "title": "7.1 总图运输",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "总图运输需结合现场总平面、运输组织和专业校核确定，当前不形成布置或间距判断。",
+      "blocks": []
+    },
+    {
+      "id": "7.2",
+      "title": "7.2 储运",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "储运条件需结合原料、产品、罐容、装卸和运输能力核实，当前不作能力满足判断。",
+      "blocks": []
+    },
+    {
+      "id": "7.3",
+      "title": "7.3 厂区外管网",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "厂区外管网条件需结合界区接口、路由、管径、材质和工程量核实，当前不作依托判断。",
+      "blocks": []
+    },
+    {
+      "id": "8",
+      "title": "8. 公用工程方案和辅助生产设施",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "公用工程方案和辅助生产设施需结合系统能力、运行负荷和可用余量核实，当前保留资料边界。",
+      "blocks": []
+    },
+    {
+      "id": "8.1",
+      "title": "8.1 公用工程方案",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "公用工程方案需结合改造后需求和企业系统能力校核，当前不形成供需平衡结论。",
+      "blocks": []
+    },
+    {
+      "id": "8.1.1",
+      "title": "8.1.1 给水排水设计依据",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "给水排水设计依据需由专业结合项目边界确认，当前保留待核实边界。",
+      "blocks": [
+        {
+          "type": "standards_reference",
+          "group": "utility_water"
+        }
+      ]
+    },
+    {
+      "id": "8.1.2",
+      "title": "8.1.2 供配电设计依据",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "供配电设计依据需由专业结合负荷、供电等级和装置环境确认，当前保留待核实边界。",
+      "blocks": [
+        {
+          "type": "standards_reference",
+          "group": "utility_power"
+        }
+      ]
+    },
+    {
+      "id": "10",
+      "title": "10. 节能",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "节能章节需完整能耗边界和实物量支撑，当前保留待补充事项。",
+      "blocks": []
+    },
+    {
+      "id": "10.1",
+      "title": "10.1 编制依据",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "节能编制依据需结合项目所在地和行业要求确认，当前保留待核实边界。",
+      "blocks": []
+    },
+    {
+      "id": "10.1.1",
+      "title": "10.1.1 国家及有关法律、法规和政策",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "节能法律、法规和政策清单需结合现行有效文本核实，当前不作完整性判断。",
+      "blocks": [
+        {
+          "type": "standards_reference",
+          "group": "energy_laws"
+        }
+      ]
+    },
+    {
+      "id": "10.1.2",
+      "title": "10.1.2 主要标准、规范",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "节能标准、规范清单需结合项目用能边界核实，当前不作完整性判断。",
+      "blocks": [
+        {
+          "type": "standards_reference",
+          "group": "energy_standards"
+        }
+      ]
+    },
+    {
+      "id": "10.2",
+      "title": "10.2 项目用能概况",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "项目用能概况需待统一能耗边界和实物量汇总后完善，当前仅说明已识别需求线索。",
+      "blocks": []
+    },
+    {
+      "id": "10.3",
+      "title": "10.3 能源供应状况",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "能源供应状况需企业台账、运行负荷和接口条件支撑，当前不作供应能力判断。",
+      "blocks": []
+    },
+    {
+      "id": "10.4",
+      "title": "10.4 项目节能分析与措施",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "节能分析与措施需在能耗边界和实物量闭合后开展，当前不生成推测节能量。",
+      "blocks": []
+    },
+    {
+      "id": "10.5",
+      "title": "10.5 项目能耗指标",
+      "level": 2,
+      "table_id": "表10.1",
+      "caption": "主要能源消耗分析",
+      "fallback": "项目能耗指标需完整能源实物量和折标边界支撑，当前保留框架表。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "energy"
+        }
+      ]
+    },
+    {
+      "id": "10.6",
+      "title": "10.6 能耗分析",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "能耗分析需基于改造前后统一口径的能耗数据，当前不开展标杆或定量比较。",
+      "blocks": []
+    },
+    {
+      "id": "18",
+      "title": "18. 项目实施计划",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "项目实施计划需结合正式项目组织、施工窗口和采购周期确定，当前保留框架。",
+      "blocks": []
+    },
+    {
+      "id": "18.1",
+      "title": "18.1 项目组织与管理",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "项目组织与管理需建设单位提供组织架构和职责分工，当前不作推断。",
+      "blocks": []
+    },
+    {
+      "id": "18.2",
+      "title": "18.2 实施进度计划",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "实施进度计划需结合设备清单、施工窗口、采购周期和企业计划确定，当前不生成确定工期。",
+      "blocks": [
+        {
+          "type": "llm_section",
+          "contract_ref": "18.2"
+        }
+      ]
+    },
+    {
+      "id": "19",
+      "title": "19. 投资估算",
+      "level": 1,
+      "table_id": "表19.1",
+      "caption": "主要投资对象范围",
+      "fallback": "投资估算需完整工程量、设备价格、取费依据和价格基准支撑，当前不生成金额。",
+      "blocks": [
+        {
+          "type": "deterministic_table",
+          "builder": "investment_scope"
+        },
+        {
+          "type": "deterministic_table",
+          "builder": "investment_summary",
+          "table_id": "表19.2",
+          "caption": "项目投资估算汇总表（框架）"
+        }
+      ]
+    },
+    {
+      "id": "20",
+      "title": "20. 资金筹措",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "资金筹措方案需待项目总投资、资本金安排和融资结构明确后编制，当前不作推断。",
+      "blocks": []
+    },
+    {
+      "id": "21",
+      "title": "21. 财务分析",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "财务分析需投资、价格、成本、税费、融资参数和产销条件闭合后开展，当前不计算收益率、净现值或回收期。",
+      "blocks": []
+    },
+    {
+      "id": "26",
+      "title": "26. 研究结论",
+      "level": 1,
+      "table_id": null,
+      "caption": null,
+      "fallback": "研究结论需综合已完成章节摘要和待补充事项形成，当前仅保留结论框架。",
+      "blocks": []
+    },
+    {
+      "id": "26.1",
+      "title": "26.1 综合评价",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "综合评价需基于技术、工程和经济章节摘要形成，当前不新增事实判断。",
+      "blocks": []
+    },
+    {
+      "id": "26.1.1",
+      "title": "26.1.1 技术方案综合评价",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "技术方案综合评价需以方案、流程和设备资料为依据，当前仅形成资料边界说明。",
+      "blocks": [
+        {
+          "type": "synthesis_section",
+          "contract_ref": "26.1.1"
+        }
+      ]
+    },
+    {
+      "id": "26.1.2",
+      "title": "26.1.2 工程实施条件综合评价",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "工程实施条件综合评价需以设备、公用工程、总图和施工组织资料为依据，当前仅形成待核实边界。",
+      "blocks": [
+        {
+          "type": "synthesis_section",
+          "contract_ref": "26.1.2"
+        }
+      ]
+    },
+    {
+      "id": "26.1.3",
+      "title": "26.1.3 投资与经济性综合评价",
+      "level": 3,
+      "table_id": null,
+      "caption": null,
+      "fallback": "投资与经济性综合评价需待投资估算和财务分析完成后形成，当前不作定量经济评价。",
+      "blocks": [
+        {
+          "type": "synthesis_section",
+          "contract_ref": "26.1.3"
+        }
+      ]
+    },
+    {
+      "id": "26.2",
+      "title": "26.2 研究报告的结论",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "研究报告结论需综合各章节摘要和待核实事项形成，当前不新增事实判断。",
+      "blocks": [
+        {
+          "type": "synthesis_section",
+          "contract_ref": "26.2"
+        }
+      ]
+    },
+    {
+      "id": "26.3",
+      "title": "26.3 存在的问题",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "存在的问题应围绕资料缺口、工程条件和经济评价输入列示，当前按已识别资料边界保留待核实事项。",
+      "blocks": [
+        {
+          "type": "synthesis_section",
+          "contract_ref": "26.3"
+        }
+      ]
+    },
+    {
+      "id": "26.4",
+      "title": "26.4 建议及实施条件",
+      "level": 2,
+      "table_id": null,
+      "caption": null,
+      "fallback": "建议及实施条件需围绕后续核实、设计深化、投资估算和财务评价补充资料展开，当前不承诺实施条件已具备。",
+      "blocks": [
+        {
+          "type": "synthesis_section",
+          "contract_ref": "26.4"
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,183 @@
+{
+  "equipment": [
+    {
+      "id": "0",
+      "name": "原料预处理",
+      "type": "preprocess",
+      "specifications": {
+        "进料": "出料"
+      }
+    },
+    {
+      "id": "1",
+      "name": "醚化反应器",
+      "type": "reactor",
+      "form": "fixed_bed",
+      "specifications": {
+        "反应类型": "醚化反应"
+      }
+    },
+    {
+      "id": "2",
+      "name": "催化蒸馏塔B",
+      "type": "separator",
+      "form": "tray",
+      "condenser": false,
+      "reboiler": true,
+      "specifications": {
+        "类型": "三进两出型"
+      }
+    },
+    {
+      "id": "3",
+      "name": "催化蒸馏塔A",
+      "type": "reactor_separator",
+      "form": "tray",
+      "condenser": true,
+      "reboiler": false,
+      "specifications": {
+        "类型": "一进两出型",
+        "功能": "先反应再分离"
+      }
+    },
+    {
+      "id": "4",
+      "name": "甲醇水洗塔",
+      "type": "extractor",
+      "form": "packed",
+      "condenser": false,
+      "reboiler": false,
+      "specifications": {
+        "类型": "两进两出型"
+      }
+    },
+    {
+      "id": "5",
+      "name": "甲醇回收塔",
+      "type": "separator",
+      "form": "tray",
+      "condenser": true,
+      "reboiler": true,
+      "specifications": {
+        "类型": "两进两出型"
+      }
+    },
+    {
+      "id": "6",
+      "name": "TAME精制塔",
+      "type": "separator",
+      "form": "packed",
+      "condenser": true,
+      "reboiler": true,
+      "specifications": {
+        "类型": "一进三出型"
+      }
+    },
+    {
+      "id": "7",
+      "name": "醚解反应器",
+      "type": "reactor",
+      "form": "tubular",
+      "specifications": {
+        "反应类型": "醚解反应"
+      }
+    },
+    {
+      "id": "8",
+      "name": "反应物水洗塔",
+      "type": "extractor",
+      "form": "packed",
+      "condenser": false,
+      "reboiler": false,
+      "specifications": {
+        "类型": "三进两出型"
+      }
+    },
+    {
+      "id": "9",
+      "name": "异构化反应器",
+      "type": "reactor",
+      "form": "tubular",
+      "specifications": {
+        "反应类型": "异构化反应"
+      }
+    },
+    {
+      "id": "10",
+      "name": "异戊烯精制塔",
+      "type": "separator",
+      "form": "packed",
+      "condenser": true,
+      "reboiler": true,
+      "specifications": {
+        "类型": "一进三出型"
+      }
+    },
+    {
+      "id": "11",
+      "name": "分离器11",
+      "type": "tee",
+      "specifications": {
+        "特点": "进料之和=出料之和"
+      }
+    },
+    {
+      "id": "12",
+      "name": "混合器12",
+      "type": "mixer",
+      "specifications": {
+        "特点": "进料之和=出料之和"
+      }
+    },
+    {
+      "id": "13",
+      "name": "分离器13",
+      "type": "tee",
+      "specifications": {
+        "特点": "进料之和=出料之和"
+      }
+    },
+    {
+      "id": "14",
+      "name": "混合器14",
+      "type": "mixer",
+      "specifications": {
+        "特点": "进料之和=出料之和"
+      }
+    },
+    {
+      "id": "15",
+      "name": "混合器15",
+      "type": "mixer",
+      "specifications": {
+        "特点": "进料之和=出料之和"
+      }
+    },
+    {
+      "id": "16",
+      "name": "混合器16",
+      "type": "mixer",
+      "specifications": {
+        "特点": "进料之和=出料之和"
+      }
+    },
+    {
+      "id": "17",
+      "name": "二级醚化反应器",
+      "type": "reactor",
+      "specifications": {
+        "反应类型": ""
+      },
+      "is_new": true
+    },
+    {
+      "id": "18",
+      "name": "异戊烯精制塔_串联",
+      "type": "separator",
+      "form": "packed",
+      "condenser": true,
+      "reboiler": true,
+      "is_new": true
+    }
+  ]
+}

@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Report Work Results",
+  "type": "object",
+  "required": ["schema_version", "writing_results", "synthesis_results"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "writing_results": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/section_result"}
+    },
+    "synthesis_results": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/section_result"}
+    }
+  },
+  "$defs": {
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "conclusions": {"type": "array", "items": {"type": "string"}},
+        "key_facts": {"type": "array", "items": {"type": "string"}},
+        "conditions": {"type": "array", "items": {"type": "string"}},
+        "risks": {"type": "array", "items": {"type": "string"}},
+        "recommendations": {"type": "array", "items": {"type": "string"}},
+        "unresolved_items": {"type": "array", "items": {"type": "string"}}
+      }
+    },
+    "section_result": {
+      "type": "object",
+      "required": ["section_id", "blocks", "section_summary"],
+      "additionalProperties": true,
+      "allOf": [
+        {
+          "if": {
+            "required": ["section_id"],
+            "properties": {"section_id": {"not": {"const": "18.2"}}}
+          },
+          "then": {"not": {"required": ["implementation_schedule"]}}
+        }
+      ],
+      "properties": {
+        "section_id": {"type": "string"},
+        "blocks": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "oneOf": [
+              {
+                "type": "object",
+                "required": ["type", "text"],
+                "additionalProperties": false,
+                "properties": {"type": {"const": "paragraph"}, "text": {"type": "string"}}
+              },
+              {
+                "type": "object",
+                "required": ["type", "items"],
+                "additionalProperties": false,
+                "properties": {"type": {"enum": ["bullet_list", "numbered_list"]}, "items": {"type": "array", "minItems": 1, "items": {"type": "string"}}}
+              }
+            ]
+          }
+        },
+        "implementation_schedule": {"$ref": "#/$defs/implementation_schedule"},
+        "section_summary": {"$ref": "#/$defs/summary"}
+      }
+    },
+    "implementation_schedule": {
+      "type": "object",
+      "required": ["rows"],
+      "additionalProperties": false,
+      "properties": {
+        "rows": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "items": {
+            "type": "object",
+            "required": ["stage", "main_content", "duration_range", "prerequisites"],
+            "additionalProperties": false,
+            "properties": {
+              "stage": {
+                "enum": [
+                  "项目前期（各报告编制及审批）",
+                  "基础设计",
+                  "施工图设计",
+                  "设备采购",
+                  "土建施工",
+                  "安装工程",
+                  "试生产"
+                ]
+              },
+              "main_content": {"type": "string", "minLength": 1},
+              "duration_range": {
+                "type": "string",
+                "pattern": "^\\d+(?:\\.\\d+)?～\\d+(?:\\.\\d+)?个月$"
+              },
+              "prerequisites": {"type": "string", "minLength": 1}
+            }
+          }
+        }
+      }
+    }
+  }
+}
