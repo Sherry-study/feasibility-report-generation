@@ -1,0 +1,286 @@
+mcp_server/report-generation-ui/host/dist/assets/index-C0LykSHr.js
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,9,17,25,33-40,47,55,71,79,83-84,86-89,228,850
+scripts/run_engineering_facts.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-7,9,11,13-54
+src/report_generation/context_builder.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,3-5,10-132
+README.md
+  s_a1de4179f0d75c::t_ee6bffb730d604 39
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,21,26,34-36,41,45,52,54-55,64-69
+prompts/research_provider_contract.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,7,13-14,17
+src/report_generation/templates/report_template.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-823
+src/engineering_facts/core.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,3-11,13,15-16,18,20,22-121,123-128,131-132,134-136,138-144,146-147,149-152,154-155,158-181,184-185,187-192,195-288,291-293,296-298,301-303,306-637,640-646,649-674,676-690,692-816,818-833,835-842,845-854,856-1010,1012-1019,1021-1062,1064-1170,1172-1250,1252-1268,1272-1416,1419-1454,1457-1577,1580-1586,1589-1765,1767-1788,1790-1827,1829-1850,1852-1944,1946-1969,1972-1974,1977-1989,1992-2003,2006-2011,2014-2019,2022-2069,2072-2076,2079-2080,2082-2148
+src/report_generation/template_loader.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-8,10-12,14-23,25-45,47-293,295-305
+scripts/run_report_generation.py
+  s_a1de4179f0d75c::t_aa2ad42e9899b4 21
+  s_a1de4179f0d75c::t_d6d244b5490da7 46-48
+  s_a1de4179f0d75c::t_baa01edb5f9bb3 7-8
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,3-6,13-14,16-20,22-45,49-71
+references/report_rules/writing_constraints.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,5,7-17,21-29,33-35,38-39,43-45
+references/engineering_rules/energy_rules.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 13-16,20
+mcp_server/report-generation-ui/ui/src/pages/ReportGenerationPage.tsx
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 4,6,8,43-55,69-71,92-93,105-109,123,125,127-128,175,442-445,455-457,468,472-483,486,489-490,494,497-498,506-529
+  s_6f6c794cb76c9e::t_602a6c0d3ea1a6 530
+mcp_server/server.py
+  s_0f06522a705273::t_0659cdff151bf7 95
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,3,5-6,15,17,21,25-27,31-32,53-55,67-68,70-73,76-77,80-82,85-86,88-92,96,98,101,103-105,109-110,113,115-122,125,127-130,136,143,145,154-157,163,165-180,183-184,187-192
+  s_a1de4179f0d75c::t_655bdcd5e14148 146-150,158-160,181-182
+  s_a1de4179f0d75c::t_df4a82b24ce84d 14,16,56,63,79,87,99,137-141
+src/engineering_facts/rules/energy_conversion_rules.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-501
+docs/specs/2026-09-04-report-generation-tool-design.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-129,132-133,139-374
+  s_a1de4179f0d75c::t_8e97e777f4f10a 130-131,134-138
+tests/fixtures/engineering_source_bundle/装置级/plant_level_result_v3.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-13793
+tests/test_mcp_server_contract.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,5-41,43-46
+tests/fixtures/engineering_source_bundle/装置级/retrofit_equipment.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-183
+schemas/report_work_package.schema.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,6-16,18,20-121,123-145,147-173,175-187,189-197,199-238,242-274
+src/report_generation/exporters.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-11,13,16-17,19,26-32,35,37-49,51-55,58-78,82-86,89-107,110-119,121-124,126-128,131-139,142-165,168-169,171-239,242-248,250-253,255,257-266,268-320,323-327,329-342,344,346-401,403-410,413,419,423,425-426,428-444,446-452,454,457-459,463-464,468-474,476,478-479,484-487,490-491,493,495-497,502-506
+mcp_server/report-generation-ui/host/dist/index.html
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 7
+scripts/package_result.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 4-5,18-20
+src/report_generation/__init__.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-5
+mcp_server/engineering-confirmation-ui/host/dist/assets/index-CfCjr5em.js
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,9,17,25,33-34,37-38,40,47,55,63,71,79-80,83-84,86-87,226
+mcp_server/engineering-confirmation-ui/host/dist/index.html
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 7
+tests/fixtures/engineering_source_bundle/装置级/plant_info.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-731
+docs/tool-refactor-design.md
+  s_9a01d0b1949949::t_527f83b5d07b16 5,18,22-23,38,40-45,47-56,74-78,82,85-90,92-93,101-107,109,114-116,123-128,131-142,149-155,165,168-173,176,178,186-191,198-200,202,204,206,208-212,214-217,219-222,224-226,228-230,232,234,236-240,242-245,247-250,252-255,257-261,263-267,269,271,274-276,278-282,286,288-293,296-297,299-333,335-338,340-346,348,350-368,371-397,399,417-423,427,429-430,432-435,443-445,448-453,458,464,466-470,479-485,487-529
+  s_f46f589605082f::t_23ecfbf68e6a84 1,3-4,7,9,11,13,15-17,19-21,25,27,29-30,32,34-37,39,46,57-63,65-73,79-81,83-84,91,94-100,108,111,113,118-122,129-130,143-148,156-157,159,161,163,167,174,180,182-185,192-195,197,273,283-285,287,294-295,298,334,339,369-370,398,400-416,424-426,428,431,436-442,446-447,454-457,459-463,465,471-478,486
+SKILL.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,8,10,12-16,18,20,22-28,30,40,42-44,46,52,54
+  s_a1de4179f0d75c::t_d77c092e2c4c7d 32,34-38
+docs/specs/2026-09-07-utility-energy-refactor-design.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-38
+mcp_server/engineering-confirmation-ui/ui/src/pages/EngineeringFactsPage.tsx
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 2,4-6,9,16-20,30,34,40-43,53,55-62,65-70,72-76,80,83,93-96,99-102,105-108,115,123-272,276-278,282-284,287,291-292,294-297,351,364,367,394,396,399-400,410,413-420,428-429,445-446,448,455,457,459-460,470-471,473,483,486,510,527,532
+tests/test_report_generation_tool.py
+  s_a1de4179f0d75c::t_d151e28432b540 789-792
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 2-5,7-20,22-27,29-60,63-371,373-515,517-563,565,567,577-788,793-1076,1160-1540
+  s_a1de4179f0d75c::t_e51e85e13020f0 564,566,568-576
+  s_a1de4179f0d75c::t_68da7793744545 1077-1159
+.gitignore
+  s_9a01d0b1949949::t_0db3f82e6ca6bb 25-29
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 19-24
+references/runtime_policy.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 5-20,23-39,43-46
+src/report_generation/deterministic_builders.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-5,7,10-115,118-125,128-146,149-197,199-201,203-214,217-218,220-253,255-403,406-508,510-559,561-673,676-678,681-682,685-691,694-696,698-703,705-755,758-809,812-816,819-827,830-832,835-841,844-850,852-856
+src/report_generation/rules/standards_library.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-104
+tests/fixtures/engineering_source_bundle/塔/example_result_all_v3(1).json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-2587
+mcp_server/engineering-confirmation-ui/host/src/mockData.ts
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 2,4,6-8,54,56,60-66,68-127,132,134-150,154,156-161,165,167-169,173,182,184,186,194-199,203-208,212-217,221,223-227,229,236-238,240-243
+mcp_server/engineering-confirmation-ui/ui/dist/index.html
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 8,16,24,32,40-41,44-45,47-48
+skill.yaml
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3-4
+docs/guides/报告编写与输出解读流程.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-182,192-330
+  s_a1de4179f0d75c::t_82c1fd8bc794bb 183-191
+  s_6704b1836dace9::t_e7fb79cae40d61 331-402
+docs/guides/工程事实整理代码解读指南.md
+  s_6704b1836dace9::t_62cdc289d7ea9b 407-467
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-406,468
+src/report_generation/rules/chapter_rules.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-331
+tests/test_engineering_facts_tool.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3-5,9-29,32-53,57-105,107-111,113-135,137-177,179-208,210-229,231-245,247-512,514-521,523-535,537-539,541-544,546-562,564-582,584-589,591-680,682-719,721-731,733-776,778-817,819-829,831-901,903-909,911-951,953-966,968-1027,1029-1074,1076-1147,1149-1179
+scripts/validate_output.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 4,22-24,45
+src/engineering_facts/__init__.py
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-5
+tests/fixtures/engineering_source_bundle/装置级/plant_diagnosis_report.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-50
+prompts/chapter_writer_contract.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,7,11,21
+mcp_server/report-generation-ui/ui/dist/index.html
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 8,16,32,40,44-45,47-50
+schemas/engineering_facts.schema.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,6-16,18,20-27,29,33,35-38,41-56
+tests/fixtures/engineering_source_bundle/装置级/new_device_params.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 2-16,18-39,41-68,70-78,80-101,103-130,132-184,186-213,215-242,244-246,248-377
+tests/fixtures/existing_draft_section_titles.txt
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-66
+pyproject.toml
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 38
+src/report_generation/core.py
+  s_a1de4179f0d75c::t_848dc2689d1a0d 237-240,248,252-262
+  s_a1de4179f0d75c::t_c4910deab7738e 342-366
+  s_a1de4179f0d75c::t_224e81db6c656d 605-612
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1,3-6,8,12-76,78-80,86-95,98-99,101-235,242-247,249-251,263-329,331-338,367-380,382-385,389-390,392-419,421-512,514-522,526-552,554,557-596,598-604,613-626,628-665,667-704,707-768,770-773,775-806
+  s_a1de4179f0d75c::t_76c697dd0270d4 81-85
+  s_6f6c794cb76c9e::t_785e1cecab9221 77
+tests/fixtures/engineering_source_bundle/装置级/scheme.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-513
+提示词.md
+  s_9a01d0b1949949::t_85aba6128de7c1 1-114
+tests/fixtures/engineering_source_bundle/反应器/plant_reactor_result(2).json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 2-64,67-83,85-97,99-192,195-217,219-303,306-350,353-478,480-515
+references/chapter_rules/README.md
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3-7,15,26
+mcp_server/engineering-confirmation-ui/ui/src/App.tsx
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 4,13,51
+mcp_server/report-generation-ui/host/src/mockData.ts
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 5-6,53,55-59,61-67,71,73-83,87,89-94,99-108,110-111,114-116,118,120-122,128,130-131,134-136,138,140-142,148,150-151,154-156,158,160-162,168,170-171,173-174,176,187-190
+schemas/report_work_results.schema.json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 3,5-6,8-19,21,23-29,31,33-43,45-64,66-67,70,72-73,75-104,106
+mcp_server/duck_implement/host_client.py
+  h_c47bb0c7223297 216
+tests/fixtures/engineering_source_bundle/装置级/retrofit_topology(1).json
+  s_6f6c794cb76c9e::t_cbbd7d88a469a5 1-443
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "729708c207c40236e0aa61389586963ba68d7550",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_0f06522a705273": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a9fad0cd8397ae9c35417cb",
+        "model": "deepseek-V4-Pro__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "tool_use_id": "6a9fc006d8397ae9c35419ff",
+        "source_scene": "unknown",
+        "tool_type": "agent",
+        "client_type": "ide",
+        "operation_id": "6a9fc006d8397ae9c35419ff",
+        "external_session_id": "6a9fad0cd8397ae9c35417cb",
+        "dedupe_key": "6a9fad0cd8397ae9c35417cb:6a9fc006d8397ae9c35419ff:afterEdit:918badf5",
+        "edit_kind": "file_edit",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_id": "Edit",
+        "session_id": "6a9fad0cd8397ae9c35417cb"
+      }
+    },
+    "s_6704b1836dace9": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a9f9facd8397ae9c35416bc",
+        "model": "deepseek-v4-pro"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "session_id": "6a9f9facd8397ae9c35416bc",
+        "operation_id": "6a9fa013d8397ae9c35416df",
+        "dedupe_key": "6a9f9facd8397ae9c35416bc:6a9fa013d8397ae9c35416df:afterEdit:f07f858f",
+        "tool_use_id": "6a9fa013d8397ae9c35416df",
+        "tool_id": "SearchReplace",
+        "tool_type": "agent",
+        "runtime_client": "trae-tob-git-ai",
+        "client_type": "ide",
+        "edit_kind": "file_edit",
+        "source_scene": "unknown",
+        "external_session_id": "6a9f9facd8397ae9c35416bc"
+      }
+    },
+    "s_6f6c794cb76c9e": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a9e6fc82537580a7e107d59",
+        "model": "deepseek_v4_flash_official__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "session_id": "6a9e6fc82537580a7e107d59",
+        "tool_use_id": "6a9fc8ecd8397ae9c3541c2a",
+        "tool_name": "RunCommand",
+        "source_scene": "agent",
+        "external_session_id": "6a9e6fc82537580a7e107d59",
+        "runtime_client": "trae-tob-git-ai",
+        "operation_id": "6a9fc8ecd8397ae9c3541c2a",
+        "edit_kind": "bash",
+        "client_type": "ide",
+        "display_model_name": "DeepSeek-V4-Flash 正式版"
+      }
+    },
+    "s_9a01d0b1949949": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a9fd2b0d8397ae9c3541d59",
+        "model": "deepseek_v4_flash_official__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "operation_id": "6a9fe93fd8397ae9c3541d79",
+        "tool_type": "agent",
+        "tool_id": "Edit",
+        "tool_use_id": "6a9fe93fd8397ae9c3541d79",
+        "edit_kind": "file_edit",
+        "external_session_id": "6a9fd2b0d8397ae9c3541d59",
+        "client_type": "ide",
+        "session_id": "6a9fd2b0d8397ae9c3541d59",
+        "source_scene": "unknown",
+        "dedupe_key": "6a9fd2b0d8397ae9c3541d59:6a9fe93fd8397ae9c3541d79:afterEdit:3895710b",
+        "runtime_client": "trae-tob-git-ai"
+      }
+    },
+    "s_a1de4179f0d75c": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a9fa641d8397ae9c35416e3",
+        "model": "glm-5.3"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "dedupe_key": "6a9fa641d8397ae9c35416e3:6a9faa87d8397ae9c35417bb:afterEdit:0ced85cb",
+        "tool_use_id": "6a9faa87d8397ae9c35417bb",
+        "external_session_id": "6a9fa641d8397ae9c35416e3",
+        "operation_id": "6a9faa87d8397ae9c35417bb",
+        "source_scene": "unknown",
+        "edit_kind": "file_edit",
+        "tool_type": "agent",
+        "session_id": "6a9fa641d8397ae9c35416e3",
+        "tool_id": "SearchReplace",
+        "runtime_client": "trae-tob-git-ai",
+        "client_type": "ide"
+      }
+    },
+    "s_f46f589605082f": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6a9fc9afd8397ae9c3541c40",
+        "model": "deepseek-V4-Pro__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "tool_id": "Write",
+        "client_type": "ide",
+        "edit_kind": "file_edit",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_type": "agent",
+        "operation_id": "6a9fcf37d8397ae9c3541d52",
+        "external_session_id": "6a9fc9afd8397ae9c3541c40",
+        "dedupe_key": "6a9fc9afd8397ae9c3541c40:6a9fcf37d8397ae9c3541d52:afterEdit:2248631f",
+        "session_id": "6a9fc9afd8397ae9c3541c40",
+        "tool_use_id": "6a9fcf37d8397ae9c3541d52",
+        "source_scene": "unknown"
+      }
+    }
+  }
+}
