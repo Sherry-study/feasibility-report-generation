@@ -1,0 +1,14 @@
+mcp_server/duck_implement/host_client.py
+  h_c47bb0c7223297 268
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "b870aed114adfcaf0ac15ff0d7e371d2a7c227fa",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  }
+}
