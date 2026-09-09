@@ -1,0 +1,237 @@
+mcp_server/report-generation-ui/host/src/hostProtocol.ts
+  s_170d3d83ca181f::t_843fbcb8b928d5 294-295,303
+src/report_prepare/__init__.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-5
+src/report_prepare/core.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-100
+duck/host_client.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 21-27,36,40-41
+README.md
+  s_170d3d83ca181f::t_d71590009b27d7 21,23-25,35,37,41,44
+  s_b92c65113762ca::t_0c96f7b5b244f5 27,36,40,42-43,50
+mcp_server/engineering-confirmation-ui/ui/src/pages/EngineeringFactsPage.tsx
+  s_b92c65113762ca::t_abf0559146864b 354-368
+docs/specs/2026-09-07-utility-energy-refactor-design.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 21
+mcp_server/report-generation-ui/host/src/mockData.ts
+  s_b92c65113762ca::t_0c96f7b5b244f5 62-66,68,115-121,131-132,151,170-171,183,185-186,191,205,217
+  s_170d3d83ca181f::t_c0e87cd320e68f 2,4,6-7,29-30,56-57,59-61,67,69-73,75-84,88-89,91-92,100-109,113,125,127-129,134,136-139,145,147-149,153,155-158,167-168,173,187-189,198-199,203
+skill.yaml
+  s_170d3d83ca181f::t_8a45eb7cd350ef 3,7-8
+references/chapter_rules/README.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 5,26
+references/runtime_policy.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 5,9,11,15,18-19,35,43
+scripts/validate_schema.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 4
+schemas/report_manifest.schema.json
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-35
+mcp_server/engineering-confirmation-ui/host/src/hostProtocol.ts
+  s_170d3d83ca181f::t_37f52a11277976 294-295,303
+mcp_server/duck_implement/__init__.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 3
+tests/test_report_prepare_finalize_tools.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 3,8,18-37,40,42-43,45,65,79-80,83,89,91-92,96,104-105,107-127,129-140,142-165,167-189,191,194,196-198,204,206-239,241-242,244-245,248,254,260,267-268,274-293,296-358,361,363-372,374-469,471-474,477-479,483,486-492,495-501,504,508,513-515,518,520,524,528,531,534-535,538,541-542,548-550,552,556-557,562-570,573-577,582-593,595-608,610-621,623-632,634-636,638,641-644,646-661,663-664,666-668,671-674,677,679-684,686,688-689,691-692,695-696,698,701-704,708-711,713,715,718-719,721,726-736,739-751,758-782,784-788,790-817,820-829,835-837,839,847-849,857,859-860,862,864-867,870-872,877-943
+SKILL.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 17,26-28,30-31,38-40,50-51,54,60,68
+  s_170d3d83ca181f::t_16a15391a08136 3,8,12,21,25,29,33-37,41-46,52-53
+src/engineering_facts/__init__.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 3,5
+src/report_finalize/core.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-136
+scripts/run_engineering_facts.py
+  h_c47bb0c7223297 19-20,26,30,43-44,52-53
+mcp_server/report-generation-ui/ui/src/core/mcpApp.ts
+  s_b92c65113762ca::t_0c96f7b5b244f5 453,470-476,497-518,520
+  s_170d3d83ca181f::t_5bea00a7b6348b 53-54,59-63
+  s_170d3d83ca181f::t_2c1baaf10c24a3 447,451,454-456,458-469,477-496,519,521-524
+  s_170d3d83ca181f::t_1882d53a3fa0ad 64-66
+scripts/local_adapters.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-91
+docs/tool-refactor-design.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 4-5,19,27,29-30,32-34,41,44,49-51,54-60,62,64,77,83-116,140,155,164,170,172,181,194-202,205,210-211,216-218,220,229-230,232,243-244,248,264,269-270,276,324-363,374-376,402,408-414,434,438-449,451-457,459,461,463-498,503-504,529,537,556,558,560-561,565-573,575-590,593-598,606-615,619-630,634-636,645,647-648,661,666-667,678,682-684,693-694,700-705,714-716,720-727
+mcp_server/report-generation-ui/host/dist/index.html
+  s_b92c65113762ca::t_0c96f7b5b244f5 7
+references/report_rules/writing_constraints.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 8
+tests/test_engineering_facts_tool.py
+  s_170d3d83ca181f::t_32830505fe6068 1201-1222,1227,1229-1271,1277,1292-1293,1295-1297,1307-1308
+  s_170d3d83ca181f::t_d031a017a76a2c 7,15
+  s_b92c65113762ca::t_0c96f7b5b244f5 12-14,21,62-84,144,426,431,445,638,673-682,1223-1226,1228,1272-1276,1278-1291,1294,1298-1306
+src/errors.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-19
+src/report_shared/__init__.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-2
+tests/test_validate_output.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-76
+mcp_server/server.py
+  s_170d3d83ca181f::t_a9a87bdd2297c9 352-356,360,362,364
+  s_b92c65113762ca::t_9986084cd788f6 373,382
+  s_170d3d83ca181f::t_bebe5b32d5f0b9 533
+  s_b92c65113762ca::t_0ef44477ca8b57 417,427
+  s_b92c65113762ca::t_4d2f073422caeb 395,404
+  s_170d3d83ca181f::t_8a4ae7d8431872 1,5-12,20-21,26-28,32-33,40-41,43-44,47,60-61,80-83,87-89,93-94,101-117,119-123,127-131,133-137,139-141,146-271,273-351,357-359,361,363,365-372,374-381,383-394,396-403,405-416,418,421-426,428-471,474-480,485,488-492,494-503,508,511-516,521,524-525,529-532,534-541,544-545,548-556,559,561-563,568,570,574-577,579-582,586,590-594,596-606,610-619,621-622,624-627,633-635,639-642,644,647,651,655-667
+  s_170d3d83ca181f::t_233002e9b2fda7 37-39
+  s_170d3d83ca181f::t_262f35316478d2 42
+  s_170d3d83ca181f::t_1235ae3113a265 45-46
+  s_170d3d83ca181f::t_0d7fd81387a2ac 132
+  s_170d3d83ca181f::t_bbc8418e03ac82 138
+  s_170d3d83ca181f::t_b573571fd3ee63 142-145
+  s_170d3d83ca181f::t_a2f76e5030f84f 272
+  s_170d3d83ca181f::t_156bfa1541a8df 419-420
+  s_170d3d83ca181f::t_2aadb43810274e 493
+  s_170d3d83ca181f::t_65c673347a0d80 526-528
+  s_170d3d83ca181f::t_6afd9916fc5ffe 547
+  s_170d3d83ca181f::t_e84bca0e392611 557-558
+  s_170d3d83ca181f::t_bb2d416db1da56 560
+  s_170d3d83ca181f::t_4cd4ed0e85038e 567
+  s_170d3d83ca181f::t_23cc623898f3eb 571-573
+  s_170d3d83ca181f::t_c39ef144803b70 578
+  s_170d3d83ca181f::t_245cb5b61ac6e4 585
+  s_170d3d83ca181f::t_7dc65bb09f00c8 587-589
+  s_170d3d83ca181f::t_94e9b596795bf4 595
+  s_170d3d83ca181f::t_01b7f2d1c5d329 607-609
+  s_170d3d83ca181f::t_ad9859a34af5cc 620
+  s_170d3d83ca181f::t_e200fd0a940b08 623
+  s_170d3d83ca181f::t_b620f5eabf8d62 628-632
+  s_170d3d83ca181f::t_4c069bbfde0230 636-638
+  s_170d3d83ca181f::t_7898b6b607f896 643
+  s_170d3d83ca181f::t_3ed3ec823551b5 645-646
+  s_170d3d83ca181f::t_6cf3afb3254c9f 649-650
+  s_170d3d83ca181f::t_ce2e6330c4ebb6 652-654
+mcp_server/report-generation-ui/ui/dist/index.html
+  s_b92c65113762ca::t_0c96f7b5b244f5 8,16,24,32,40-41,44-45,47-49
+scripts/run_report_generation.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1,21-23,30,36-42,44,46,49-50,57,60,62,64,66-67,76-79
+mcp_server/engineering-confirmation-ui/host/dist/assets/index-ujcKV0Ls.js
+  s_b92c65113762ca::t_0c96f7b5b244f5 1,9,17,25,33,36-38,40,47,55,63,71,79,82-84,86-87,226
+src/report_shared/rules/standards_library.json
+  h_c47bb0c7223297 6-11
+src/engineering_facts/core.py
+  s_170d3d83ca181f::t_cd63e938262819 487-495,498
+  s_170d3d83ca181f::t_daca926210c52d 426-430,434,451
+  s_170d3d83ca181f::t_34db6d73335708 20
+  s_b92c65113762ca::t_0c96f7b5b244f5 26-29,154-156,163-164,184,188,197-204,210-213,437,441-449,452,458,479-486,2172-2178,2180
+  s_170d3d83ca181f::t_f349846b54e755 152-153,157-158,165-166,170-172,175,183,185-186,189-190,196,207,209
+  s_170d3d83ca181f::t_034f9f0d7f7399 85-103
+  s_b92c65113762ca::t_f906b5ee7f2f20 30
+src/report_finalize/__init__.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1,3,5
+mcp_server/report-generation-ui/ui/src/App.tsx
+  s_b92c65113762ca::t_0c96f7b5b244f5 4
+mcp_server/engineering-confirmation-ui/host/src/mockData.ts
+  s_170d3d83ca181f::t_60e2b692751ba4 219
+  s_170d3d83ca181f::t_b3bd1aee358e79 27-28
+  s_170d3d83ca181f::t_452a3a4bd91049 131,135-136,138-148,150,156-164,168-177
+  s_b92c65113762ca::t_0c96f7b5b244f5 5,137,183-187
+  s_170d3d83ca181f::t_4b5e257b960eaf 196,208,220,230
+  s_170d3d83ca181f::t_2405a957f58fea 132
+  s_170d3d83ca181f::t_741632de5879e7 229
+mcp_server/engineering-confirmation-ui/ui/dist/index.html
+  s_b92c65113762ca::t_b7f54de13a2df0 16,24,32,41,44-45,47-48
+  s_170d3d83ca181f::t_3466472aedc200 8,40,43
+mcp_server/report-generation-ui/ui/src/pages/useReportMarkdown.ts
+  s_b92c65113762ca::t_0c96f7b5b244f5 4-5,24,26,33,50-53
+mcp_server/report-generation-ui/host/dist/assets/index-C12f3QMk.js
+  s_b92c65113762ca::t_0c96f7b5b244f5 1,9,17,25,33-34,37-38,40,47,55,63,71,79-80,83-84,86-88,227,849
+mcp_server/report-generation-ui/host/src/App.tsx
+  s_170d3d83ca181f::t_b4d672af2ee2eb 212-216
+  s_170d3d83ca181f::t_34729f2ad40af0 167
+mcp_server/duck_implement/host_client.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 17,68-76,78,125-161,170,191-193,204-206,213,218,227,243,250-256
+  h_c47bb0c7223297 268
+src/report_shared/workflow.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1,3-4,9-10,13-15,18-22,29-38,69-140,142-146,148-150,153-184,194,197,220-230,238,269,282-283,286-294,297,299,302,318,331,351,358-389,391-424,426-431,433-435,437-438,440-459,461-462,464,466,560-561,635-636,639,642,644,653,657,660,662,664,755-761
+scripts/validate_output.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 2,4,10,12,14,19,29,39-75,77,95,102
+mcp_server/engineering-confirmation-ui/host/src/App.tsx
+  s_170d3d83ca181f::t_52f69cc58079e4 71
+docs/guides/工程事实整理代码解读指南.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 437
+src/report_shared/templates/report_template.json
+  h_c47bb0c7223297 29
+docs/guides/报告编写与输出解读流程.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 3,28-29,40-52,58-60,64,68,77-78,139,177,179,209,270,305,313,324,326,330-331,333,335,337-340,342,346-347,353-355,357-360,362-366,370-375,377-378,380,382,384
+src/artifact_paths.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-12
+tests/fakes.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 1-81
+schemas/report_work_package.schema.json
+  s_b92c65113762ca::t_0c96f7b5b244f5 26,29,131,142
+mcp_server/engineering-confirmation-ui/ui/src/core/mcpApp.ts
+  s_b92c65113762ca::t_0edeb96e157464 449-451
+  s_170d3d83ca181f::t_92412d02bbdfa4 455,458-460,462-473,479-498,505,507-510
+  s_b92c65113762ca::t_c59cf11c6ef6ca 55-56
+  s_b92c65113762ca::t_0c96f7b5b244f5 457,474-478,499-504,506
+  s_170d3d83ca181f::t_b9588e9e194a1f 53-54,61-65
+  s_170d3d83ca181f::t_efcfc0e98857c5 66-68
+scripts/package_result.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 4,16,44
+src/report_shared/deterministic_builders.py
+  s_b92c65113762ca::t_0c96f7b5b244f5 387
+mcp_server/engineering-confirmation-ui/host/dist/index.html
+  s_b92c65113762ca::t_0c96f7b5b244f5 7
+docs/specs/2026-09-04-report-generation-tool-design.md
+  s_b92c65113762ca::t_0c96f7b5b244f5 1,3,7,11-12,20,32,35,52,65,88,92-93,97,106,111,115,122,126-127,131-134,136,142-143,145,156-157,208-212,214-215,235-236,239,255,263
+tests/test_mcp_server_contract.py
+  s_170d3d83ca181f::t_68bbf8ee2144b9 202
+  s_170d3d83ca181f::t_cf43a6cb09a7dc 11,13,26,32-38,40-65,67-86,91,93-102,175,179,182-190,193,197,200-201,210,214-228,231-235,239-257,261-286,288-353
+  s_b92c65113762ca::t_0c96f7b5b244f5 6-7,10,12,14-19,39,66,87-90,92,104-174,229-230,236-238,287
+  s_170d3d83ca181f::t_87ca506ba91467 258-260
+  s_170d3d83ca181f::t_3da3de4a9a2239 27-31
+  s_170d3d83ca181f::t_0d7ae09908d0d3 203
+  s_170d3d83ca181f::t_ff20371a3f118c 354
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "5c6d98a9ca8ef113b3d0a6be8d2b09e96479a7b6",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_170d3d83ca181f": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa00906d8397ae9c35428ba",
+        "model": "glm-5.3__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "operation_id": "6aa0157ed8397ae9c3542bd9",
+        "tool_name": "RunCommand",
+        "display_model_name": "GLM-5.3",
+        "source_scene": "agent",
+        "external_session_id": "6aa00906d8397ae9c35428ba",
+        "tool_use_id": "6aa0157ed8397ae9c3542bd9",
+        "runtime_client": "trae-tob-git-ai",
+        "edit_kind": "bash",
+        "session_id": "6aa00906d8397ae9c35428ba",
+        "client_type": "ide"
+      }
+    },
+    "s_b92c65113762ca": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa0c9c7f065d8d7a3c9d81a",
+        "model": "deepseek_v4_flash_official__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "operation_id": "6aa106b5fc0ad3fbe7af74e6",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_name": "RunCommand",
+        "display_model_name": "DeepSeek-V4-Flash 正式版",
+        "client_type": "ide",
+        "source_scene": "agent",
+        "tool_use_id": "6aa106b5fc0ad3fbe7af74e6",
+        "session_id": "6aa0c9c7f065d8d7a3c9d81a",
+        "external_session_id": "6aa0c9c7f065d8d7a3c9d81a",
+        "edit_kind": "bash"
+      }
+    }
+  }
+}
