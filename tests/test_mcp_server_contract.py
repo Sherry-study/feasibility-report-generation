@@ -8,7 +8,6 @@ import time
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from fastmcp.exceptions import ToolError
 import httpx
 import jsonschema
 
@@ -20,6 +19,7 @@ from mcp_server.server import (
     mcp,
     report_finalize,
 )
+from mcp_server.duck_implement import _send_progress_with_data
 from mcp_server.duck_implement.host_client import MCPHostClient
 from src.errors import HostStorageError
 from src.report_prepare import OperationCancelled
@@ -47,10 +47,48 @@ class FakeCtx:
         self.messages.append(message)
 
 
+class FakeProgressMeta:
+    progressToken = "progress-token-1"
+
+
+class FakeRequestContext:
+    meta = FakeProgressMeta()
+
+
+class FakeProgressSession:
+    def __init__(self) -> None:
+        self.calls: list[tuple[object, object]] = []
+
+    async def send_notification(
+        self,
+        notification: object,
+        related_request_id: object = None,
+    ) -> None:
+        self.calls.append((notification, related_request_id))
+
+
+class FakeProgressCtx:
+    request_context = FakeRequestContext()
+    request_id = "request-1"
+
+    def __init__(self) -> None:
+        self.session = FakeProgressSession()
+        self.fallback_calls: list[tuple[float, float | None, str | None]] = []
+
+    async def report_progress(
+        self,
+        progress: float,
+        total: float | None = None,
+        message: str | None = None,
+    ) -> None:
+        self.fallback_calls.append((progress, total, message))
+
+
 def _engineering_facts_success_envelope() -> dict:
     return {
-        "status": "completed",
+        "status": "success",
         "data": {
+            "business_status": "completed",
             "artifact": {
                 "path": "runs/engineering_facts/engineering_facts.json",
                 "media_type": "application/json",
@@ -76,8 +114,9 @@ def _engineering_facts_success_envelope() -> dict:
 
 def _report_prepare_success_envelope() -> dict:
     return {
-        "status": "prepared",
+        "status": "success",
         "data": {
+            "business_status": "prepared",
             "artifact": {
                 "path": "runs/report_prepare/work_package.json",
                 "media_type": "application/json",
@@ -97,8 +136,9 @@ def _report_prepare_success_envelope() -> dict:
 
 def _report_finalize_success_envelope() -> dict:
     return {
-        "status": "completed",
+        "status": "success",
         "data": {
+            "business_status": "completed",
             "artifacts": {
                 "docx_path": "runs/report_finalize/report.docx",
                 "docx_media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
@@ -117,6 +157,26 @@ def _report_finalize_success_envelope() -> dict:
 
 
 class MCPServerContractTests(unittest.TestCase):
+    def test_progress_with_data_keeps_related_request_id(self) -> None:
+        ctx = FakeProgressCtx()
+
+        _run(
+            _send_progress_with_data(
+                ctx, 100, 100, "工程事实已完成", {"final_result": {"ok": True}}
+            )
+        )
+
+        self.assertEqual(len(ctx.session.calls), 1)
+        notification, related_request_id = ctx.session.calls[0]
+        self.assertEqual(related_request_id, "request-1")
+        progress = notification.root.params
+        self.assertEqual(progress.progressToken, "progress-token-1")
+        self.assertEqual(progress.progress, 100)
+        self.assertEqual(progress.total, 100)
+        self.assertEqual(progress.message, "工程事实已完成")
+        self.assertEqual(progress.model_extra["uiEvent"], {"final_result": {"ok": True}})
+        self.assertEqual(ctx.fallback_calls, [])
+
     def test_cancellation_bridge_returns_normal_result(self) -> None:
         event = threading.Event()
         result = _run(_run_with_cancellation(lambda: {"status": "ok"}, event, "normal", "internal"))
@@ -170,10 +230,12 @@ class MCPServerContractTests(unittest.TestCase):
                 patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
                 patch("mcp_server.server._send_progress_with_data", new=progress),
             ):
-                await engineering_facts(
+                tool_result = await engineering_facts(
                     FakeCtx(),
                     SourceLocation(provider="local_directory", location="inputs"),
                 )
+            self.assertEqual(tool_result.structured_content, _engineering_facts_success_envelope())
+            self.assertIsNone(tool_result.meta)
             args = progress.await_args.args
             self.assertEqual(args[3], "工程事实已完成")
             final_result = args[4]["final_result"]
@@ -204,10 +266,12 @@ class MCPServerContractTests(unittest.TestCase):
                 patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
                 patch("mcp_server.server._send_progress_with_data", new=progress),
             ):
-                await report_finalize(
+                tool_result = await report_finalize(
                     FakeCtx(),
                     ReportFinalizeInput(work_package_path="runs/report_prepare/work_package.json"),
                 )
+            self.assertEqual(tool_result.structured_content, _report_finalize_success_envelope())
+            self.assertIsNone(tool_result.meta)
             args = progress.await_args.args
             self.assertEqual(args[3], "报告已生成")
             final_result = args[4]["final_result"]
@@ -217,12 +281,15 @@ class MCPServerContractTests(unittest.TestCase):
 
         _run(scenario())
 
-    def test_unexpected_internal_error_is_translated_to_tool_error(self) -> None:
+    def test_unexpected_internal_error_is_translated_to_error_result(self) -> None:
         def fail() -> dict:
             raise RuntimeError("algorithm bug")
+
         with self.assertLogs("mcp_server.server", level="ERROR"):
-            with self.assertRaises(ToolError):
-                _run(_run_with_cancellation(fail, threading.Event(), "bug", "internal"))
+            result = _run(_run_with_cancellation(fail, threading.Event(), "bug", "internal"))
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["diagnostics"][0]["code"], "INTERNAL_ERROR")
+        self.assertFalse(result["diagnostics"][0]["retryable"])
 
     def test_mcp_host_bad_json_is_business_failed_but_5xx_is_storage_error(self) -> None:
         def bad_json_handler(request: httpx.Request) -> httpx.Response:
@@ -254,20 +321,22 @@ class MCPServerContractTests(unittest.TestCase):
                 host_client=unavailable,
             )
 
-    def test_internal_storage_error_is_translated_to_tool_error(self) -> None:
+    def test_internal_storage_error_is_translated_to_error_result(self) -> None:
         def fail() -> dict:
             raise HostStorageError("simulated storage outage")
 
         with self.assertLogs("mcp_server.server", level="ERROR"):
-            with self.assertRaises(ToolError):
-                _run(
-                    _run_with_cancellation(
-                        fail,
-                        threading.Event(),
-                        "storage-test",
-                        "内部存储错误",
-                    )
+            result = _run(
+                _run_with_cancellation(
+                    fail,
+                    threading.Event(),
+                    "storage-test",
+                    "内部存储错误",
                 )
+            )
+        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["diagnostics"][0]["message"], "内部存储错误")
+        self.assertFalse(result["diagnostics"][0]["retryable"])
 
     def test_public_tools_are_limited_to_three_tool_contract(self) -> None:
         tools = _run(mcp.list_tools())
@@ -359,20 +428,30 @@ class MCPServerContractTests(unittest.TestCase):
 
     def test_output_schemas_are_discriminated_unions(self) -> None:
         cases = {
-            "engineering_facts": ("completed", "failed"),
-            "report_prepare": ("prepared", "failed"),
-            "report_finalize": ("completed", "failed"),
+            "engineering_facts": "completed",
+            "report_prepare": "prepared",
+            "report_finalize": "completed",
         }
-        for name, (success_status, failure_status) in cases.items():
+        for name, business_status in cases.items():
             with self.subTest(tool=name):
                 schema = _tool(name).output_schema
                 self.assertEqual(schema["type"], "object")
                 branches = schema["oneOf"]
-                self.assertEqual(len(branches), 2)
+                self.assertEqual(len(branches), 3)
                 status_consts = {
                     branch["properties"]["status"]["const"] for branch in branches
                 }
-                self.assertEqual(status_consts, {success_status, failure_status})
+                self.assertEqual(status_consts, {"success", "failed", "error"})
+                success_branch = next(
+                    branch
+                    for branch in branches
+                    if branch["properties"]["status"]["const"] == "success"
+                )
+                data_properties = success_branch["properties"]["data"]["properties"]
+                self.assertEqual(
+                    data_properties["business_status"]["const"],
+                    business_status,
+                )
                 for branch in branches:
                     # warnings 有默认值，不在 required；status 与 data 必填
                     self.assertEqual(set(branch["required"]), {"status", "data"})
@@ -385,6 +464,7 @@ class MCPServerContractTests(unittest.TestCase):
         failure = {
             "status": "failed",
             "data": {
+                "business_status": "failed",
                 "artifact": None,
                 "summary": {},
                 "error": {"code": "NO_RECOGNIZED_SOURCES", "message": "无有效来源", "retryable": True},
@@ -394,6 +474,17 @@ class MCPServerContractTests(unittest.TestCase):
             ],
         }
         jsonschema.validate(failure, schema)
+        error = {
+            "status": "error",
+            "data": {
+                "business_status": "error",
+                "artifact": None,
+                "summary": {},
+                "error": {"code": "INTERNAL_ERROR", "message": "内部错误", "retryable": False},
+            },
+            "warnings": [],
+        }
+        jsonschema.validate(error, schema)
 
     def test_report_prepare_output_schema_accepts_valid_envelopes(self) -> None:
         schema = _tool("report_prepare").output_schema
@@ -401,6 +492,7 @@ class MCPServerContractTests(unittest.TestCase):
         failure = {
             "status": "failed",
             "data": {
+                "business_status": "failed",
                 "artifact": None,
                 "summary": {},
                 "error": {"code": "FACTS_PATH_INVALID", "message": "工程事实路径无效", "retryable": True},
@@ -408,6 +500,17 @@ class MCPServerContractTests(unittest.TestCase):
             "warnings": [],
         }
         jsonschema.validate(failure, schema)
+        error = {
+            "status": "error",
+            "data": {
+                "business_status": "error",
+                "artifact": None,
+                "summary": {},
+                "error": {"code": "INTERNAL_ERROR", "message": "内部错误", "retryable": False},
+            },
+            "warnings": [],
+        }
+        jsonschema.validate(error, schema)
 
     def test_report_finalize_output_schema_accepts_valid_envelopes(self) -> None:
         schema = _tool("report_finalize").output_schema
@@ -415,6 +518,7 @@ class MCPServerContractTests(unittest.TestCase):
         failure = {
             "status": "failed",
             "data": {
+                "business_status": "failed",
                 "artifacts": None,
                 "summary": {},
                 "error": {"code": "WORK_PACKAGE_INVALID", "message": "工作包无效", "retryable": True},
@@ -422,6 +526,17 @@ class MCPServerContractTests(unittest.TestCase):
             "warnings": [],
         }
         jsonschema.validate(failure, schema)
+        error = {
+            "status": "error",
+            "data": {
+                "business_status": "error",
+                "artifacts": None,
+                "summary": {},
+                "error": {"code": "INTERNAL_ERROR", "message": "内部错误", "retryable": False},
+            },
+            "warnings": [],
+        }
+        jsonschema.validate(error, schema)
 
     def test_output_schemas_reject_cross_combinations(self) -> None:
         import copy
@@ -468,8 +583,18 @@ class MCPServerContractTests(unittest.TestCase):
         for name in ("engineering_facts", "report_prepare", "report_finalize"):
             with self.subTest(tool=name):
                 description = _tool(name).description or ""
-                for keyword in ("职责", "适用场景", "失败情况"):
+                for keyword in ("职责", "适用场景", "返回", "失败情况", "不适用"):
                     self.assertIn(keyword, description)
+                for forbidden in (
+                    "structuredContent",
+                    "_meta",
+                    "ui" + "_payload",
+                    "宿主 UI",
+                    "Agent",
+                    "MCP 协议",
+                    "调用顺序",
+                ):
+                    self.assertNotIn(forbidden, description)
 
 
 if __name__ == "__main__":

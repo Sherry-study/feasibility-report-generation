@@ -252,7 +252,7 @@ Fallback 只能说明当前可研阶段的资料边界和后续需核实事项�
 - 普通章节事实严格隔离；
 - 综合任务只接收章节摘要；
 - 单元测试和 Python 编译检查通过；
-- 使用真实 `engineering_facts.json` 完成一次三 Tool 链路验证；真实 Host 的 `_meta` 可见性、不截断和 E2E 是发布门禁。
+- 使用真实 `engineering_facts.json` 完成一次三 Tool 链路验证；真实 Host 的 `progress.uiEvent.final_result` 转发、不截断和 E2E 是发布门禁。
 
 ## 11. 方案比较与实施进度表增强（2026-09-07）
 

@@ -4,7 +4,7 @@
  * 本 host 控制台只服务 report_finalize 一个工具:有进度推送,无审核。
  * 进度步骤镜像 server 中真实的 ctx.report_progress 调用。
  * structuredContent 为 {status, data, warnings} 统一信封(模型可见);
- * 完整 Markdown 只经 ToolResult._meta.ui_payload 透传给 UI。
+ * 完整 Markdown 只经 progress.uiEvent.final_result 透传给 UI。
  */
 
 export interface UiEvent {
@@ -26,8 +26,6 @@ export interface ReviewStage {
   reviewId: string;
   finalResult: Record<string, unknown>;
   result: Record<string, unknown>;
-  /** ToolResult._meta：完整 Markdown 等 UI 大字段经 ui_payload 透传。 */
-  resultMeta?: { ui_payload?: Record<string, unknown> };
   resultIsError?: boolean;
 }
 
@@ -56,8 +54,9 @@ const OUT = 'report_output_dir';
 /** mock structuredContent：{status, data, warnings} 统一信封（模型可见，不含完整 Markdown）。 */
 function completedResult(fallbackSectionCount: number): Record<string, unknown> {
   return {
-    status: 'completed',
+    status: 'success',
     data: {
+      business_status: 'completed',
       artifacts: {
         docx_path: `${OUT}/mcp_runs/report_finalize/可行性研究报告_初稿.docx`,
         docx_media_type:
@@ -85,19 +84,11 @@ function completedResult(fallbackSectionCount: number): Record<string, unknown> 
   };
 }
 
-/** mock ToolResult._meta：完整 Markdown 只经 ui_payload 供 UI 白名单读取。 */
-function completedResultMeta(): { ui_payload: Record<string, unknown> } {
-  return {
-    ui_payload: {
-      markdown_content: REPORT_MARKDOWN,
-    },
-  };
-}
-
 function finalizeFailedResult(): Record<string, unknown> {
   return {
     status: 'failed',
     data: {
+      business_status: 'failed',
       artifacts: null,
       summary: {},
       error: {
@@ -122,7 +113,59 @@ function reportFinalizeProgressSteps(): ProgressStep[] {
   ];
 }
 
+function diagnosticsFromEnvelope(result: Record<string, unknown>): Array<Record<string, string>> {
+  const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+  const diagnostics = warnings
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      level: item.level === 'info' ? 'info' : 'warning',
+      code: typeof item.code === 'string' ? item.code : '',
+      message: typeof item.message === 'string' ? item.message : '',
+    }));
+  const data = result.data && typeof result.data === 'object' ? result.data as Record<string, unknown> : {};
+  const error = data.error && typeof data.error === 'object' ? data.error as Record<string, unknown> : null;
+  if (error) {
+    diagnostics.push({
+      level: 'fatal',
+      code: typeof error.code === 'string' ? error.code : '',
+      message: typeof error.message === 'string' ? error.message : '',
+    });
+  }
+  return diagnostics;
+}
+
+function reportFinalizeUiFinalResult(result: Record<string, unknown>): Record<string, unknown> {
+  const data = result.data && typeof result.data === 'object' ? result.data as Record<string, unknown> : {};
+  const artifacts = data.artifacts && typeof data.artifacts === 'object'
+    ? data.artifacts as Record<string, unknown>
+    : null;
+  const businessStatus = typeof data.business_status === 'string' ? data.business_status : result.status;
+  return {
+    ...data,
+    artifacts: artifacts
+      ? {
+          ...artifacts,
+          markdown: typeof artifacts.markdown_path === 'string' ? artifacts.markdown_path : undefined,
+          docx: typeof artifacts.docx_path === 'string' ? artifacts.docx_path : undefined,
+        }
+      : artifacts,
+    status: result.status === 'success' ? businessStatus : result.status === 'error' ? 'failed' : result.status,
+    markdown_content: result.status === 'success' ? REPORT_MARKDOWN : undefined,
+    diagnostics: diagnosticsFromEnvelope(result),
+  };
+}
+
+function progressStepsWithFinalResult(result: Record<string, unknown>): ProgressStep[] {
+  const steps = reportFinalizeProgressSteps();
+  steps[steps.length - 1] = {
+    ...steps[steps.length - 1],
+    uiEvent: { final_result: reportFinalizeUiFinalResult(result) },
+  };
+  return steps;
+}
+
 function finalizeScenario(): MockScenario {
+  const result = completedResult(0);
   return {
     id: 'finalize',
     label: '定稿:报告完成',
@@ -131,18 +174,18 @@ function finalizeScenario(): MockScenario {
       work_package_path: `${OUT}/mcp_runs/report_prepare/work_package.json`,
       work_results_path: `${OUT}/work_results.json`,
     },
-    steps: reportFinalizeProgressSteps(),
+    steps: progressStepsWithFinalResult(result),
     review: {
       reviewId: 'review-report-finalize',
-      finalResult: completedResult(0),
-      result: completedResult(0),
-      resultMeta: completedResultMeta(),
+      finalResult: result,
+      result,
     },
     skipReview: true,
   };
 }
 
 function finalizeDraftScenario(): MockScenario {
+  const result = completedResult(3);
   return {
     id: 'finalize-draft',
     label: '定稿:未闭合草稿',
@@ -150,18 +193,18 @@ function finalizeDraftScenario(): MockScenario {
     args: {
       work_package_path: `${OUT}/mcp_runs/report_prepare/work_package.json`,
     },
-    steps: reportFinalizeProgressSteps(),
+    steps: progressStepsWithFinalResult(result),
     review: {
       reviewId: 'review-report-finalize-draft',
-      finalResult: completedResult(3),
-      result: completedResult(3),
-      resultMeta: completedResultMeta(),
+      finalResult: result,
+      result,
     },
     skipReview: true,
   };
 }
 
 function finalizeFailedScenario(): MockScenario {
+  const result = finalizeFailedResult();
   return {
     id: 'finalize-failed',
     label: '定稿:工作结果缺字段',
@@ -170,11 +213,11 @@ function finalizeFailedScenario(): MockScenario {
       work_package_path: `${OUT}/mcp_runs/report_prepare/work_package.json`,
       work_results_path: `${OUT}/broken_work_results.json`,
     },
-    steps: reportFinalizeProgressSteps(),
+    steps: progressStepsWithFinalResult(result),
     review: {
       reviewId: 'review-report-finalize-failed',
-      finalResult: finalizeFailedResult(),
-      result: finalizeFailedResult(),
+      finalResult: result,
+      result,
     },
     skipReview: true,
   };
@@ -213,8 +256,6 @@ export function findToolGroup(toolName: string): ToolGroup | undefined {
 
 /**
  * 报告 Markdown 全文（镜像 report_output_dir/可行性研究报告_初稿.md）。
- *
- * 供 ToolResult._meta.ui_payload.markdown_content 透传给 UI。
  */
 export const REPORT_MARKDOWN = `# 1万吨/年异戊烯联合生产装置
 

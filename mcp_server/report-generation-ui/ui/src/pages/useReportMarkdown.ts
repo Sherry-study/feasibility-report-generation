@@ -1,7 +1,7 @@
 /**
  * 报告 Markdown 读取 hook。
  *
- * 只使用 ToolResult._meta.ui_payload.markdown_content。MCP Server 不提供公开
+ * 只使用 progress.uiEvent.final_result.markdown_content。MCP Server 不提供公开
  * read_file/read_artifact 工具，若 Host 未透传该字段，页面应暴露为可见性问题。
  */
 
@@ -49,7 +49,7 @@ export function useReportMarkdown(
     }
     setContent(null);
     setLoading(false);
-    setError('ToolResult._meta.ui_payload.markdown_content 缺失，无法展示报告正文。');
+    setError('progress.uiEvent.final_result.markdown_content 缺失，无法展示报告正文。');
     return undefined;
   }, [path, effective, version]);
 

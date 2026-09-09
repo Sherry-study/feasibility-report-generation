@@ -1,9 +1,13 @@
 # GitLab CI/CD - feasibility-report-generation
 # 使用 uv 管理 Python 环境，自动运行测试并启动 FastMCP 服务器
+# 推送/合并请求先构建两个 MCP UI 前端项目，产物经 artifacts 传给部署阶段，
+# 保证部署用的 ui/host dist 与本次源码一致（无需把构建产物手动提交进 git）。
 #
 # Runner 类型：shell executor（无 Docker）
-# 前置：在 GitLab -> Settings -> CI/CD -> Variables 中配置所需环境变量
-#   - 服务启动所需的环境变量（如 API_KEY 等）
+# 前置：
+#   - Runner 需安装 node/npm（用于前端构建）
+#   - 在 GitLab -> Settings -> CI/CD -> Variables 中配置所需环境变量
+#     （服务启动所需的环境变量，如 API_KEY 等）
 # 这些变量会直接注入为环境变量，无需 .env 文件。
 
 variables:
@@ -18,6 +22,7 @@ cache:
     - .uv-cache
 
 stages:
+  - build
   - test
   - deploy
 
@@ -26,6 +31,42 @@ stages:
   before_script:
     - uv --version || pip install --quiet uv
     - uv sync --frozen
+
+# ── 构建阶段：两个 MCP UI 前端项目（ui + host）──────────────
+# 每个子工程是独立 Vite 前端项目，`npm run build` 产出 dist。
+# 构建产物通过 artifacts 传给 deploy job：部署时下载并覆盖 checkout
+# 中同名 dist，因此 push 后服务即使用最新 UI，无需手动提交构建产物。
+# host 仅为本地测试控制台，一并构建以便尽早暴露编译问题。
+# npm 依赖包缓存按分支单独 key，避免与 uv 缓存混用。
+build:mcp-server-ui:
+  stage: build
+  cache:
+    key: npm-cache-$CI_COMMIT_REF_SLUG
+    paths:
+      - .npm-cache
+  variables:
+    npm_config_cache: "$CI_PROJECT_DIR/.npm-cache"
+  script:
+    - node --version
+    - npm --version
+    # 四个前端子工程逐个安装依赖并构建，任一失败即整体失败
+    - |
+      for dir in \
+        mcp_server/engineering-confirmation-ui/ui \
+        mcp_server/engineering-confirmation-ui/host \
+        mcp_server/report-generation-ui/ui \
+        mcp_server/report-generation-ui/host
+      do
+        echo "===== 构建 $dir ====="
+        (cd "$dir" && npm ci && npm run build) || exit 1
+      done
+  artifacts:
+    expire_in: 1 week
+    paths:
+      - mcp_server/engineering-confirmation-ui/ui/dist/
+      - mcp_server/engineering-confirmation-ui/host/dist/
+      - mcp_server/report-generation-ui/ui/dist/
+      - mcp_server/report-generation-ui/host/dist/
 
 # ── 测试阶段 ──────────────────────────────────────────────
 test:unit:
@@ -44,7 +85,20 @@ test:unit:
 deploy:mcp-server:
   <<: *setup_uv
   stage: deploy
+  # 仅下载 build job 产物，启动时读到的是本次构建的最新 UI dist
+  dependencies:
+    - build:mcp-server-ui
   script:
+    # 前置校验：四个 UI 构建产物必须齐全，否则拒绝启动
+    - |
+      for f in \
+        mcp_server/engineering-confirmation-ui/ui/dist/index.html \
+        mcp_server/engineering-confirmation-ui/host/dist/index.html \
+        mcp_server/report-generation-ui/ui/dist/index.html \
+        mcp_server/report-generation-ui/host/dist/index.html
+      do
+        test -f "$f" || { echo "[FAILED] 缺少 UI 构建产物: $f"; exit 1; }
+      done
     # 停止占用端口的旧实例（首次部署无旧进程时忽略错误）
     - fuser -k ${MCP_PORT}/tcp || true
     - sleep 1

@@ -291,8 +291,8 @@ export class HostConnector {
     });
   }
 
-  /** 发送工具结果（meta 为 ToolResult._meta，含 ui_payload 等 UI 大字段）。 */
-  sendToolResult(result: unknown, isError = false, meta?: Record<string, unknown>): void {
+  /** 发送工具结果；完整 UI 数据由 progress.uiEvent.final_result 推送。 */
+  sendToolResult(result: unknown, isError = false): void {
     this.post({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-result',
@@ -300,7 +300,6 @@ export class HostConnector {
         ...(isError
           ? { content: [{ type: 'text', text: '工具执行失败' }], isError: true }
           : { structuredContent: result }),
-        ...(meta ? { _meta: meta } : {}),
       },
     });
     this.onLog({

@@ -361,9 +361,9 @@ export function EngineeringFactsPage() {
                         borderRadius: 6,
                       }}
                     >
-                      已收到完成信封，但宿主未透传 <code>_meta.ui_payload.engineering_facts</code>
-                      ，完整工程事实未到达 UI（工具产物已保存在 <code>{result.artifact?.uri ?? '宿主存储'}</code>）。
-                      请检查宿主在推送 tool-result 时是否原样透传 MCP 响应的 <code>_meta</code> 字段。
+                      已收到完成信封，但宿主未通过 <code>progress.uiEvent.final_result.engineering_facts</code>
+                      推送完整工程事实（工具产物已保存在 <code>{result.artifact?.uri ?? '宿主存储'}</code>）。
+                      请检查宿主是否转发带 <code>uiEvent.final_result</code> 的 progress 通知。
                     </div>
                   )}
                   <section className="ef-panel flex min-h-0 flex-[6] flex-col overflow-hidden">

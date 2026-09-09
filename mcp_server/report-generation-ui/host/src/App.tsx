@@ -164,7 +164,6 @@ export default function App() {
       connectorRef.current?.sendToolResult(
         currentScenario.review.resultIsError ? undefined : currentScenario.review.result,
         currentScenario.review.resultIsError,
-        currentScenario.review.resultMeta,
       );
     }
   }, [currentScenario]);
@@ -212,7 +211,6 @@ export default function App() {
       connector.sendToolResult(
         currentScenario.review?.finalResult ?? {},
         false,
-        currentScenario.review?.resultMeta,
       );
     }
     setPlaying(false);

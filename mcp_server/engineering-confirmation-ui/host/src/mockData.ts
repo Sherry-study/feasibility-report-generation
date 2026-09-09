@@ -24,8 +24,6 @@ export interface ReviewStage {
   reviewId: string;
   finalResult: Record<string, unknown>;
   result: Record<string, unknown>;
-  /** ToolResult._meta：完整工程事实等 UI 大字段经 ui_payload 透传。 */
-  resultMeta?: { ui_payload?: Record<string, unknown> };
   resultIsError?: boolean;
 }
 
@@ -131,8 +129,9 @@ function engineeringFactsPayload(withEconomics = false): Record<string, unknown>
 /** mock structuredContent：{status, data, warnings} 统一信封（模型可见，不含完整工程事实）。 */
 function engineeringFactsCompletedResult(): Record<string, unknown> {
   return {
-    status: 'completed',
+    status: 'success',
     data: {
+      business_status: 'completed',
       artifact: {
         path: `${OUT}/mcp_runs/engineering_facts/engineering_facts.json`,
         schema_version: '2.0',
@@ -153,19 +152,11 @@ function engineeringFactsCompletedResult(): Record<string, unknown> {
   };
 }
 
-/** mock ToolResult._meta：完整工程事实只经 ui_payload 供 UI 白名单读取。 */
-function engineeringFactsResultMeta(withEconomics = false): { ui_payload: Record<string, unknown> } {
-  return {
-    ui_payload: {
-      engineering_facts: engineeringFactsPayload(withEconomics),
-    },
-  };
-}
-
 function engineeringFactsFailedResult(): Record<string, unknown> {
   return {
     status: 'failed',
     data: {
+      business_status: 'failed',
       artifact: null,
       summary: {},
       error: {
@@ -188,24 +179,67 @@ function engineeringFactsProgressSteps(): ProgressStep[] {
   ];
 }
 
+function diagnosticsFromEnvelope(result: Record<string, unknown>): Array<Record<string, string>> {
+  const warnings = Array.isArray(result.warnings) ? result.warnings : [];
+  const diagnostics = warnings
+    .filter((item): item is Record<string, unknown> => typeof item === 'object' && item !== null)
+    .map((item) => ({
+      level: item.level === 'info' ? 'info' : 'warning',
+      code: typeof item.code === 'string' ? item.code : '',
+      message: typeof item.message === 'string' ? item.message : '',
+    }));
+  const data = result.data && typeof result.data === 'object' ? result.data as Record<string, unknown> : {};
+  const error = data.error && typeof data.error === 'object' ? data.error as Record<string, unknown> : null;
+  if (error) {
+    diagnostics.push({
+      level: 'fatal',
+      code: typeof error.code === 'string' ? error.code : '',
+      message: typeof error.message === 'string' ? error.message : '',
+    });
+  }
+  return diagnostics;
+}
+
+function engineeringFactsUiFinalResult(
+  result: Record<string, unknown>,
+  withEconomics = false,
+): Record<string, unknown> {
+  const data = result.data && typeof result.data === 'object' ? result.data as Record<string, unknown> : {};
+  const artifact = data.artifact && typeof data.artifact === 'object'
+    ? data.artifact as Record<string, unknown>
+    : null;
+  const businessStatus = typeof data.business_status === 'string' ? data.business_status : result.status;
+  return {
+    ...data,
+    artifact: artifact && typeof artifact.path === 'string' ? { ...artifact, uri: artifact.path } : artifact,
+    status: result.status === 'success' ? businessStatus : result.status === 'error' ? 'failed' : result.status,
+    engineering_facts: result.status === 'success' ? engineeringFactsPayload(withEconomics) : undefined,
+    diagnostics: diagnosticsFromEnvelope(result),
+  };
+}
+
 function engineeringFactsScenario(
   id: string,
   label: string,
   args: Record<string, unknown>,
   result: Record<string, unknown>,
-  resultMeta?: { ui_payload: Record<string, unknown> },
+  withEconomics = false,
 ): MockScenario {
+  const steps = engineeringFactsProgressSteps();
+  steps[steps.length - 1] = {
+    ...steps[steps.length - 1],
+    uiEvent: { final_result: engineeringFactsUiFinalResult(result, withEconomics) },
+  };
   return {
     id,
     label,
     toolName: 'engineering_facts',
     args,
-    steps: engineeringFactsProgressSteps(),
+    steps,
     review: {
       reviewId: `review-facts-${id}`,
       finalResult: result,
       result,
-      resultMeta,
     },
     skipReview: true,
   };
@@ -217,7 +251,7 @@ function engineeringFactsCompletedScenario(): MockScenario {
     '正常:整理完成',
     { source_location: { provider: 'local_directory', location: SOURCE_DIR }, construction_unit: '测试建设单位' },
     engineeringFactsCompletedResult(),
-    engineeringFactsResultMeta(true),
+    true,
   );
 }
 
@@ -227,7 +261,7 @@ function engineeringFactsNoEconomicsScenario(): MockScenario {
     '边界:经济指标待计算',
     { source_location: { provider: 'local_directory', location: SOURCE_DIR } },
     engineeringFactsCompletedResult(),
-    engineeringFactsResultMeta(false),
+    false,
   );
 }
 

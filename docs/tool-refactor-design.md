@@ -39,7 +39,7 @@
 
 1. 返回结构统一为 `{status, data, warnings}` 信封，并为三个 Tool 提供明确的 Pydantic 输出 Schema
 2. `report_generation` 拆为 `report_prepare` + `report_finalize` 两个独立 Tool，并拆出对应的独立 `src` 核心入口
-3. 模型可见结果只返回产物信息和摘要；既有 UI 需要的完整对象通过同一次 Tool Result 的 `_meta.ui_payload` 传递
+3. 模型可见结果只返回产物信息和摘要；既有 UI 需要的完整对象通过 progress 通知的 `uiEvent.final_result` 传递
 4. 不新增 `read_artifact`、`read_file` 或其他文件读取 Tool
 5. 不新增用户可见或模型可见的 `run_id`；内部运行目录继续用时间戳 + UUID 隔离，但内部时间戳 + UUID 不写入公开产物字段，也不作为 MCP 参数或返回独立字段
 6. 添加真正进入同步业务核心的 `threading.Event` 协作式取消检查点
@@ -150,7 +150,7 @@ async def engineering_facts(
 
 **关键变化**：
 - 模型可见的 `structured_content` 不再包含完整 `engineering_facts`，只包含产物引用、摘要、错误和 warnings。
-- 为保持现有工程事实 UI 不变，完整 `engineering_facts` 通过同一次 Tool Result 的 `_meta.ui_payload.engineering_facts` 传给 UI。
+- 为保持现有工程事实 UI 不变，完整 `engineering_facts` 通过 progress 通知的 `uiEvent.final_result.engineering_facts` 传给 UI。
 - fatal diagnostic 映射为 `data.error`，非 fatal diagnostic 映射为 `warnings`；不得把 fatal 当作 warning。
 - `local_directory` 只在用户传入根目录内枚举并读取受支持源文件；最终 `engineering_facts.json` 必须通过 `HostClient.save_file()` 写入逻辑路径。
 
@@ -239,7 +239,7 @@ FastMCP 适配层创建 `content` / `host_client` 后，直接调用 `src.report
 
 **关键变化**：
 - 模型可见的 `structured_content` 不再包含完整 `markdown_content`。
-- 为保持现有报告 UI，不新增文件读取 Tool；完整 Markdown 通过同一次 Tool Result 的 `_meta.ui_payload.markdown_content` 传给 UI。
+- 为保持现有报告 UI，不新增文件读取 Tool；完整 Markdown 通过 progress 通知的 `uiEvent.final_result.markdown_content` 传给 UI。
 - MCP 层保留可选 `work_results_path`；未提供时生成 fallback 未闭合草稿并返回 warning。
 - Markdown、DOCX 和 manifest 使用 HostClient 写入；manifest 最后写入，是报告成组有效性的唯一提交标志。
 
@@ -312,12 +312,18 @@ EngineeringFactsOutput = Annotated[
 
 fatal diagnostic 映射到 `data.error`；warning/info diagnostics 进入 `warnings`。
 
-MCP 返回使用 FastMCP `ToolResult` 分离模型数据与 UI 数据：
+MCP 返回使用 FastMCP `ToolResult` 仅承载模型可见信封，UI 大字段由 progress 通知承载：
 
 ```python
+await _send_progress_with_data(
+    ctx,
+    100,
+    100,
+    "任务已完成",
+    {"final_result": ui_final_result},
+)
 return ToolResult(
     structured_content=envelope.model_dump(),
-    meta={"ui_payload": ui_payload},
 )
 ```
 
@@ -509,7 +515,7 @@ result = execute_report_prepare(request)
 **页面零改动，结果协议适配层最小修改。**
 
 - `EngineeringFactsPage.tsx`、`ReportGenerationPage.tsx` 的布局、组件和业务展示保持不变。
-- 两个 UI 的 `core/mcpApp.ts` 在 `useNormalizedToolResult()` 中读取 `structuredContent.data` 和 `_meta.ui_payload`，合并成页面当前使用的扁平 view model。
+- 两个 UI 的 `core/mcpApp.ts` 在 `useNormalizedToolResult()` 中读取 `structuredContent.data` 和 `progress.uiEvent.final_result`，合并成页面当前使用的扁平 view model。
 - `warnings` 与 `data.error` 在归一化层映射为页面现有的 `diagnostics`，页面无需重写。
 - `report_prepare` 不绑定 UI，在对话流中展示模型可见摘要。
 - 不新增 `read_artifact`、`read_file` 或任何 UI 反向文件读取 Tool。
@@ -519,22 +525,22 @@ result = execute_report_prepare(request)
 ```typescript
 return {
   ...envelope.data,
-  engineering_facts: uiPayload.engineering_facts,
-  markdown_content: uiPayload.markdown_content,
+  engineering_facts: progressFinalResult.engineering_facts,
+  markdown_content: progressFinalResult.markdown_content,
   status: envelope.status,
   diagnostics: [...warnings, ...(error ? [{ level: 'fatal', ...error }] : [])],
 };
 ```
 
-实现时不能展开整个 `ui_payload` 覆盖结构化结果。只允许白名单读取 `engineering_facts`、`markdown_content` 两个大字段；状态、产物路径、摘要、warnings 和 error 始终以 `structuredContent` 为准。不同页面只取自己需要的白名单字段。
+实现时不能展开整个 `final_result` 覆盖结构化结果。只允许白名单读取 `engineering_facts`、`markdown_content` 两个大字段；状态、产物路径、摘要、warnings 和 error 始终以 `structuredContent` 为准。不同页面只取自己需要的白名单字段。
 
-由于 `_meta` 的传输和可见性取决于实际 MCP Host，落地前必须用代表性数据完成集成验证：
+由于 progress 扩展字段的转发取决于实际 MCP Host，落地前必须用代表性数据完成集成验证：
 
-- UI 能收到 `_meta.ui_payload`，Agent 模型上下文不包含它；
+- UI 能收到 `progress.uiEvent.final_result`，Agent 模型上下文不包含完整大字段；
 - 约 780 KB 的工程事实和约 42 KB 的 Markdown 不会被 Host 截断；
 - 无 UI 客户端仍能仅凭 `structuredContent` 和 Host 已有文件系统能力完成链路。
 
-允许先完成代码实现和本地测试，但在真实 Host 完成上述验证前，不得宣布最终验收、不得发布为可交付版本。若真实 Host 不满足 `_meta` 可见性、不截断或 E2E 链路要求，应暂停最终验收并单独评审大结果传输方案；不能在严格新信封中临时塞回旧顶层字段，也不能因此新增 `read_artifact` 或 `read_file`。只有另行明确内联字段在成功 `data` 模型中的 Schema 和 UI 归一化协议后，才能采用内联方案。
+允许先完成代码实现和本地测试，但在真实 Host 完成上述验证前，不得宣布最终验收、不得发布为可交付版本。若真实 Host 不满足 progress 扩展字段转发、不截断或 E2E 链路要求，应暂停最终验收并单独评审大结果传输方案；不能在严格新信封中临时塞回旧顶层字段，也不能因此新增 `read_artifact` 或 `read_file`。只有另行明确内联字段在成功 `data` 模型中的 Schema 和 UI 归一化协议后，才能采用内联方案。
 
 ### 3.3 Skill 层变更
 
@@ -626,9 +632,9 @@ src.report_finalize.core.execute(...)
 | `scripts/package_result.py` | 改造 | 打包入口改为 manifest；不得把无 manifest 的孤儿文件打包为有效交付 |
 | `scripts/local_adapters.py` | 新增 | 提供 CLI 用本地 `Content` 与本地 `HostClient` adapter，不放进业务 `src` |
 | `tests/fakes.py` | 新增 | 提供单测用 fake `Content` 与 fake `HostClient` adapter，不放进业务 `src` |
-| 工程事实 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 解包信封并白名单读取 `_meta.ui_payload.engineering_facts`；页面组件不改 |
-| 报告 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 将 UI 绑定从旧 `report_generation` 结果切到 `report_finalize` 结果；白名单读取 `_meta.ui_payload.markdown_content`；页面组件不改 |
-| 两个 UI 的 `host/src/mockData.ts` 及必要协议类型 | 编辑 | 同步新 Tool 名称、统一信封和 UI payload |
+| 工程事实 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 解包信封并白名单读取 `progress.uiEvent.final_result.engineering_facts`；页面组件不改 |
+| 报告 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 将 UI 绑定从旧 `report_generation` 结果切到 `report_finalize` 结果；白名单读取 `progress.uiEvent.final_result.markdown_content`；页面组件不改 |
+| 两个 UI 的 `host/src/mockData.ts` 及必要协议类型 | 编辑 | 同步新 Tool 名称、统一信封和 progress UI 数据 |
 | `tests/test_mcp_server_contract.py` | 编辑 | 更新 tools/list、UI 绑定、输入/输出 Schema 断言 |
 | `tests/test_engineering_facts_tool.py` | 编辑 | 增加取消检查点与取消后不发布产物测试 |
 | `tests/test_report_prepare_tool.py` | 新增 | 覆盖 prepare 独立核心、HostClient 读写、取消、错误映射 |
@@ -643,7 +649,7 @@ src.report_finalize.core.execute(...)
 - **破坏性变更**：模型可见返回从顶层平铺结构变为 `{status, data, warnings}`，旧调用方需要适配
 - **Tool 名称变更**：`report_generation` 不再存在，拆为 `report_prepare` + `report_finalize`
 - **MCP 输入变更**：公开路径字段统一使用 `*_path`；`report_finalize` 保留可选 `work_results_path`，不再公开 inline `work_results`
-- **UI 兼容**：页面代码和展示不变；公共结果归一化层读取 `data` 和 `_meta.ui_payload`
+- **UI 兼容**：页面代码和展示不变；公共结果归一化层读取 `data` 和 `progress.uiEvent.final_result`
 - **业务层变更**：不再保留 prepare/finalize 二合一路由器；三个 Tool 分别调用三个 `src` 核心入口
 - **产物兼容**：内部唯一目录保留；对外只返回 HostClient 逻辑路径，不新增显式 `run_id`
 - **Tool 数量边界**：不新增 `read_artifact`、`read_file` 或其他文件读取 Tool
@@ -656,7 +662,7 @@ src.report_finalize.core.execute(...)
 |------|--------|--------|
 | Tool 数量 | 2 | 3 |
 | 返回格式 | 字段平铺、output schema 宽松 | `{status, data, warnings}` + 明确 Pydantic output schema |
-| 大结果返回 | 与模型结果混在一起 | 模型侧路径/摘要，UI 侧 `_meta.ui_payload` |
+| 大结果返回 | 与模型结果混在一起 | 模型侧路径/摘要，UI 侧 `progress.uiEvent.final_result` |
 | 文件读取 Tool | 无 | 仍然无，不新增 `read_artifact` |
 | run_id | 内部唯一目录隐含实现 | 保持内部实现，不新增公开字段 |
 | 取消支持 | async task 取消后线程继续 | Event 逐层传入真实阶段检查 |
@@ -710,10 +716,10 @@ src.report_finalize.core.execute(...)
 
 - 工程事实页面继续显示采用方案、设备汇总和事实文件信息。
 - 报告页面继续显示完整 Markdown、目录、DOCX/Markdown 路径和摘要。
-- 页面组件无业务改动，只由归一化层适配信封和 UI payload。
+- 页面组件无业务改动，只由归一化层适配信封和 progress UI 数据。
 - `提示词.md` 零差异；`EngineeringFactsPage.tsx`、`ReportGenerationPage.tsx` 页面组件零差异。
 - 真实 Host 能用返回的工作包路径，通过已有文件系统能力完成 prepare → 编制 → finalize，不依赖任何新增读取 Tool。
-- 代表性大数据下 `_meta.ui_payload` 完整到达 UI 且不进入模型上下文；该验证未通过前，允许本地实现和本地测试完成，但不得宣布最终验收或发布。
+- 代表性大数据下 `progress.uiEvent.final_result` 完整到达 UI 且不进入模型上下文；该验证未通过前，允许本地实现和本地测试完成，但不得宣布最终验收或发布。
 - 两个 UI 和两个 Host 构建通过，实际使用的 dist 已同步并完成生产构建产物运行时验证。
 - 并发运行的内部目录和产物相互隔离，不覆盖、不串读；不增加公开 `run_id`。
 - 现有工程事实、报告、Schema、Markdown、DOCX 测试继续通过。

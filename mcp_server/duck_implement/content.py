@@ -38,7 +38,11 @@ async def _send_progress_with_data(
     若 host 未设置 progressToken 或发送失败，回退到标准 report_progress。
     """
     try:
-        from mcp.types import ProgressNotification, ProgressNotificationParams
+        from mcp.types import (
+            ProgressNotification,
+            ProgressNotificationParams,
+            ServerNotification,
+        )
 
         try:
             session = ctx.session
@@ -60,10 +64,12 @@ async def _send_progress_with_data(
             if ui_event is not None:
                 params["uiEvent"] = ui_event
             await session.send_notification(
-                ProgressNotification(
-                    method="notifications/progress",
-                    params=ProgressNotificationParams(**params),
-                )
+                ServerNotification(
+                    ProgressNotification(
+                        params=ProgressNotificationParams(**params),
+                    )
+                ),
+                related_request_id=ctx.request_id,
             )
             return
     except Exception as e:

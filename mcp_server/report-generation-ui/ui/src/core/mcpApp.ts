@@ -50,19 +50,7 @@ export interface ToolResult {
   structuredContent?: Record<string, unknown>;
   /** 文本内容数组（fallback）。 */
   content?: Array<{ type: string; text?: string }>;
-  /** MCP ToolResult._meta：宿主透传给 UI 的扩展元数据（ui_payload）。 */
-  _meta?: ToolResultMeta;
-  /** 兼容宿主以非别名（meta）形式透传元数据的情况。 */
-  meta?: ToolResultMeta;
   isError?: boolean;
-  [k: string]: unknown;
-}
-
-/** ToolResult._meta：完整报告内容等大字段只放在 ui_payload，供 UI 白名单读取。 */
-export interface ToolResultMeta {
-  ui_payload?: {
-    [k: string]: unknown;
-  };
   [k: string]: unknown;
 }
 
@@ -454,21 +442,19 @@ export function useNormalizedToolResult(): {
     return { finalResult: null, rawResult: toolResult, isError: !!toolResult?.isError };
   }
 
-  const meta = (toolResult?._meta ?? toolResult?.meta) as ToolResultMeta | undefined;
-  const finalResult = normalizeResult(raw, meta, progressFinalResult);
+  const finalResult = normalizeResult(raw, progressFinalResult);
   return { finalResult, rawResult: toolResult, isError: !!toolResult?.isError };
 }
 
 /** 把 report_finalize 的 {status, data, warnings} 信封归一化为页面期望的 final_result。
  *
  * - 状态、产物路径、摘要、warnings、error 始终以 structuredContent 为准；
- * - 完整 Markdown 只从 _meta.ui_payload.markdown_content 白名单读取，
- *   不展开整个 ui_payload 覆盖结构化结果；
+ * - Tool 外层三态中的 success 会映射为 data.business_status，兼容既有页面状态；
+ * - 完整 Markdown 只从 progress.uiEvent.final_result.markdown_content 读取；
  * - warnings 与 data.error 映射为页面现有 diagnostics 结构。
  */
 function normalizeResult(
   raw: Record<string, unknown>,
-  meta: ToolResultMeta | undefined,
   progressFinalResult: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const data = raw.data;
@@ -480,6 +466,7 @@ function normalizeResult(
   const envelope = raw as {
     status: string;
     data: {
+      business_status?: unknown;
       artifacts?: unknown;
       artifact?: unknown;
       manifest_path?: unknown;
@@ -527,12 +514,17 @@ function normalizeResult(
           : undefined,
     };
   }
+  const pageStatus =
+    envelope.status === 'success' && typeof normalizedData.business_status === 'string'
+      ? normalizedData.business_status
+      : envelope.status === 'error'
+        ? 'failed'
+        : envelope.status;
 
   return {
     ...normalizedData,
-    status: envelope.status,
-    markdown_content:
-      meta?.ui_payload?.markdown_content ?? progressFinalResult?.markdown_content,
+    status: pageStatus,
+    markdown_content: progressFinalResult?.markdown_content,
     diagnostics,
   };
 }
