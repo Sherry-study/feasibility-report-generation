@@ -93,9 +93,50 @@ class SourceLocation(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     provider: Literal["local_directory"] = Field(
-        description="来源提供方；当前仅支持 local_directory。"
+        description="工程事实来源提供方；当前仅支持 local_directory。"
     )
-    location: str = Field(description="上游算法产物所在的本地目录路径。")
+    location: str = Field(
+        description="上游工程或算法产物所在的本地目录路径；Tool 只读取该目录内受支持的输入文件。"
+    )
+
+
+class ReportContext(BaseModel):
+    """报告编制上下文。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    project_name: str | None = Field(
+        default=None,
+        description="可选项目名称；用于覆盖工作包中的报告项目名称，不提供时由工程事实内容确定。",
+    )
+
+
+class ReportPrepareInput(BaseModel):
+    """报告准备输入。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    engineering_facts_path: str = Field(
+        description="engineering_facts.json 在宿主存储中的逻辑路径，通常来自工程事实整理产物。"
+    )
+    report_context: ReportContext | None = Field(
+        default=None,
+        description="可选报告上下文；用于补充或覆盖不属于工程事实本体的报告编制信息。",
+    )
+
+
+class ReportFinalizeInput(BaseModel):
+    """报告定稿输入。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    work_package_path: str = Field(
+        description="report_prepare 生成的 work_package.json 宿主逻辑路径。"
+    )
+    work_results_path: str | None = Field(
+        default=None,
+        description="可选章节工作结果 JSON 的宿主逻辑路径；未提供时生成带 fallback 标记的未闭合草稿。",
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -481,31 +522,24 @@ async def _run_with_cancellation(
 async def engineering_facts(
     ctx: Context,
     source_location: SourceLocation,
-    construction_unit: str | None = None,
+    construction_unit: str | None = Field(
+        default=None,
+        description="可选建设单位名称；未提供时按空值处理，不自动推断。",
+    ),
 ) -> ToolResult:
-    """工程事实整理：读取本地上游算法产物目录，生成 engineering_facts.json。
+    """工程事实整理：基于本地工程或算法产物生成 engineering_facts.json。
 
-    【职责】识别上游算法产物、解析最终采用方案（adopted_scheme）、汇总
-    设备/物料/能耗等可复算事实，并把完整工程事实落盘为 JSON。
-    【适用场景】拿到上游专业算法的本地输出目录之后、开始编写可研报告
-    正文之前。
-    【返回关键字段】structuredContent 为 {status, data, warnings} 信封：
-    status=completed 时 data.artifact.path 指向 engineering_facts.json、
-    data.summary 为计数摘要；status=failed 时 data.error 携带稳定错误代码。
-    完整工程事实对象不进入模型上下文，只通过同一 Tool Result 的
+    【职责】识别受支持的工程输入文件，整理设备、物料、能耗、方案等可复核
+    工程事实，并保存为结构化 JSON 产物。
+    【适用场景】已有本地工程或算法输出目录，需要形成可研编制所需的统一
+    工程事实文件。
+    【返回关键结果】structuredContent 为 {status, data, warnings} 信封：
+    status=completed 时 data.artifact.path 指向 engineering_facts.json，
+    data.summary 提供来源、设备、方案和派生事实计数；status=failed 时
+    data.error 提供稳定错误代码和可重试标记。完整工程事实通过
     _meta.ui_payload.engineering_facts 提供给宿主 UI。
-    【错误处理】来源目录缺失、来源 JSON 损坏等可预期失败返回 failed
-    信封（retryable=true，用户修正后可重试）；未预期内部错误表现为 MCP
-    协议错误，不泄露堆栈。
-    【何时不调用】不要用它生成报告正文或推算投资/收益/回收期等经济指标；
-    source_location.provider 不是 local_directory 时不要调用；已有
-    engineering_facts.json 中间产物且只需恢复报告流程时，应直接调用
-    report_prepare / report_finalize，不要重新整理事实。
-
-    Args:
-        ctx: fastmcp 上下文（自动注入）。
-        source_location: 来源目录；当前支持 provider=local_directory + location。
-        construction_unit: 可选建设单位；未提供时按空字符串处理，不会自动推断。
+    【失败情况】来源目录缺失、来源 JSON 损坏、输入文件无法识别等业务失败
+    返回 failed 信封；未预期内部异常以 MCP 协议错误返回。
     """
     await ctx.info(f"engineering_facts start: {source_location.location}")
     loop = asyncio.get_running_loop()
@@ -544,28 +578,20 @@ async def engineering_facts(
 @mcp.tool(output_schema=_REPORT_PREPARE_OUTPUT_SCHEMA)
 async def report_prepare(
     ctx: Context,
-    engineering_facts_path: str,
-    project_name: str | None = None,
+    input: ReportPrepareInput,
 ) -> ToolResult:
-    """报告准备：基于 engineering_facts.json 生成章节工作包 work_package.json。
+    """报告准备：基于工程事实文件生成可研报告章节工作包。
 
-    【职责】读取工程事实，按报告模板构建章节结构、确定性内容块和 Agent
-    研究/写作任务清单，落盘为工作包。
-    【适用场景】engineering_facts 返回 completed 之后、Agent 开始研究与
-    写作之前。
-    【返回关键字段】{status, data, warnings} 信封：status=prepared 时
-    data.artifact.path 指向 work_package.json、data.summary 为任务计数摘要。
-    宿主 Agent 应使用已有宿主能力按逻辑路径读取工作包并完成编制任务，
-    本 Server 不提供文件读取 Tool。
-    【错误处理】工程事实逻辑路径不存在、事实根契约不符等可预期失败返回
-    failed 信封；未预期内部错误表现为 MCP 协议错误。
-    【何时不调用】尚未取得 engineering_facts 产物时不要调用；工作包已
-    prepare 且只需恢复定稿时，应直接调用 report_finalize，不要重复 prepare。
-
-    Args:
-        ctx: fastmcp 上下文（自动注入）。
-        engineering_facts_path: engineering_facts.json 的宿主逻辑路径。
-        project_name: 可选项目名称；未提供时由工程事实中的建设单位和装置名称确定。
+    【职责】读取 engineering_facts.json，构建章节结构、确定性内容块和报告
+    编制任务包，并保存 work_package.json。
+    【适用场景】已有结构化工程事实文件，需要拆解可研报告编制任务并形成
+    可交付的章节工作包。
+    【返回关键结果】structuredContent 为 {status, data, warnings} 信封：
+    status=prepared 时 data.artifact.path 指向 work_package.json，
+    data.summary 提供研究、写作、确定性摘要和综合任务计数；status=failed
+    时 data.error 提供稳定错误代码和可重试标记。
+    【失败情况】工程事实路径无效、工程事实 JSON 损坏、工程事实根结构不符合
+    契约等业务失败返回 failed 信封；未预期内部异常以 MCP 协议错误返回。
     """
     await ctx.info("report_prepare start")
     loop = asyncio.get_running_loop()
@@ -574,11 +600,7 @@ async def report_prepare(
         ctx,
         base_url=os.getenv("MCP_HOST_URL", "http://127.0.0.1:9000"),
     )
-    request: dict[str, Any] = {
-        "engineering_facts_path": engineering_facts_path,
-    }
-    if project_name:
-        request["report_context"] = {"project_name": project_name}
+    request: dict[str, Any] = input.model_dump(exclude_none=True)
     cancel_event = threading.Event()
 
     def _run() -> dict[str, Any]:
@@ -605,32 +627,21 @@ async def report_prepare(
 )
 async def report_finalize(
     ctx: Context,
-    work_package_path: str,
-    work_results_path: str | None = None,
+    input: ReportFinalizeInput,
 ) -> ToolResult:
-    """报告定稿：合并 Agent 工作结果并导出 DOCX/Markdown 报告。
+    """报告定稿：基于报告工作包和章节工作结果导出 DOCX/Markdown 报告。
 
-    【职责】读取工作包，把 Agent 写作/合成结果回填章节，成组导出可行性
-    研究报告 DOCX 与 Markdown。
-    【适用场景】工作包已 prepare、Agent 已按任务清单产出工作结果 JSON 文件
-    时调用；未提供工作结果时也会生成由模板 fallback 兜底的不完整初稿，
-    并在 warnings 中明确标注。
-    【返回关键字段】{status, data, warnings} 信封：status=completed 只表示
-    本次导出动作完成，不代表数据闭合；data.summary.fallback_section_count>0
-    时只能作为“未闭合草稿”交付，data.artifacts 给出 DOCX/Markdown 的逻辑路径。
-    完整 Markdown 不进入模型上下文，只通过同一 Tool Result 的
-    _meta.ui_payload.markdown_content 提供给宿主 UI。Agent 工作结果请以
-    work_results_path（宿主逻辑路径）提交；本 Server 不提供文件读取 Tool。
-    【错误处理】工作包无效、工作结果不符合契约等可预期失败返回 failed
-    信封；未预期内部错误表现为 MCP 协议错误，不泄露堆栈。
-    【何时不调用】工作包尚未生成时不要调用；需要修改章节结构时应重新走
-    engineering_facts → report_prepare，而不是在 finalize 阶段改结构。
-
-    Args:
-        ctx: fastmcp 上下文（自动注入）。
-        work_package_path: report_prepare 返回的 work_package.json 逻辑路径。
-        work_results_path: 可选，Agent 工作结果 JSON 文件逻辑路径；未提供时
-            使用空工作结果并生成 fallback 兜底的不完整初稿。
+    【职责】读取 work_package.json 与可选 work_results.json，合成可行性研究
+    报告内容，并导出 DOCX、Markdown 和报告清单。
+    【适用场景】已有章节工作包，需要生成最终报告文件；章节工作结果缺失时
+    可生成带 fallback 标记的未闭合草稿。
+    【返回关键结果】structuredContent 为 {status, data, warnings} 信封：
+    status=completed 时 data.artifacts 提供 DOCX/Markdown 逻辑路径，
+    data.manifest_path 指向报告清单，data.summary.fallback_section_count 标记
+    fallback 章节数量；完整 Markdown 通过 _meta.ui_payload.markdown_content
+    提供给宿主 UI。status=failed 时 data.error 提供稳定错误代码和可重试标记。
+    【失败情况】工作包路径无效、工作包 JSON 损坏、章节工作结果不符合契约等
+    业务失败返回 failed 信封；未预期内部异常以 MCP 协议错误返回。
     """
     await ctx.info("report_finalize start")
     loop = asyncio.get_running_loop()
@@ -639,11 +650,7 @@ async def report_finalize(
         ctx,
         base_url=os.getenv("MCP_HOST_URL", "http://127.0.0.1:9000"),
     )
-    request: dict[str, Any] = {
-        "work_package_path": work_package_path,
-    }
-    if work_results_path is not None:
-        request["work_results_path"] = work_results_path
+    request: dict[str, Any] = input.model_dump(exclude_none=True)
     cancel_event = threading.Event()
 
     def _run() -> dict[str, Any]:

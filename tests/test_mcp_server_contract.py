@@ -218,6 +218,7 @@ class MCPServerContractTests(unittest.TestCase):
         self.assertEqual(
             set(schema["properties"]), {"source_location", "construction_unit"}
         )
+        self.assertIn("description", schema["properties"]["construction_unit"])
         source = schema["properties"]["source_location"]
         self.assertFalse(source.get("additionalProperties", True))
         self.assertEqual(set(source["required"]), {"provider", "location"})
@@ -226,17 +227,35 @@ class MCPServerContractTests(unittest.TestCase):
     def test_report_prepare_input_schema(self) -> None:
         schema = _tool("report_prepare").parameters
         self.assertFalse(schema.get("additionalProperties", True))
-        self.assertEqual(schema["required"], ["engineering_facts_path"])
-        self.assertEqual(set(schema["properties"]), {"engineering_facts_path", "project_name"})
-        self.assertNotIn("work_results", schema["properties"])
+        self.assertEqual(schema["required"], ["input"])
+        self.assertEqual(set(schema["properties"]), {"input"})
+        prepare_input = schema["properties"]["input"]
+        self.assertFalse(prepare_input.get("additionalProperties", True))
+        self.assertEqual(prepare_input["required"], ["engineering_facts_path"])
+        self.assertEqual(
+            set(prepare_input["properties"]),
+            {"engineering_facts_path", "report_context"},
+        )
+        report_context = prepare_input["properties"]["report_context"]["anyOf"][0]
+        self.assertFalse(report_context.get("additionalProperties", True))
+        self.assertEqual(set(report_context["properties"]), {"project_name"})
+        self.assertNotIn("project_name", schema["properties"])
+        self.assertNotIn("work_results", prepare_input["properties"])
 
     def test_report_finalize_input_schema(self) -> None:
         schema = _tool("report_finalize").parameters
         self.assertFalse(schema.get("additionalProperties", True))
-        self.assertEqual(schema["required"], ["work_package_path"])
-        self.assertEqual(set(schema["properties"]), {"work_package_path", "work_results_path"})
+        self.assertEqual(schema["required"], ["input"])
+        self.assertEqual(set(schema["properties"]), {"input"})
+        finalize_input = schema["properties"]["input"]
+        self.assertFalse(finalize_input.get("additionalProperties", True))
+        self.assertEqual(finalize_input["required"], ["work_package_path"])
+        self.assertEqual(
+            set(finalize_input["properties"]),
+            {"work_package_path", "work_results_path"},
+        )
         # MCP 层不再公开 inline work_results 对象，只接受逻辑路径字符串
-        self.assertNotIn("work_results", schema["properties"])
+        self.assertNotIn("work_results", finalize_input["properties"])
 
     def test_output_schemas_are_discriminated_unions(self) -> None:
         cases = {
@@ -349,7 +368,7 @@ class MCPServerContractTests(unittest.TestCase):
         for name in ("engineering_facts", "report_prepare", "report_finalize"):
             with self.subTest(tool=name):
                 description = _tool(name).description or ""
-                for keyword in ("职责", "适用场景", "错误处理"):
+                for keyword in ("职责", "适用场景", "失败情况"):
                     self.assertIn(keyword, description)
 
 
