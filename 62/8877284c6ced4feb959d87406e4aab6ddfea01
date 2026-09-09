@@ -1,0 +1,100 @@
+mcp_server/server.py
+  h_c47bb0c7223297 11-12,225-227,238-241,243-246,249,258,271-275,296-298,307-313,316,325,338-342,361-363,373,379-382,391,404-411,413,415,417,432,437,442,466-468,472,476,480,485,495,497,503-508,516-517,530,532,538-546,551-552,565,567,574-582,587-588,637-644,655,669,691-693,713-723,741-751,758,778,780-781,790,804-809,811-812,819,847-857,864,881,883-884,893,897
+.gitlab-ci.yml
+  s_e8834f2e41c2e8::t_ac69f5d6fea39f 25,35-69
+  s_e8834f2e41c2e8::t_5a1b9861aad5da 3-4,7-10
+  s_e8834f2e41c2e8::t_e5343bfb6020d5 88-90,92-101
+  s_e8834f2e41c2e8::t_122f40a6023820 70
+mcp_server/engineering-confirmation-ui/ui/dist/index.html
+  s_8e51c8343969cc::t_41907f20dcb588 16,32,41,44-45,47-48
+mcp_server/report-generation-ui/host/dist/assets/index-DLKa5akT.js
+  s_8e51c8343969cc::t_41907f20dcb588 1,9,17,25,33-34,37-38,40,55,71,79,83-84,86-88,227,849
+mcp_server/report-generation-ui/ui/src/core/mcpApp.ts
+  s_8e51c8343969cc::t_41907f20dcb588 445,452-453,469,517-522,526-527
+mcp_server/report-generation-ui/host/src/hostProtocol.ts
+  s_8e51c8343969cc::t_41907f20dcb588 294-295
+mcp_server/engineering-confirmation-ui/host/dist/assets/index-B5wRO7s4.js
+  s_8e51c8343969cc::t_41907f20dcb588 1,9,17,25,33,37-38,40,55,71,80,83-84,86-87,226
+mcp_server/duck_implement/content.py
+  s_8e51c8343969cc::t_41907f20dcb588 41-45,67-72
+docs/specs/2026-09-04-report-generation-tool-design.md
+  s_8e51c8343969cc::t_41907f20dcb588 255
+docs/tool-refactor-design.md
+  s_8e51c8343969cc::t_41907f20dcb588 42,153,242,315,318-324,518,528-529,535,537,539,543,635-637,652,665,719,722
+mcp_server/engineering-confirmation-ui/host/dist/index.html
+  s_8e51c8343969cc::t_41907f20dcb588 7
+README.md
+  s_8e51c8343969cc::t_41907f20dcb588 21-24,43,45,47
+mcp_server/engineering-confirmation-ui/ui/src/core/mcpApp.ts
+  s_8e51c8343969cc::t_41907f20dcb588 445,452-453,469,499-504,508-509
+mcp_server/report-generation-ui/host/dist/index.html
+  s_8e51c8343969cc::t_41907f20dcb588 7
+mcp_server/report-generation-ui/ui/dist/index.html
+  s_8e51c8343969cc::t_41907f20dcb588 16,32,40,44-45,47-49
+mcp_server/report-generation-ui/ui/src/pages/useReportMarkdown.ts
+  s_8e51c8343969cc::t_41907f20dcb588 4,52
+mcp_server/engineering-confirmation-ui/host/src/hostProtocol.ts
+  s_8e51c8343969cc::t_41907f20dcb588 294-295
+tests/test_mcp_server_contract.py
+  s_8e51c8343969cc::t_41907f20dcb588 22,50-86,89,91,117,119,139,141,160-179,233,237-238,269,273-274,284,287,289-292,324,329-334,336-339,431-433,435,440,444-454,467,477-487,495,503-513,521,529-539,586,588-597
+mcp_server/engineering-confirmation-ui/ui/src/pages/EngineeringFactsPage.tsx
+  s_8e51c8343969cc::t_41907f20dcb588 364-366
+mcp_server/report-generation-ui/host/src/mockData.ts
+  s_8e51c8343969cc::t_41907f20dcb588 7,57,59,91,116-166,168,177,180-181,188,196,199-200,207,216,219-220
+mcp_server/engineering-confirmation-ui/host/src/mockData.ts
+  s_8e51c8343969cc::t_41907f20dcb588 132,134,159,182-220,226,228-232,238,254,264
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "628877284c6ced4feb959d87406e4aab6ddfea01",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_8e51c8343969cc": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa1141cb682ab5927d62443",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "external_session_id": "6aa1141cb682ab5927d62443",
+        "session_id": "6aa1141cb682ab5927d62443",
+        "source_scene": "agent",
+        "operation_id": "6aa15e08b682ab5927d6267e",
+        "tool_use_id": "6aa15e08b682ab5927d6267e",
+        "display_model_name": "deepseek-v4-flash",
+        "edit_kind": "bash",
+        "client_type": "ide",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_name": "RunCommand"
+      }
+    },
+    "s_e8834f2e41c2e8": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa13e89b682ab5927d62562",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "dedupe_key": "6aa13e89b682ab5927d62562:6aa14c2fb682ab5927d6266c:afterEdit:18af83e3",
+        "tool_type": "agent",
+        "operation_id": "6aa14c2fb682ab5927d6266c",
+        "client_type": "ide",
+        "source_scene": "unknown",
+        "edit_kind": "file_edit",
+        "tool_use_id": "6aa14c2fb682ab5927d6266c",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_id": "Edit",
+        "external_session_id": "6aa13e89b682ab5927d62562",
+        "session_id": "6aa13e89b682ab5927d62562"
+      }
+    }
+  }
+}
