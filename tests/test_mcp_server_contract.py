@@ -169,16 +169,12 @@ class MCPServerContractTests(unittest.TestCase):
         self.assertEqual(len(ctx.session.calls), 1)
         notification, related_request_id = ctx.session.calls[0]
         self.assertEqual(related_request_id, "request-1")
-        progress = notification.params
-        self.assertEqual(progress.progress_token, "progress-token-1")
+        progress = notification.root.params
+        self.assertEqual(progress.progressToken, "progress-token-1")
         self.assertEqual(progress.progress, 100)
         self.assertEqual(progress.total, 100)
         self.assertEqual(progress.message, "工程事实已完成")
         self.assertEqual(progress.model_extra["uiEvent"], {"final_result": {"ok": True}})
-        # 线上序列化须保留 uiEvent（mcp 2.x 默认会丢弃多余字段）
-        wire = notification.model_dump(by_alias=True, mode="json", exclude_none=True)
-        self.assertEqual(wire["params"]["progressToken"], "progress-token-1")
-        self.assertEqual(wire["params"]["uiEvent"], {"final_result": {"ok": True}})
         self.assertEqual(ctx.fallback_calls, [])
 
     def test_cancellation_bridge_returns_normal_result(self) -> None:

@@ -15,22 +15,8 @@ import logging
 from typing import Any, Optional
 
 from fastmcp import Context
-from mcp.types import ProgressNotification, ProgressNotificationParams
-from pydantic import ConfigDict
 
 logger = logging.getLogger(__name__)
-
-
-class _UiEventProgressParams(ProgressNotificationParams):
-    """进度参数：mcp 2.x 的 params 模型默认丢弃多余字段，这里放行 ``uiEvent`` 扩展字段。"""
-
-    model_config = ConfigDict(extra="allow")
-
-
-class _UiEventProgressNotification(ProgressNotification):
-    """进度通知：把 params 类型收窄为 ``_UiEventProgressParams``，保证序列化时保留 uiEvent。"""
-
-    params: _UiEventProgressParams
 
 
 async def _send_progress_with_data(
@@ -43,28 +29,32 @@ async def _send_progress_with_data(
     """发送携带 ``uiEvent`` 扩展字段的 progress 通知。
 
     标准 ``ctx.report_progress`` 只支持 progress/total/message，本函数通过
-    直接构造携带 ``uiEvent`` 额外字段的 ``ProgressNotificationParams`` 发送
-    一个结构化 ``uiEvent``，``ui_event`` dict 的内容会原样作为 ``uiEvent`` 的值
+    直接构造 ``ProgressNotificationParams``（extra='allow'）携带一个结构化
+    的 ``uiEvent`` 字段，``ui_event`` dict 的内容会原样作为 ``uiEvent`` 的值
     传给前端，前端直接从 ``progress.uiEvent.<key>`` 读取逐步渲染所需数据。
 
-    mcp 2.x 中 ``ServerNotification`` 是通知的联合类型别名（不可实例化），
-    发送时直接传入具体的 ``ProgressNotification`` 实例，并用
-    ``related_request_id`` 关联当前请求；``uiEvent`` 需借助放行额外字段的
-    params 子类才能在序列化时保留。
-
     通过 fastmcp Context 的公开 API（``ctx.session`` property 与
-    ``ctx.request_context`` 元数据）获取 session 与 progress token；
+    ``ctx.request_context.meta.progressToken``）获取 session 与 token；
     若 host 未设置 progressToken 或发送失败，回退到标准 report_progress。
     """
     try:
+        from mcp.types import (
+            ProgressNotification,
+            ProgressNotificationParams,
+            ServerNotification,
+        )
+
         try:
             session = ctx.session
         except RuntimeError:
             session = None
-        token = _extract_progress_token(ctx)
+        request_ctx = getattr(ctx, "request_context", None)
+        meta = getattr(request_ctx, "meta", None) if request_ctx else None
+        token = getattr(meta, "progressToken", None) if meta else None
+
         if session is not None and token is not None:
             params: dict[str, Any] = {
-                "progress_token": token,
+                "progressToken": token,
                 "progress": progress,
             }
             if total is not None:
@@ -74,8 +64,10 @@ async def _send_progress_with_data(
             if ui_event is not None:
                 params["uiEvent"] = ui_event
             await session.send_notification(
-                _UiEventProgressNotification(
-                    params=_UiEventProgressParams(**params),
+                ServerNotification(
+                    ProgressNotification(
+                        params=ProgressNotificationParams(**params),
+                    )
                 ),
                 related_request_id=ctx.request_id,
             )
@@ -83,27 +75,6 @@ async def _send_progress_with_data(
     except Exception as e:
         logger.debug("send_progress_with_data failed, fallback to standard: %s", e)
     await ctx.report_progress(progress, total, message)
-
-
-def _extract_progress_token(ctx: Context) -> Optional[Any]:
-    """从 fastmcp Context 元数据中提取 progress token。
-
-    兼容两种形状：``ctx.request_context.meta`` 为对象（属性 ``progressToken`` /
-    ``progress_token``）或为 dict（键 ``progress_token`` / ``progressToken``）。
-    """
-    request_ctx = getattr(ctx, "request_context", None)
-    if request_ctx is None:
-        return None
-    meta = getattr(request_ctx, "meta", None)
-    if meta is None:
-        # fastmcp 4 的真实 Context 把 meta 挂在内部 ServerRequestContext 上
-        srctx = getattr(request_ctx, "_srctx", None)
-        meta = getattr(srctx, "meta", None) if srctx is not None else None
-    if isinstance(meta, dict):
-        return meta.get("progress_token") or meta.get("progressToken")
-    if meta is not None:
-        return getattr(meta, "progress_token", None) or getattr(meta, "progressToken", None)
-    return None
 
 
 class MCPContent:
