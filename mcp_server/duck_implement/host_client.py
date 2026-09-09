@@ -265,6 +265,6 @@ class MCPHostClient:
 _shared_http_client = httpx.Client(timeout=30.0)
 
 
-def make_host_client(ctx: Context, base_url: str = "http://localhost:9000") -> MCPHostClient:
+def make_host_client(ctx: Context, base_url: str = "http://localhost:8200") -> MCPHostClient:
     """为每次 tool 调用创建 HostClient，构造时从 ctx 捕获平台凭证。"""
     return MCPHostClient(base_url=base_url, client=_shared_http_client, ctx=ctx)
