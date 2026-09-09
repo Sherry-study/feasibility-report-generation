@@ -1,0 +1,31 @@
+pyproject.toml
+  s_8e51c8343969cc::t_5c7f7c51e737b5 1-38
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "a658c67cefa5c77be8afbcb24ffd2bbc0a8db150",
+  "prompts": {},
+  "sessions": {
+    "s_8e51c8343969cc": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa1141cb682ab5927d62443",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "client_type": "ide",
+        "operation_id": "6aa1170eb682ab5927d624f8",
+        "display_model_name": "deepseek-v4-flash",
+        "edit_kind": "bash",
+        "tool_name": "RunCommand",
+        "session_id": "6aa1141cb682ab5927d62443",
+        "external_session_id": "6aa1141cb682ab5927d62443",
+        "runtime_client": "trae-tob-git-ai",
+        "source_scene": "agent",
+        "tool_use_id": "6aa1170eb682ab5927d624f8"
+      }
+    }
+  }
+}
