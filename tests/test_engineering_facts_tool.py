@@ -4,16 +4,21 @@ import copy
 import json
 import shutil
 import tempfile
+import threading
 import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from src.engineering_facts import execute
+from scripts.local_adapters import LocalHostClient
+from tests.fakes import FakeContent
+from src.engineering_facts import OperationCancelled
+from src.engineering_facts import core as facts_core
 
 
 TOOL_ROOT = Path(__file__).resolve().parents[1]
 FIXTURES_DIR = TOOL_ROOT / "tests" / "fixtures"
 SOURCE_DATA = FIXTURES_DIR / "engineering_source_bundle"
+TEST_DEFAULT_ARTIFACT_DIR = TOOL_ROOT / "report_output_dir"
 
 EXPECTED_TOP_LEVEL = {
     "meta",
@@ -52,6 +57,29 @@ FORBIDDEN_KEYS = {
     "section_coverage",
     "user",
 }
+
+
+def execute(
+    request: dict,
+    artifact_dir: str | Path | None = None,
+    cancel_event: threading.Event | None = None,
+) -> dict:
+    """Run the core with a local HostClient adapter for fixture-based tests."""
+    root = Path(artifact_dir) if artifact_dir is not None else TEST_DEFAULT_ARTIFACT_DIR
+    host_client = LocalHostClient(root)
+    result = facts_core.execute(
+        request,
+        content=FakeContent(),
+        host_client=host_client,
+        cancel_event=cancel_event,
+    )
+    artifact = result.get("artifact")
+    if result.get("status") == "completed" and isinstance(artifact, dict):
+        logical_path = artifact["path"]
+        stored_path = host_client._resolve(logical_path)  # noqa: SLF001 - test adapter only
+        flat_path = host_client.root / "engineering_facts.json"
+        flat_path.write_bytes(stored_path.read_bytes())
+    return result
 
 
 def all_keys(value: object) -> set[str]:
@@ -113,7 +141,7 @@ class EngineeringFactsToolTests(unittest.TestCase):
     def test_real_sources_generate_strict_contract(self) -> None:
         result = self.execute()
         self.assertEqual(result["status"], "completed")
-        self.assertTrue(result["artifact"]["uri"].startswith("file:"))
+        self.assertTrue(result["artifact"]["path"].startswith("runs/engineering_facts/"))
         self.assertEqual(result["artifact"]["schema_version"], "2.0")
 
         facts = self.read_facts()
@@ -395,12 +423,12 @@ class EngineeringFactsToolTests(unittest.TestCase):
             {item["code"] for item in result["diagnostics"]},
         )
 
-    def test_default_artifact_dir_is_used_when_omitted(self) -> None:
+    def test_default_local_adapter_root_is_used_when_omitted(self) -> None:
         default_artifact_dir = self.root / "default_artifacts"
         default_artifact = default_artifact_dir / "engineering_facts.json"
 
         with patch(
-            "src.engineering_facts.core.DEFAULT_ARTIFACT_DIR",
+            f"{__name__}.TEST_DEFAULT_ARTIFACT_DIR",
             default_artifact_dir,
         ):
             result = execute(
@@ -414,7 +442,7 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "completed")
         self.assertTrue(default_artifact.is_file())
-        self.assertEqual(result["artifact"]["uri"], default_artifact.resolve().as_uri())
+        self.assertTrue(result["artifact"]["path"].endswith("/engineering_facts.json"))
 
     def test_business_input_rejects_undeclared_fields(self) -> None:
         result = execute(
@@ -607,7 +635,7 @@ class EngineeringFactsToolTests(unittest.TestCase):
             "standard_coal",
         )
 
-    def test_missing_energy_rules_is_fatal_not_missing_factor(self) -> None:
+    def test_missing_energy_rules_is_internal_exception(self) -> None:
         source_dir = self.root / "missing_rules_source"
         source_dir.mkdir()
         (source_dir / "plant_info.json").write_text(
@@ -642,25 +670,16 @@ class EngineeringFactsToolTests(unittest.TestCase):
             "src.engineering_facts.core.ENERGY_RULES_PATH",
             self.root / "missing_energy_rules.json",
         ):
-            result = execute(
-                {
-                    "source_location": {
-                        "provider": "local_directory",
-                        "location": str(source_dir),
-                    }
-                },
-                self.root / "missing_rules_artifacts",
-            )
-
-        self.assertEqual(result["status"], "failed")
-        self.assertIn(
-            "ENGINEERING_FACTS_TOOL_FAILED",
-            {item["code"] for item in result["diagnostics"]},
-        )
-        self.assertNotIn(
-            "conversion_factor_missing",
-            json.dumps(result, ensure_ascii=False),
-        )
+            with self.assertRaises(FileNotFoundError):
+                execute(
+                    {
+                        "source_location": {
+                            "provider": "local_directory",
+                            "location": str(source_dir),
+                        }
+                    },
+                    self.root / "missing_rules_artifacts",
+                )
 
     def test_selected_reactor_scheme_only_counts_adopted_candidate(self) -> None:
         source_dir = self.root / "selected_candidate_source"
@@ -1177,6 +1196,114 @@ class EngineeringFactsToolTests(unittest.TestCase):
         self.assertEqual(calculated["rule_id"], "SO-STEAM-007")
         self.assertEqual(grade_matched["rule_id"], "SO-STEAM-005")
         self.assertEqual(blocked["reason"], "steam_pressure_or_grade_missing")
+
+
+class EngineeringFactsCancellationTests(unittest.TestCase):
+    """协作式取消：检查点抛出 OperationCancelled 且不发布半成品产物。"""
+
+    def setUp(self) -> None:
+        if not SOURCE_DATA.is_dir():
+            self.skipTest("工程事实测试 fixture 不存在")
+        self.temp_dir = tempfile.TemporaryDirectory()
+        self.addCleanup(self.temp_dir.cleanup)
+        self.root = Path(self.temp_dir.name)
+        self.bundle = self.root / "source_bundle"
+        shutil.copytree(SOURCE_DATA, self.bundle)
+        self.artifact_dir = self.root / "artifacts"
+        self.request = {
+            "source_location": {
+                "provider": "local_directory",
+                "location": str(self.bundle),
+            },
+            "construction_unit": "测试建设单位",
+        }
+
+    def assert_no_artifacts(self) -> None:
+        self.assertFalse((self.artifact_dir / "engineering_facts.json").exists())
+        files = (
+            [path for path in self.artifact_dir.rglob("*") if path.is_file()]
+            if self.artifact_dir.exists()
+            else []
+        )
+        self.assertEqual(files, [])
+
+    def test_cancelled_before_start_raises_and_publishes_nothing(self) -> None:
+        cancel_event = threading.Event()
+        cancel_event.set()
+
+        with self.assertRaises(OperationCancelled):
+            execute(self.request, self.artifact_dir, cancel_event)
+
+        self.assert_no_artifacts()
+
+    def test_cancelled_during_discovery_raises_and_publishes_nothing(self) -> None:
+        cancel_event = threading.Event()
+        real_discover = facts_core._discover_sources
+
+        def discover_then_cancel(source_root, diagnostics, event=None):
+            # 模拟客户端在来源发现期间发起取消
+            cancel_event.set()
+            return real_discover(source_root, diagnostics, event)
+
+        with patch(
+            "src.engineering_facts.core._discover_sources",
+            side_effect=discover_then_cancel,
+        ):
+            with self.assertRaises(OperationCancelled):
+                execute(self.request, self.artifact_dir, cancel_event)
+
+        self.assert_no_artifacts()
+
+    def test_cancelled_after_load_raises_and_publishes_nothing(self) -> None:
+        cancel_event = threading.Event()
+        real_load = facts_core._load_payloads
+
+        def load_then_cancel(sources, diagnostics, event=None):
+            # 模拟客户端在来源读取期间发起取消
+            cancel_event.set()
+            return real_load(sources, diagnostics, event)
+
+        with patch(
+            "src.engineering_facts.core._load_payloads",
+            side_effect=load_then_cancel,
+        ):
+            with self.assertRaises(OperationCancelled):
+                execute(self.request, self.artifact_dir, cancel_event)
+
+        self.assert_no_artifacts()
+
+    def test_cancelled_at_save_checkpoint_publishes_nothing(self) -> None:
+        cancel_event = threading.Event()
+
+        class CancellingContent(FakeContent):
+            def report_progress(self, progress, total=None, message=None):
+                super().report_progress(progress, total, message)
+                if progress == 90:
+                    cancel_event.set()
+
+        with self.assertRaises(OperationCancelled):
+            facts_core.execute(
+                self.request,
+                content=CancellingContent(),
+                host_client=LocalHostClient(self.artifact_dir),
+                cancel_event=cancel_event,
+            )
+
+        self.assert_no_artifacts()
+
+    def test_without_cancel_event_completes_normally(self) -> None:
+        result = execute(self.request, self.artifact_dir)
+        self.assertEqual(result["status"], "completed")
+        self.assertTrue((self.artifact_dir / "engineering_facts.json").is_file())
+
+    def test_unexpected_fact_assembly_error_is_not_business_failed(self) -> None:
+        with patch(
+            "src.engineering_facts.core._build_facts",
+            side_effect=RuntimeError("unexpected algorithm bug"),
+        ):
+            with self.assertRaisesRegex(RuntimeError, "unexpected algorithm bug"):
+                execute(self.request, self.artifact_dir)
+        self.assert_no_artifacts()
 
 
 if __name__ == "__main__":

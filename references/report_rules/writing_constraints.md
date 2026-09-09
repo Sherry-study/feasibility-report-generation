@@ -5,7 +5,7 @@
 ## 事实来源边界
 
 - 报告正文只使用 `engineering_facts` 产出的 Engineering Facts、`work_package` 指定的章节事实/研究任务、Agent 已校验研究结果、确定性计算结果和用户确认输入。
-- 章节写作阶段不得读取原始算法文件，不得绕过 `engineering_facts`、`work_package` 与 `report_generation.finalize` 边界直接采用算法中间结果。
+- 章节写作阶段不得读取原始算法文件，不得绕过 `engineering_facts`、`work_package` 与 `report_finalize` 边界直接采用算法中间结果。
 - 未经用户确认或 Tool 确认的工程事实不得写成确定结论。
 - 不写入未经确认的工程数字；缺失工程条件保持缺口，不用公开资料或历史案例替代企业实际数据。
 - `candidate recommendation` 不等于 `adopted scheme`；正文只使用最终确认方案。

@@ -1,7 +1,7 @@
 /**
  * 应用根组件 -- MCP Apps 架构。
  *
- * 单工具单项目:本 UI 只服务 report_generation 一个工具,直接渲染 ReportGenerationPage。
+ * 单工具单项目：本 UI 只服务 report_finalize，直接渲染 ReportGenerationPage。
  * 启动时通过 useMcpInitialize 发起 ui/initialize 握手。
  */
 

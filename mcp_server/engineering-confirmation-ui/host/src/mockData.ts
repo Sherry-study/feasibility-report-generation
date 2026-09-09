@@ -2,10 +2,7 @@
  * engineering_facts 的 mock 数据。
  *
  * 本 host 控制台只服务 engineering_facts 一个工具:有进度推送,无审核。
- * 进度步骤镜像 server 中真实的 ctx.report_progress 调用:
- *   1. 校验来源参数 (progress=1, total=4)
- *   2. 读取并识别上游产物 (progress=2, total=4)
- *   3. 工程事实整理完成 (progress=4, total=4)
+ * 进度步骤镜像真实核心通过 content.report_progress 发出的阶段。
  */
 
 export interface UiEvent {
@@ -27,6 +24,8 @@ export interface ReviewStage {
   reviewId: string;
   finalResult: Record<string, unknown>;
   result: Record<string, unknown>;
+  /** ToolResult._meta：完整工程事实等 UI 大字段经 ui_payload 透传。 */
+  resultMeta?: { ui_payload?: Record<string, unknown> };
   resultIsError?: boolean;
 }
 
@@ -129,44 +128,63 @@ function engineeringFactsPayload(withEconomics = false): Record<string, unknown>
   };
 }
 
-function engineeringFactsCompletedResult(withEconomics = false): Record<string, unknown> {
+/** mock structuredContent：{status, data, warnings} 统一信封（模型可见，不含完整工程事实）。 */
+function engineeringFactsCompletedResult(): Record<string, unknown> {
   return {
     status: 'completed',
-    artifact: {
-      uri: `${OUT}/mcp_runs/engineering_facts/engineering_facts.json`,
-      schema_version: '2.0',
-      media_type: 'application/json',
+    data: {
+      artifact: {
+        path: `${OUT}/mcp_runs/engineering_facts/engineering_facts.json`,
+        schema_version: '2.0',
+        media_type: 'application/json',
+      },
+      summary: {
+        source_count: 3,
+        equipment_count: 4,
+        adopted_scheme_count: 1,
+        selected_names: ['方案C（新增设备：前置预反应强化系统）'],
+        optimized: true,
+      },
+      error: null,
     },
-    engineering_facts: engineeringFactsPayload(withEconomics),
-    summary: {
-      source_count: 3,
-      equipment_count: 4,
-      adopted_scheme_count: 1,
-      selected_names: ['方案C（新增设备：前置预反应强化系统）'],
-      optimized: true,
-    },
-    diagnostics: [
+    warnings: [
       { level: 'warning', code: 'NEW_DEVICE_PARAMS_MISSING', message: 'new equipment exists but new_device_params is missing.' },
     ],
+  };
+}
+
+/** mock ToolResult._meta：完整工程事实只经 ui_payload 供 UI 白名单读取。 */
+function engineeringFactsResultMeta(withEconomics = false): { ui_payload: Record<string, unknown> } {
+  return {
+    ui_payload: {
+      engineering_facts: engineeringFactsPayload(withEconomics),
+    },
   };
 }
 
 function engineeringFactsFailedResult(): Record<string, unknown> {
   return {
     status: 'failed',
-    artifact: null,
-    summary: {},
-    diagnostics: [
-      { level: 'fatal', code: 'SOURCE_JSON_INVALID', message: '装置级/scheme.json is not valid JSON: Expecting value' },
-    ],
+    data: {
+      artifact: null,
+      summary: {},
+      error: {
+        code: 'SOURCE_JSON_INVALID',
+        message: '装置级/scheme.json is not valid JSON: Expecting value',
+        retryable: true,
+      },
+    },
+    warnings: [],
   };
 }
 
 function engineeringFactsProgressSteps(): ProgressStep[] {
   return [
-    { progress: 1, total: 4, message: '校验来源参数' },
-    { progress: 2, total: 4, message: '读取并识别上游产物' },
-    { progress: 4, total: 4, message: '工程事实整理完成' },
+    { progress: 0, total: 100, message: '扫描工程输入来源' },
+    { progress: 35, total: 100, message: '读取工程输入来源' },
+    { progress: 65, total: 100, message: '组装工程事实' },
+    { progress: 90, total: 100, message: '保存工程事实' },
+    { progress: 100, total: 100, message: '工程事实已完成' },
   ];
 }
 
@@ -175,6 +193,7 @@ function engineeringFactsScenario(
   label: string,
   args: Record<string, unknown>,
   result: Record<string, unknown>,
+  resultMeta?: { ui_payload: Record<string, unknown> },
 ): MockScenario {
   return {
     id,
@@ -186,6 +205,7 @@ function engineeringFactsScenario(
       reviewId: `review-facts-${id}`,
       finalResult: result,
       result,
+      resultMeta,
     },
     skipReview: true,
   };
@@ -196,7 +216,8 @@ function engineeringFactsCompletedScenario(): MockScenario {
     'completed',
     '正常:整理完成',
     { source_location: { provider: 'local_directory', location: SOURCE_DIR }, construction_unit: '测试建设单位' },
-    engineeringFactsCompletedResult(true),
+    engineeringFactsCompletedResult(),
+    engineeringFactsResultMeta(true),
   );
 }
 
@@ -205,7 +226,8 @@ function engineeringFactsNoEconomicsScenario(): MockScenario {
     'economics-pending',
     '边界:经济指标待计算',
     { source_location: { provider: 'local_directory', location: SOURCE_DIR } },
-    engineeringFactsCompletedResult(false),
+    engineeringFactsCompletedResult(),
+    engineeringFactsResultMeta(false),
   );
 }
 

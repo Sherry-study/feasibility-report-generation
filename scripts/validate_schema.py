@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """校验仓库内 Schema 文件，或按指定 JSON Schema 校验一个实例文件。
 
-本脚本只做确定性检查，不参与可研四阶段业务编排。默认模式用于快速发现
+本脚本只做确定性检查，不参与可研三 Tool 业务编排。默认模式用于快速发现
 `schemas/` 下 JSON Schema 是否可解析、是否至少包含 `$schema` 或 `type`
 这类基本标记；当同时传入 `--schema` 与 `--instance` 时，才进入实例校验。
 """

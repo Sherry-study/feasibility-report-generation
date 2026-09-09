@@ -18,12 +18,13 @@ tests/
 
 ## MCP 工具
 
-公开 MCP Tool 只有两个：
+公开 MCP Tool 有三个，返回统一 `{status, data, warnings}` 信封：
 
-- `engineering_facts`
-- `report_generation`
+- `engineering_facts`：工程事实整理（绑定 engineering-confirmation-ui）
+- `report_prepare`：基于工程事实生成章节工作包（不绑定 UI，对话流文本卡片展示摘要）
+- `report_finalize`：合并 Agent 工作结果并导出 DOCX/Markdown（绑定 report-generation-ui）
 
-`src/engineering_facts/` 和 `src/report_generation/` 是正式业务核心；`schemas/`、`prompts/`、`references/` 为两 Tool 共享的契约与规则来源。
+三个公开 Tool 分别由 `src/engineering_facts/`、`src/report_prepare/`、`src/report_finalize/` 提供独立核心入口；报告共用算法、规则和模板位于 `src/report_shared/`。`schemas/`、`prompts/`、`references/` 是共享契约与规则来源。本 Server 不公开 `read_file` / `read_artifact` Tool；跨 Tool 产物均通过宿主存储中的逻辑 `*_path` 交换。
 
 ## 使用方式
 
@@ -31,18 +32,22 @@ tests/
 
 ```text
 engineering_facts
-→ report_generation(operation=prepare)
-→ Agent Research / Writing / Synthesis
-→ report_generation(operation=finalize)
+→ report_prepare
+→ Agent Research / Writing / Synthesis（通过宿主能力读取工作包、保存 work_results.json）
+→ report_finalize
 ```
 
-`engineering_facts` 输入只接受 `source_location={provider:"local_directory", location:"..."}` 和可选 `construction_unit`。`report_generation` 通过 `operation=prepare|finalize` 分支接收 `engineering_facts_uri/report_context`，或必填的 `work_package_uri` 加可选的 Agent 工作结果（`work_results_uri` 文件或 `work_results` 对象，二选一）；不提供 Agent 结果时 finalize 仍会生成由模板 fallback 兜底的不完整初稿，并在 diagnostics 中提示。
+`engineering_facts` 输入只接受 `source_location={provider:"local_directory", location:"..."}` 和可选 `construction_unit`（未提供时按空值处理，不自动推断）。本地目录例外仅用于在用户明确传入的根目录内枚举、读取受支持的工程输入文件；产出的 Engineering Facts 仍保存到宿主逻辑路径。`report_prepare` 接收 `engineering_facts_path` 和可选 `project_name`，适配层将项目名映射到核心的 `report_context`；核心先生成并完整校验工作包，再保存全部章节 context，最后保存 `work_package.json` 作为提交标志。`report_finalize` 接收必填 `work_package_path` 和可选 `work_results_path`，不接受 inline `work_results`；未提供工作结果时仍生成由模板 fallback 兜底的未闭合草稿。
+
+`report_finalize` 先在本地临时目录生成并校验 Markdown/DOCX，再保存到宿主逻辑路径并通过 HostClient 回读核对哈希和大小，最后保存通过 Schema 校验的 `report_manifest.json`。manifest 是有效交付的提交标志；没有 manifest 不得把本次调用视为 `completed`。
+
+模型可见的 `structuredContent` 只包含产物引用、摘要、warnings 和 error；完整工程事实与完整 Markdown 通过同一 Tool Result 的 `_meta.ui_payload` 传给宿主 UI，不进入 Agent 模型上下文。
 
 未确认或未出现在 Engineering Facts / 工作包 / Agent 结果中的投资、收益、回收期、IRR、产能、能耗等数字不得写入正文。
 
 ## 参考规范
 
-- `references/chapter_rules/`: 旧四阶段规则保留参考；正式两 Tool 运行优先使用 `src/report_generation/rules/`。
+- `references/chapter_rules/`: 旧四阶段规则保留参考；正式报告 Tool 运行使用 `src/report_shared/rules/`。
 - `references/engineering_rules/`: 算法字段语义、字段映射、设备分类、能耗折标、计算口径。
 - `references/report_rules/`: 报告正文写作边界、内部词屏蔽、生产安全约束。
 - `references/runtime_policy.md`: worker、cache、运行时 artifact 等宿主运行策略。

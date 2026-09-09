@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """将可研报告交付物与可复用证据文件打包为 zip。
 
-打包范围故意保持克制：只放用户交付和两 Tool 链路中后续复用最常用的
+打包范围故意保持克制：只放用户交付和三 Tool 链路中后续复用最常用的
 结构化文件，不把临时研究片段、草稿缓存或报告模型塞进正式交付包。
 """
 from __future__ import annotations
@@ -13,6 +13,7 @@ from zipfile import ZIP_DEFLATED, ZipFile
 
 
 DEFAULT_INCLUDE = (
+    "report_manifest.json",
     "可行性研究报告_初稿.docx",
     "可行性研究报告_初稿.md",
     "engineering_facts.json",
@@ -40,7 +41,7 @@ def package_result(output_dir: Path, package_path: Path, names: tuple[str, ...] 
 def main(argv: list[str] | None = None) -> int:
     """命令行入口；至少打包到一个文件时返回 0。"""
     parser = argparse.ArgumentParser(description="打包可研报告交付物。")
-    parser.add_argument("output_dir", help="report_generation 返回的输出目录")
+    parser.add_argument("output_dir", help="本地 Host 中某次 report_finalize 的逻辑路径目录")
     parser.add_argument("--output", required=True, help="目标 zip 路径")
     args = parser.parse_args(argv)
     result = package_result(Path(args.output_dir), Path(args.output))

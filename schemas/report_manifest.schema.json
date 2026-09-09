@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Report Manifest",
+  "type": "object",
+  "required": ["schema_version", "created_at", "markdown", "docx", "summary"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {"const": "1.0"},
+    "created_at": {"type": "string"},
+    "markdown": {"$ref": "#/$defs/artifact"},
+    "docx": {"$ref": "#/$defs/artifact"},
+    "summary": {
+      "type": "object",
+      "required": ["section_count", "fallback_section_count"],
+      "additionalProperties": false,
+      "properties": {
+        "section_count": {"type": "integer", "minimum": 0},
+        "fallback_section_count": {"type": "integer", "minimum": 0}
+      }
+    }
+  },
+  "$defs": {
+    "artifact": {
+      "type": "object",
+      "required": ["path", "media_type", "sha256", "size_bytes"],
+      "additionalProperties": false,
+      "properties": {
+        "path": {"type": "string", "minLength": 1},
+        "media_type": {"type": "string", "minLength": 1},
+        "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "size_bytes": {"type": "integer", "minimum": 1}
+      }
+    }
+  }
+}

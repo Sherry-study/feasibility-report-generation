@@ -23,10 +23,10 @@
     "project_name": {"type": "string"},
     "engineering_facts": {
       "type": "object",
-      "required": ["uri", "root_keys"],
+      "required": ["path", "root_keys"],
       "additionalProperties": false,
       "properties": {
-        "uri": {"type": "string"},
+        "path": {"type": "string"},
         "root_keys": {"type": "array", "items": {"type": "string"}}
       }
     },
@@ -128,7 +128,7 @@
         "section_title",
         "contract",
         "fact_paths",
-        "context_uri",
+        "context_path",
         "research_task_id",
         "output_contract"
       ],
@@ -139,7 +139,7 @@
         "section_title": {"type": "string"},
         "contract": {"type": "object"},
         "fact_paths": {"type": "array", "items": {"type": "string"}},
-        "context_uri": {"type": "string"},
+        "context_path": {"type": "string"},
         "research_task_id": {"type": ["string", "null"]},
         "output_contract": {"$ref": "#/$defs/output_contract"}
       }

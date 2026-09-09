@@ -1,4 +1,4 @@
-"""工程事实整理 Tool 的可导入 API。"""
+"""Report finalize Tool core."""
 
 from .core import OperationCancelled, execute
 

@@ -17,19 +17,21 @@ import copy
 import json
 import os
 import re
+import threading
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from duck.content import Content
+from duck.host_client import HostClient
+from src.artifact_paths import new_logical_prefix
+from src.errors import HostStorageError
+
 
 # 输出契约固定常量
 SCHEMA_VERSION = "2.0"  # 工程事实 JSON 的 schema 版本
-ARTIFACT_FILE_NAME = "engineering_facts.json"  # 产物文件名
 MEDIA_TYPE = "application/json"
-DEFAULT_ARTIFACT_DIR = (
-    Path(__file__).resolve().parents[2] / "report_output_dir"
-)  # 默认落盘目录
 ENERGY_RULES_PATH = (
     Path(__file__).resolve().parent
     / "rules"
@@ -80,6 +82,25 @@ FORBIDDEN_KEYS = {
 }
 
 
+class OperationCancelled(Exception):
+    """协作式取消信号：MCP 层设置 cancel_event 后，核心在检查点抛出。
+
+    该异常必须在所有宽泛 ``except Exception`` 之前透传，不得被包装成
+    ``status=failed`` 的业务失败结果。
+    """
+
+
+def _cancelled(cancel_event: threading.Event | None) -> bool:
+    """判断协作式取消信号是否已被设置。"""
+    return cancel_event is not None and cancel_event.is_set()
+
+
+def _check_cancel(cancel_event: threading.Event | None) -> None:
+    """取消检查点：信号已设置时抛出 OperationCancelled。"""
+    if _cancelled(cancel_event):
+        raise OperationCancelled("engineering_facts operation cancelled")
+
+
 @dataclass
 class Diagnostic:
     """Tool 返回中的诊断项，不写入工程事实 JSON。"""
@@ -128,17 +149,30 @@ class Source:
         return ref
 
 
-def execute(request: dict[str, Any], artifact_dir: str | Path | None = None) -> dict[str, Any]:
+def execute(
+    request: dict[str, Any],
+    *,
+    content: Content,
+    host_client: HostClient,
+    cancel_event: threading.Event | None = None,
+) -> dict[str, Any]:
     """执行业务 Tool。
 
     Args:
         request: 业务输入，只接受 source_location，可选 construction_unit。
-        artifact_dir: 运行时产物目录，不属于业务输入；默认写入根目录 report_output_dir。
+        content: 进度通知适配器。
+        host_client: 宿主逻辑文件读写适配器，最终产物经它保存。
+        cancel_event: 可选协作式取消信号；已设置时核心在检查点抛出
+            OperationCancelled，不返回业务失败信封。不传时行为与旧版一致。
 
     Returns:
         包含 status、artifact、summary、diagnostics 的小对象。
+
+    Raises:
+        OperationCancelled: cancel_event 已设置且执行到某个取消检查点。
     """
     diagnostics: list[Diagnostic] = []
+    _check_cancel(cancel_event)
     fatal = _validate_request(request, diagnostics)
     if fatal:
         return _failed_response(diagnostics)
@@ -146,32 +180,37 @@ def execute(request: dict[str, Any], artifact_dir: str | Path | None = None) -> 
     source_root = Path(request["source_location"]["location"]).resolve()
     construction_unit = _construction_unit(request)
 
-    sources = _discover_sources(source_root, diagnostics)
+    _check_cancel(cancel_event)  # 来源发现前
+    content.report_progress(0, 100, "扫描工程输入来源")
+    sources = _discover_sources(source_root, diagnostics, cancel_event)
+    _check_cancel(cancel_event)  # 来源发现后
     _validate_source_set(sources, diagnostics)
-    payloads = _load_payloads(sources, diagnostics)
+    content.report_progress(35, 100, "读取工程输入来源")
+    payloads = _load_payloads(sources, diagnostics, cancel_event)
+    _check_cancel(cancel_event)  # 来源读取后
     _warn_related_source_gaps(payloads, diagnostics)
 
     if _has_fatal(diagnostics):
         return _failed_response(diagnostics)
 
-    try:
-        facts = _build_facts(
-            payloads=payloads,
-            sources=sources,
-            source_root=source_root,
-            construction_unit=construction_unit,
-            diagnostics=diagnostics,
-        )
-    except Exception as exc:  # noqa: BLE001 - Tool boundary returns failed, not traceback.
-        diagnostics.append(
-            Diagnostic("fatal", "ENGINEERING_FACTS_TOOL_FAILED", str(exc))
-        )
-        return _failed_response(diagnostics)
+    _check_cancel(cancel_event)  # 事实组装前
+    content.report_progress(65, 100, "组装工程事实")
+    facts = _build_facts(
+        payloads=payloads,
+        sources=sources,
+        source_root=source_root,
+        construction_unit=construction_unit,
+        diagnostics=diagnostics,
+    )
     if _has_fatal(diagnostics):
         return _failed_response(diagnostics)
+    _check_cancel(cancel_event)  # 事实组装后
 
-    artifact_root = Path(artifact_dir) if artifact_dir is not None else DEFAULT_ARTIFACT_DIR
-    artifact = _write_artifact(facts, artifact_root)
+    _check_cancel(cancel_event)  # 最终 JSON 写入前：最后取消检查点，之后原子提交
+    content.report_progress(90, 100, "保存工程事实")
+    _check_cancel(cancel_event)
+    artifact = _write_artifact(facts, host_client)
+    content.report_progress(100, 100, "工程事实已完成")
     return {
         "status": "completed",
         "artifact": artifact,
@@ -384,22 +423,39 @@ def _classify_path(
     return None, None
 
 
-def _discover_sources(source_root: Path, diagnostics: list[Diagnostic]) -> dict[str, Source]:
+def _discover_sources(
+    source_root: Path,
+    diagnostics: list[Diagnostic],
+    cancel_event: threading.Event | None = None,
+) -> dict[str, Source]:
     """递归扫描来源目录，识别并按角色归并来源文件。
 
     同一角色匹配到多个文件时记为致命诊断（来源歧义），不返回该角色。
+    每个文件识别前后检查取消信号，保证长目录扫描可被协作取消。
     """
     candidates: dict[str, list[Source]] = {}
+    resolved_root = source_root.resolve()
     for path in source_root.rglob("*"):
         if not path.is_file():
             continue
-        source_type, schema_version = _classify_path(path, source_root, diagnostics)
+        resolved_path = path.resolve()
+        if not _is_relative_to(resolved_path, resolved_root):
+            diagnostics.append(
+                Diagnostic(
+                    "warning",
+                    "SOURCE_OUTSIDE_ROOT_SKIPPED",
+                    f"source outside declared root skipped: {path}",
+                )
+            )
+            continue
+        _check_cancel(cancel_event)  # 单个来源文件读取前
+        source_type, schema_version = _classify_path(resolved_path, resolved_root, diagnostics)
         if not source_type:
             continue
         source = Source(
             source_id=source_type,
             source_type=source_type,
-            path=path.resolve(),
+            path=resolved_path,
             schema_version=schema_version,
         )
         candidates.setdefault(source_type, []).append(source)
@@ -420,10 +476,26 @@ def _discover_sources(source_root: Path, diagnostics: list[Diagnostic]) -> dict[
     return selected
 
 
-def _load_payloads(sources: dict[str, Source], diagnostics: list[Diagnostic]) -> dict[str, Any]:
-    """读取各来源文件内容；Markdown/文本按文本读，其余按 JSON 读。"""
+def _is_relative_to(path: Path, root: Path) -> bool:
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+def _load_payloads(
+    sources: dict[str, Source],
+    diagnostics: list[Diagnostic],
+    cancel_event: threading.Event | None = None,
+) -> dict[str, Any]:
+    """读取各来源文件内容；Markdown/文本按文本读，其余按 JSON 读。
+
+    每个来源文件读取前检查取消信号；取消异常不会被逐文件异常边界吞掉。
+    """
     payloads: dict[str, Any] = {}
     for source_type, source in sources.items():
+        _check_cancel(cancel_event)  # 单个来源文件读取前
         try:
             if source.path.suffix.lower() in {".md", ".txt"}:
                 payloads[source_type] = _read_text(source.path)
@@ -2097,13 +2169,15 @@ def _clean(value: Any, *, keep_top: bool = False) -> Any:
     return value
 
 
-def _write_artifact(facts: dict[str, Any], artifact_dir: Path) -> dict[str, str]:
-    """把工程事实序列化为 JSON 落盘，返回 URI/schema/媒体类型。"""
-    artifact_dir.mkdir(parents=True, exist_ok=True)
-    path = artifact_dir / ARTIFACT_FILE_NAME
-    _write_json_atomic(path, facts)
+def _write_artifact(facts: dict[str, Any], host_client: HostClient) -> dict[str, str]:
+    """把工程事实 JSON 保存到 HostClient，返回 path/schema/媒体类型。"""
+    path = f"{new_logical_prefix('engineering_facts')}/engineering_facts.json"
+    try:
+        host_client.save_file(path, facts)
+    except Exception as exc:  # noqa: BLE001 - storage adapter boundary
+        raise HostStorageError(f"HostClient.save_file failed for {path}: {exc}") from exc
     return {
-        "uri": path.resolve().as_uri(),
+        "path": path,
         "schema_version": SCHEMA_VERSION,
         "media_type": MEDIA_TYPE,
     }

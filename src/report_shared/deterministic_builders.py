@@ -384,7 +384,7 @@ def _investment_scope(facts: dict[str, Any]) -> list[list[str]]:
             ]
         )
     if len(rows) == 1:
-        rows.append(["设备及配套工程", "待补充", "待估算", "待工程量和价格条件落实"])
+        rows.append(["设备及配套工程", "待补充", "待工程量和价格条件落实"])
     return rows
 
 

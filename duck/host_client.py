@@ -18,7 +18,13 @@ class HostClient(Protocol):
     提供文件读写能力，使工作流能与宿主存储层解耦。
     """
 
-    def save_file(self, path: str, data: Union[dict, bytes, str]) -> None:
+    def save_file(
+        self,
+        path: str,
+        data: Union[dict, bytes, str],
+        *,
+        kind: str = "auto",
+    ) -> None:
         """将数据保存到宿主存储。
 
         Args:
@@ -27,10 +33,11 @@ class HostClient(Protocol):
         """
         ...
 
-    def get_file(self, path: str) -> Union[dict, bytes, str]:
+    def get_file(self, path: str, *, kind: str = "auto") -> Union[dict, bytes, str]:
         """从宿主存储读取文件。
 
         Returns:
-            dict（JSON 文件）、str（文本）或 bytes（二进制文件）。
+            dict（JSON 文件）、str（文本）或 bytes（二进制文件）。调用方可用
+            ``kind`` 明确要求原始字节、文本或 JSON。
         """
         ...

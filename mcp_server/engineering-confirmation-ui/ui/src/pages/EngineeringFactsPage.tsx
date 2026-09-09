@@ -351,6 +351,21 @@ export function EngineeringFactsPage() {
               {error && !result && <ErrorBanner error={error} onRetry={() => window.location.reload()} />}
               {result && (
                 <div className="flex h-full flex-col gap-3 overflow-hidden">
+                  {result.status === 'completed' && Object.keys(facts).length === 0 && (
+                    <div
+                      className="shrink-0 border px-3 py-2 text-xs"
+                      style={{
+                        borderColor: 'rgba(245, 158, 11, 0.35)',
+                        background: 'rgba(254, 243, 199, 0.6)',
+                        color: '#92400e',
+                        borderRadius: 6,
+                      }}
+                    >
+                      已收到完成信封，但宿主未透传 <code>_meta.ui_payload.engineering_facts</code>
+                      ，完整工程事实未到达 UI（工具产物已保存在 <code>{result.artifact?.uri ?? '宿主存储'}</code>）。
+                      请检查宿主在推送 tool-result 时是否原样透传 MCP 响应的 <code>_meta</code> 字段。
+                    </div>
+                  )}
                   <section className="ef-panel flex min-h-0 flex-[6] flex-col overflow-hidden">
                     <header
                       className="flex items-center gap-3 border-b px-4 py-2.5"

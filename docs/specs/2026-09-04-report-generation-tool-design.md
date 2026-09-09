@@ -1,15 +1,15 @@
-# 报告编写与输出 Tool 设计规格
+# 报告准备与定稿 Tool 设计规格
 
-更新时间：2026-09-04
+更新时间：2026-09-09
 
 ## 1. 目标
 
-在正式 `src/report_generation` 内实现新版“报告编写与输出” Tool。Tool 只承担可由固定输入、
+在正式 `src/report_prepare`、`src/report_finalize` 和 `src/report_shared` 内实现报告流程。Tool 只承担可由固定输入、
 固定规则稳定复现的确定性工作；研究、资料判断、章节写作和综合写作由 Skill
 编排的 Agent 完成。
 
-当前实现已迁入正式 `src/report_generation`，并通过 MCP Server 以 `report_generation`
-公开。旧四阶段实现仅作为归档参考，不再作为正式运行路径。
+MCP Server 分别公开 `report_prepare` 与 `report_finalize`，每个 Tool 对应独立核心入口；
+共享报告算法位于 `src/report_shared`，不存在 `operation` 路由或旧核心兼容包。
 
 ## 2. 总体流程
 
@@ -17,7 +17,7 @@
 Skill 确认 engineering_facts.json
                 |
                 v
-      report_generation.prepare
+          report_prepare
                 |
                 v
           work_package.json
@@ -29,10 +29,10 @@ Agent 自主获取资料、并行写作、生成综合章节
           work_results.json
                 |
                 v
-      report_generation.finalize
+          report_finalize
                 |
                 v
-             DOCX + Markdown
+       DOCX + Markdown + manifest
 ```
 
 Tool 不依赖历史会话。工程事实确认是 Skill 行为，不是 Tool 状态。
@@ -49,7 +49,7 @@ Tool 不依赖历史会话。工程事实确认是 Skill 行为，不是 Tool �
 - 按契约中的事实路径构造章节级事实切片；
 - 生成固定文本、确定性事实段落和确定性表格；
 - 根据模板中的槽位生成 Research、Writing 和 Synthesis 任务；
-- 生成并落盘 `work_package.json`。
+- 先完整生成并校验工作包，经 HostClient 保存全部章节 context，最后保存作为提交标志的 `work_package.json`。
 
 Research 任务只描述研究目标。Tool 不判断是否联网，也不规定资料来源。
 
@@ -62,7 +62,7 @@ Research 任务只描述研究目标。Tool 不判断是否联网，也不规定
 - 忽略 Agent 返回的标题、表号和目录控制信息；
 - 对缺失或非法的动态章节使用模板指定的确定性 fallback；
 - 按模板顺序装配报告模型；
-- 一次性导出 DOCX 和 Markdown。
+- 本地临时导出并校验 DOCX/Markdown，经 HostClient 保存、回读核验 hash/size，最后保存 manifest。
 
 `finalize` 不做语义可信度判断，不生成修复任务，也没有第二轮 finalize。
 
@@ -85,19 +85,16 @@ Tool 不搜索历史报告、不管理跨项目知识库或缓存。
 
 ## 5. 接口
 
-### 5.1 prepare 输入
+### 5.1 report_prepare 输入
 
 ```json
 {
-  "operation": "prepare",
-  "engineering_facts_uri": "file:///.../engineering_facts.json",
-  "report_context": {
-    "project_name": "可选"
-  }
+  "engineering_facts_path": "runs/engineering_facts/.../engineering_facts.json",
+  "project_name": "可选"
 }
 ```
 
-`artifact_dir` 是运行参数，不属于业务事实。
+跨 Tool 产物均为 HostClient 逻辑 path。FastMCP 将 `project_name` 映射到核心内部的 `report_context`。
 
 项目名优先级：
 
@@ -106,46 +103,46 @@ Tool 不搜索历史报告、不管理跨项目知识库或缓存。
 3. 装置名称 + `技术改造项目`；
 4. `工业装置技术改造项目`。
 
-### 5.2 prepare 输出
+### 5.2 report_prepare 输出
 
 ```json
 {
   "status": "prepared",
-  "artifact": {"uri": "file:///.../work_package.json"},
+  "artifact": {"path": "runs/report_prepare/.../work_package.json"},
   "summary": {
     "research_task_count": 0,
     "writing_task_count": 0,
+    "deterministic_summary_count": 0,
     "synthesis_task_count": 0
   },
   "diagnostics": []
 }
 ```
 
-### 5.3 finalize 输入
+### 5.3 report_finalize 输入
 
 ```json
 {
-  "operation": "finalize",
-  "work_package_uri": "file:///.../work_package.json",
-  "work_results_uri": "file:///.../work_results.json",
-  "work_results": {"schema_version": "1.0", "writing_results": [], "synthesis_results": []}
+  "work_package_path": "runs/report_prepare/.../work_package.json",
+  "work_results_path": "workspace/work_results.json"
 }
 ```
 
-- `work_package_uri` 必填，是 finalize 的唯一必填启动条件。
-- `work_results_uri` 与 `work_results` 可选且互斥：两者表示同一份 Agent 工作结果，只是传入方式不同（JSON 文件 URI / inline 对象），同时传入返回参数冲突错误。
-- 两者都未提供时，使用空工作结果（`writing_results` / `synthesis_results` 均为空数组）继续生成报告，不视为失败；Agent 章节使用模板 fallback 兜底，并返回 `WORK_RESULTS_NOT_PROVIDED` warning 诊断，说明本次报告为不完整初稿。
-- 传入的 `work_results` / `work_results_uri` 内容格式非法时直接失败，不静默降级为空结果。
+- `work_package_path` 必填，是 finalize 的唯一必填启动条件。
+- `work_results_path` 可选；公开接口不接受 inline `work_results`。
+- 未提供工作结果时，使用空结果继续生成报告，不视为失败；Agent 章节使用模板 fallback，并返回 `WORK_RESULTS_NOT_PROVIDED` warning。
+- 传入路径但内容格式非法时直接失败，不静默降级为空结果。
 
-### 5.4 finalize 输出
+### 5.4 report_finalize 输出
 
 ```json
 {
   "status": "completed",
   "artifacts": {
-    "docx": "file:///.../可行性研究报告_初稿.docx",
-    "markdown": "file:///.../可行性研究报告_初稿.md"
+    "docx_path": "runs/report_finalize/.../可行性研究报告_初稿.docx",
+    "markdown_path": "runs/report_finalize/.../可行性研究报告_初稿.md"
   },
+  "manifest_path": "runs/report_finalize/.../report_manifest.json",
   "summary": {
     "section_count": 0,
     "fallback_section_count": 0
@@ -155,6 +152,8 @@ Tool 不搜索历史报告、不管理跨项目知识库或缓存。
 ```
 
 状态只使用 `prepared`、`completed`、`failed`。
+
+prepare 中 `work_package.json` 是章节 context 组的提交标志。finalize 中 manifest 是唯一有效提交标志：两份报告文件必须位于同一内部唯一逻辑路径前缀，manifest 记录各自 path、SHA-256 和 size；保存 manifest 前必须通过 HostClient 回读复核。取消或异常可留下不可达孤儿文件，但不得返回完成状态。
 
 ## 6. 模板和章节契约
 
@@ -206,12 +205,14 @@ Agent 不生成标题、目录、表号或确定性表格。每个普通章节�
 
 ## 8. 异常和 fallback
 
-以下情况返回 `failed`：
+以下用户可修正的输入问题返回 `failed`：
 
-- 工程事实、工作包或工作结果整体无法读取或解析；
-- 输入 Schema 非法；
-- 模板或引用关系非法；
-- DOCX 或 Markdown 导出失败。
+- 用户提供的逻辑路径不存在；
+- 工程事实、工作包或工作结果内容无法解析；
+- 输入 Schema、章节 ID 或工作结果契约非法。
+
+HostClient 鉴权、连接、超时、读写服务异常，以及模板/规则损坏、生成产物 Schema
+失败、导出器异常等未分类内部错误必须抛出，由 MCP 转为 `ToolError`，不得伪装成业务 `failed`。
 
 以下情况不阻断：
 
@@ -231,10 +232,11 @@ Fallback 只能说明当前可研阶段的资料边界和后续需核实事项�
 正式交付只包括：
 
 - `可行性研究报告_初稿.docx`；
-- `可行性研究报告_初稿.md`。
+- `可行性研究报告_初稿.md`；
+- `report_manifest.json`。
 
 `work_package.json`、`work_results.json` 和报告模型是内部产物，可保留在
-`artifact_dir` 用于调试，不作为正式报告内容。
+宿主逻辑路径用于调试，不作为正式报告内容。不公开 reader Tool，也不公开 `run_id` 或 `finalize_id`。
 
 ## 10. 验收标准
 
@@ -250,7 +252,7 @@ Fallback 只能说明当前可研阶段的资料边界和后续需核实事项�
 - 普通章节事实严格隔离；
 - 综合任务只接收章节摘要；
 - 单元测试和 Python 编译检查通过；
-- 使用真实 `engineering_facts.json` 完成一次 prepare/finalize 验证。
+- 使用真实 `engineering_facts.json` 完成一次三 Tool 链路验证；真实 Host 的 `_meta` 可见性、不截断和 E2E 是发布门禁。
 
 ## 11. 方案比较与实施进度表增强（2026-09-07）
 
@@ -258,7 +260,7 @@ Fallback 只能说明当前可研阶段的资料边界和后续需核实事项�
 
 本次增强解决三个问题：候选方案比选表的评价维度被固定、关键设备候选路线缺少
 独立比较表、18.2 只有叙述而没有结构化实施进度表。仍保持
-`engineering_facts.json -> prepare -> Agent -> work_results.json -> finalize` 主流程，
+`engineering_facts.json -> report_prepare -> Agent -> work_results.json -> report_finalize` 主流程，
 报告 Tool 不直接读取 `scheme.json`，也不接管上游算法选择。
 
 由于当前工程事实整理会把 `scheme.json` 的评价维度固定映射为三个字段，本次先做
@@ -371,4 +373,3 @@ Agent 根据 `adopted_scheme`、改造后流程和已选设备专业结果生成
 - Markdown 与 DOCX 中均出现表4.2和表18.1，列名、行数、内容一致；
 - 完整 unittest、compileall、三份 JSON Schema 校验通过；
 - 最终 DOCX 重新渲染并逐页检查，无表格裁切、乱码或异常分页。
-

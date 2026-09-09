@@ -2,21 +2,21 @@
 
 本文记录宿主运行时策略。这些内容不放入 `SKILL.md` 主体，避免把 Skill 重新变成 Workflow Runner。
 
-## 正式两 Tool 主流程
+## 正式三 Tool 主流程
 
 ```text
 engineering_facts
-→ report_generation.prepare
+→ report_prepare
 → Agent Research / Writing / Synthesis
-→ report_generation.finalize
+→ report_finalize
 ```
 
 - `engineering_facts` 只负责把本地专业结果整理为结构化 `engineering_facts.json`。
-- `report_generation.prepare` 只负责校验工程事实、生成章节级工作包并落盘 `work_package.json`。
+- `report_prepare` 只负责校验工程事实、生成章节级工作包并通过 HostClient 最后提交 `work_package.json`。
 - 宿主 Agent 读取 `work_package.json`，自行完成资料判断、外部研究、章节写作和综合章节整理。
 - 宿主 Agent 将结果组装为满足 `schemas/report_work_results.schema.json` 的 `work_results.json`。
-- `report_generation.finalize` 只负责校验 `work_package.json` / `work_results.json`，并导出 DOCX 与 Markdown。
-- 两个 Tool 不承担长期会话状态、跨项目缓存、联网检索、LLM 写作或用户确认流程。
+- `report_finalize` 只负责校验 `work_package.json` / 可选的 `work_results.json`，导出 DOCX 与 Markdown，并在回读完整性校验后最后提交 manifest。
+- 三个 Tool 不承担长期会话状态、跨项目缓存、联网检索、LLM 写作或用户确认流程。
 
 ## Research 运行策略
 
@@ -32,7 +32,7 @@ engineering_facts
 
 - Writing 任务来自 `work_package.writing_tasks`；每个章节只使用本章事实切片、本章研究证据和本章契约。
 - Synthesis 任务来自 `work_package.synthesis_tasks`；综合章节只使用指定章节的 `section_summary` 和确定性摘要。
-- Agent 不生成标题、目录、表号或确定性表格；这些由 `report_generation.finalize` 按模板控制。
+- Agent 不生成标题、目录、表号或确定性表格；这些由 `report_finalize` 按模板控制。
 - Agent 输出应组装为 `work_results.json`，顶层只使用 `schema_version`、`writing_results`、`synthesis_results`。
 - 普通章节结果必须包含 `section_id`、`blocks`、`section_summary`。
 - `implementation_schedule` 仅允许用于 `18.2`，并必须满足七个固定阶段、顺序和字段约束。
@@ -40,7 +40,7 @@ engineering_facts
 
 ## Artifact 保留
 
-- 正式交付物：`可行性研究报告_初稿.docx`、`可行性研究报告_初稿.md`。
+- 正式交付物：有效 `report_manifest.json` 关联的 `可行性研究报告_初稿.docx`、`可行性研究报告_初稿.md`。
 - 建议调试保留：`engineering_facts.json`、`work_package.json`、`work_results.json`。
 - research 过程记录、draft 临时片段、校验临时文件、缓存和报告模型属于执行细节。
 - 生产交付不得把 worker pack、缓存细节、内部校验文件、中间规划文件或 Tool 调用细节暴露到报告正文。

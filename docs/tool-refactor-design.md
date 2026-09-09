@@ -1,8 +1,8 @@
 # Tool 层改造设计文档
 
 > 日期：2026-09-08
-> 状态：待评审
-> 范围：只改 MCP Tool 契约、取消支持及既有 UI 的必要协议适配；不改业务算法和 UI 页面设计。
+> 状态：已按 2026-09-08 评审意见修订
+> 范围：改 MCP Tool 契约、`src` 业务核心边界、duck 能力注入、取消支持及既有 UI 的必要协议适配；不改根目录 `提示词.md`，不改 UI 页面组件/视觉/业务展示。
 
 ---
 
@@ -16,7 +16,7 @@
 |---|---------|---------|
 | 1 | 返回统一信封 `{status, data, warnings}` | 没有 `data` 包裹层，字段平铺在顶层 |
 | 2 | 大结果落盘、模型侧摘要优先 | `engineering_facts` 和 Markdown 已落盘，但完整对象仍进入模型可见返回；既有 UI 又依赖这些数据 |
-| 3 | 入参顶级 ≤5 个 | `report_generation` 有 6 个顶级参数，且 `operation` 路由导致不同分支参数语义混杂 |
+| 3 | 入参顶级 ≤5 个 | 旧 `report_generation` 有 6 个顶级参数，且 `operation` 路由导致不同分支参数语义混杂 |
 | 4 | 协作式取消检查点 | 两个 Tool 都是 `async def` + `asyncio.to_thread` 模式，完全没有 `threading.Event` 取消信号桥接 |
 | 5 | Tool description 四要素（职责/场景/返回关键字段/错误/何时不调用） | 缺少"何时不调用"边界说明 |
 | 6 | 用 `ToolError` 而非裸异常 | 当前业务核心会把预期异常转换为 `status=failed`，但 MCP 层尚未区分业务失败、未预期异常和取消 |
@@ -24,35 +24,44 @@
 
 ### 1.2 架构问题
 
-`report_generation` 用 `operation` 参数做内部路由（prepare / finalize），两个分支的入参、出参、场景完全不同，耦合在一起违反单一职责：
+旧 `report_generation` 用 `operation` 参数做内部路由（prepare / finalize），两个分支的入参、出参、场景完全不同，耦合在一起违反单一职责：
 
-- **prepare**：需要 `engineering_facts_uri`，产出 `work_package.json`
-- **finalize**：需要 `work_package_uri`，产出 DOCX/Markdown
+- **prepare**：需要工程事实文件路径，产出 `work_package.json`
+- **finalize**：需要工作包路径和工作结果路径，产出 DOCX/Markdown
 
-两个分支各有一个 `operation` 下才有效的参数，入参语义在调用时才能确定，对调用方不友好。
+当前实现虽然在 FastMCP 层注册了 `report_prepare` / `report_finalize` 两个入口，但二者仍映射到同一个 `src/report_generation/core.py` 旧路由器。这只是在 MCP 外壳层拆分，没有形成“每个 Tool 一个独立业务核心”的真实边界。
+
+此外，`mcp_server/server.py` 中已经出现 `make_host_client(ctx)` 调用，但返回值未传入 `src` 核心，相当于创建了 HostClient 后立即丢弃。业务核心仍直接使用本地文件 I/O，duck 协议没有真实接入。
 
 ---
 
 ## 2. 改造目标
 
 1. 返回结构统一为 `{status, data, warnings}` 信封，并为三个 Tool 提供明确的 Pydantic 输出 Schema
-2. `report_generation` 拆为 `report_prepare` + `report_finalize` 两个独立 Tool
+2. `report_generation` 拆为 `report_prepare` + `report_finalize` 两个独立 Tool，并拆出对应的独立 `src` 核心入口
 3. 模型可见结果只返回产物信息和摘要；既有 UI 需要的完整对象通过同一次 Tool Result 的 `_meta.ui_payload` 传递
 4. 不新增 `read_artifact`、`read_file` 或其他文件读取 Tool
-5. 不新增用户可见或模型可见的 `run_id`；保留当前 `_artifact_dir()` 的唯一运行目录机制
+5. 不新增用户可见或模型可见的 `run_id`；内部运行目录继续用时间戳 + UUID 隔离，但内部时间戳 + UUID 不写入公开产物字段，也不作为 MCP 参数或返回独立字段
 6. 添加真正进入同步业务核心的 `threading.Event` 协作式取消检查点
 7. 可预期业务失败返回失败信封；未预期内部异常才使用 `ToolError`
 8. description 补全职责、场景、返回、错误和不调用边界，入参细节写进 Field description
 
+9. FastMCP 层仅做适配：创建 `MCPContent(ctx, loop)` 与 `make_host_client(ctx)`，并把实际需要的能力注入对应 `src` 核心
+10. `src` 业务层只依赖 `duck.content.Content` / `duck.host_client.HostClient`，不依赖 FastMCP、Context、ToolResult 或 `mcp_server`
+
 ### 2.1 运行环境前提
 
-本方案延续当前“本地目录 + 本地文件 URI”的产品形态，要求 MCP Server 与执行编制任务的 Host Agent 处于同一受控文件系统环境。完整链路为：
+本方案从“本地文件路径引用”切换为“HostClient 逻辑路径”作为 Tool 间产物交换方式。完整链路为：
 
-1. `report_prepare` 返回 `work_package.json` 的 URI；
-2. Host Agent 使用自身已有的文件系统能力读取该文件并完成编制任务；
-3. Host Agent 将结果写成 `work_results.json`，再把 URI 传给 `report_finalize`。
+1. `engineering_facts` 通过 `HostClient.save_file()` 写入工程事实文件，返回 `engineering_facts_path`；
+2. `report_prepare` 通过 `HostClient.get_file(engineering_facts_path)` 读取工程事实，先生成并完整校验 `work_package.json` 内容，再保存全部章节 context 文件，最后保存 `work_package.json` 并返回 `work_package_path`；
+3. Host Agent 使用宿主已有工作区文件能力读取工作包，完成研究/编写/汇总任务，并把 `work_results.json` 写回宿主工作区；
+4. `report_finalize` 通过 `HostClient.get_file(work_package_path)` 读取工作包；若提供 `work_results_path`，再通过 `HostClient.get_file(work_results_path)` 读取工作结果；若未提供，则沿用既有业务语义生成 fallback 未闭合草稿；
+5. `report_finalize` 最后写入 manifest；只有通过 Schema、路径关联、hash、size 校验的 manifest 指向同一组 Markdown/DOCX 时，这组报告才被视为有效交付物。
 
-这里依赖的是 **Host 已有的文件系统读写能力**，不是本 MCP Server 再暴露文件读取 Tool。若部署环境不具备该能力，则当前本地文件 URI 工作流本身不成立，应停止实施并调整部署架构，不能用新增 `read_artifact` 或 `read_file` 来补洞。
+`source_location.provider=local_directory` 的例外边界必须严格收窄：仅允许在用户明确传入的本地根目录内枚举并读取受支持源文件；不得越出该根目录，不得读取无关文件。此例外只用于 `engineering_facts` 的工程事实输入采集，不覆盖跨 Tool 产物或输出；工程事实、工作包、工作结果、章节 context、Markdown、DOCX、manifest 全部走 HostClient 逻辑路径。
+
+这里依赖的是 **Host 已有的工作区文件能力**，不是本 MCP Server 再暴露文件读取 Tool。若部署环境不具备该能力，应停止实施并调整部署架构，不能用新增 `read_artifact` 或 `read_file` 来补洞。
 
 ---
 
@@ -65,17 +74,46 @@
 | Tool | 入参 | 返回 |
 |------|------|------|
 | `engineering_facts` | `source_location` + `construction_unit` | `{status, artifact, engineering_facts, summary, diagnostics}` |
-| `report_generation` | `operation` + `engineering_facts_uri` + `report_context` + `work_package_uri` + `work_results_uri` + `work_results` | `{status, artifact/artifacts, markdown_content, summary, diagnostics}` |
+| `report_generation` | `operation` + prepare/finalize 混合参数 | `{status, artifact/artifacts, markdown_content, summary, diagnostics}` |
 
 #### 改造后（3 个 Tool）
 
 | Tool | 入参 | 返回 | UI |
 |------|------|------|-----|
-| `engineering_facts` | `source_location` + 可选 `construction_unit` | `{status, data: {artifact, summary, error}, warnings}` | engineering-confirmation-ui |
-| `report_prepare` | `engineering_facts_uri` + 可选 `project_name` | `{status, data: {artifact, summary, error}, warnings}` | 无（对话流文本卡片） |
-| `report_finalize` | `work_package_uri` + 可选 `work_results_uri` | `{status, data: {artifacts, summary, error}, warnings}` | report-generation-ui |
+| `engineering_facts` | `source_location` + 可选 `construction_unit` | `{status, data: {artifact, summary, error}, warnings}` | 工程事实 UI |
+| `report_prepare` | `engineering_facts_path` + 可选 `project_name` | `{status, data: {artifact, summary, error}, warnings}` | 无 |
+| `report_finalize` | `work_package_path` + 可选 `work_results_path` | `{status, data: {artifacts, manifest_path, summary, error}, warnings}` | 原“报告编写与生成”UI |
 
-三个 Tool 的业务参数均不超过 2 个，无需再增加 `inp` 外层包装。`report_prepare` 和 `report_finalize` 不再暴露 `operation` 参数，由 MCP 适配层映射到现有业务核心。
+三个 Tool 的业务参数均不超过 2 个，无需再增加 `inp` 外层包装。`report_prepare` 和 `report_finalize` 不再暴露 `operation` 参数，也不得在 `mcp_server` 中映射到旧的 `src/report_generation/core.py` 路由器。每个公开 Tool 必须调用自己的 `src` 核心入口。
+
+目标结构：
+
+```text
+duck/
+├── content.py
+└── host_client.py
+
+src/
+├── engineering_facts/
+│   └── core.py
+├── report_prepare/
+│   └── core.py
+├── report_finalize/
+│   └── core.py
+└── report_shared/
+    ├── context_builder.py
+    ├── deterministic_builders.py
+    ├── exporters.py
+    ├── template_loader.py
+    ├── rules/
+    └── templates/
+
+mcp_server/
+├── server.py
+└── duck_implement/
+    ├── content.py
+    └── host_client.py
+```
 
 #### 3.1.1 `engineering_facts` 改造
 
@@ -99,7 +137,7 @@ async def engineering_facts(
     "status": "completed" | "failed",
     "data": {
         "artifact": {
-            "uri": "file:///.../engineering_facts.json",
+            "path": "runs/2026-09-08T10-30-00Z-<uuid>/engineering_facts.json",
             "media_type": "application/json",
             "schema_version": "2.0"
         },
@@ -114,6 +152,7 @@ async def engineering_facts(
 - 模型可见的 `structured_content` 不再包含完整 `engineering_facts`，只包含产物引用、摘要、错误和 warnings。
 - 为保持现有工程事实 UI 不变，完整 `engineering_facts` 通过同一次 Tool Result 的 `_meta.ui_payload.engineering_facts` 传给 UI。
 - fatal diagnostic 映射为 `data.error`，非 fatal diagnostic 映射为 `warnings`；不得把 fatal 当作 warning。
+- `local_directory` 只在用户传入根目录内枚举并读取受支持源文件；最终 `engineering_facts.json` 必须通过 `HostClient.save_file()` 写入逻辑路径。
 
 #### 3.1.2 `report_prepare`（新 Tool）
 
@@ -122,23 +161,15 @@ async def engineering_facts(
 ```python
 async def report_prepare(
     ctx: Context,
-    engineering_facts_uri: str,
+    engineering_facts_path: str,
     project_name: str | None = None,
 ) -> ToolResult:
     ...
 ```
 
-MCP 适配层映射为现有业务核心请求：
+FastMCP 适配层创建 `content` / `host_client` 后，直接调用 `src.report_prepare.core.execute()`。`src.report_prepare` 不接收 `operation`，不依赖旧 `src.report_generation` 路由器。
 
-```python
-request = {
-    "operation": "prepare",
-    "engineering_facts_uri": engineering_facts_uri,
-    "report_context": {"project_name": project_name} if project_name else {},
-}
-```
-
-当前 `ReportContext` 只有 `project_name` 一个字段，因此上述映射没有删减已有业务入参。若未来扩展 `ReportContext`，应先单独评审是否增加 MCP 入参，不能静默丢弃字段。
+当前 `ReportContext` 只有 `project_name` 一个字段，因此 MCP 入参只保留 `project_name`。若未来扩展 `ReportContext`，应先单独评审是否增加 MCP 入参，不能静默丢弃字段。
 
 **返回信封**：
 
@@ -147,7 +178,7 @@ request = {
     "status": "prepared" | "failed",
     "data": {
         "artifact": {
-            "uri": "file:///.../work_package.json",
+            "path": "runs/2026-09-08T10-30-00Z-<uuid>/work_package.json",
             "media_type": "application/json",
             "schema_version": "1.0"
         },
@@ -160,22 +191,33 @@ request = {
 
 **不绑定 UI 资源**：`report_prepare` 是中间步骤，在对话流中以文本卡片展示摘要即可，不需要独占 iframe。
 
+**context 提交规则**：
+- `report_prepare` 在任何 HostClient 写入前，必须先生成完整 `work_package.json` 内容，并完成 Schema 校验和内部一致性校验；
+- `report_prepare` 确认工作包内容有效后，再通过 `HostClient.save_file()` 保存全部章节 context 文件；
+- 全部 context 保存成功后，最后保存 `work_package.json`；
+- `work_package.json` 是这组 context 的提交标志；
+- 任何 context 保存失败时，不保存 `work_package.json`；
+- 失败或取消时不得返回 `prepared`，不得返回 `data.artifact.path`；
+- 由于 HostClient 没有删除能力，失败或取消时允许残留不可达的孤儿 context 文件，但没有 `work_package.json` 指向的 context 不得被 Agent、Skill 或验证脚本视为有效工作包组成部分。
+
 #### 3.1.3 `report_finalize`（新 Tool）
 
-**入参模型**：MCP 层只接收工作结果 JSON 的 URI，不再暴露较大的 inline `work_results`。现有业务核心可继续保留 inline 能力，供本地 Python 调用和单元测试使用。
+**入参模型**：MCP 层只接收工作包和工作结果 JSON 的逻辑路径，不再暴露较大的 inline `work_results`。
 
 ```python
 async def report_finalize(
     ctx: Context,
-    work_package_uri: str,
-    work_results_uri: str | None = None,
+    work_package_path: str,
+    work_results_path: str | None = None,
 ) -> ToolResult:
     ...
 ```
 
-未提供 `work_results_uri` 时继续沿用当前 fallback 行为，并返回明确 warning。MCP 适配层把两个参数映射为内部 `operation="finalize"` 请求。
+FastMCP 适配层创建 `content` / `host_client` 后，直接调用 `src.report_finalize.core.execute()`。`src.report_finalize` 不接收 `operation`，不依赖旧 `src.report_generation` 路由器。
 
-此处 `completed` 只表示“本次导出动作已完成”，不代表数据已闭合，也不代表报告达到正式交付条件。只要存在 fallback，UI 和 Skill 都必须将结果表述为“存在未闭合内容的草稿”，不得标记为“数据完整”或“正式终稿”。
+`work_results_path` 在 MCP Tool 中保持可选。未提供时沿用既有业务语义：继续生成由模板 fallback 兜底的未闭合草稿，并返回明确 warning，例如 `WORK_RESULTS_NOT_PROVIDED`。这不是完整交付，只能作为草稿进入 UI 和 Skill 流程。
+
+此处 `completed` 只表示 Markdown/DOCX 与通过校验的 manifest 已成组提交成功，不代表报告达到正式交付条件。只要存在 fallback，UI 和 Skill 都必须将结果表述为“存在未闭合内容的草稿”，不得标记为“数据完整”或“正式终稿”。
 
 **返回信封**：
 
@@ -184,9 +226,10 @@ async def report_finalize(
     "status": "completed" | "failed",
     "data": {
         "artifacts": {
-            "docx": "file:///.../可行性研究报告_初稿.docx",
-            "markdown": "file:///.../可行性研究报告_初稿.md"
+            "docx_path": "runs/.../可行性研究报告_初稿.docx",
+            "markdown_path": "runs/.../可行性研究报告_初稿.md"
         },
+        "manifest_path": "runs/.../report_manifest.json",
         "summary": {"section_count": 20, "fallback_section_count": 3},
         "error": null
     },
@@ -197,11 +240,12 @@ async def report_finalize(
 **关键变化**：
 - 模型可见的 `structured_content` 不再包含完整 `markdown_content`。
 - 为保持现有报告 UI，不新增文件读取 Tool；完整 Markdown 通过同一次 Tool Result 的 `_meta.ui_payload.markdown_content` 传给 UI。
-- MCP 层只保留 `work_results_uri`；不提供时继续生成带 fallback 告警的不完整初稿。
+- MCP 层保留可选 `work_results_path`；未提供时生成 fallback 未闭合草稿并返回 warning。
+- Markdown、DOCX 和 manifest 使用 HostClient 写入；manifest 最后写入，是报告成组有效性的唯一提交标志。
 
 #### 3.1.4 输出 Schema（三个 Tool 通用）
 
-不能只定义输入模型。三个 Tool 必须分别定义明确的 Pydantic `data` 模型和输出信封，并通过函数返回注解或 `@mcp.tool(output_schema=...)` 暴露真实 output schema。
+不能只定义输入模型。三个 Tool 必须分别定义明确的 Pydantic `data` 模型和输出信封，并通过 `@mcp.tool(output_schema=...)` 暴露真实 output schema。
 
 通用字段：
 
@@ -217,19 +261,19 @@ class ErrorInfo(BaseModel):
     retryable: bool = False
 
 class ArtifactRef(BaseModel):
-    uri: str
+    path: str
     media_type: str
     schema_version: str | None = None
 
 class ReportArtifacts(BaseModel):
-    docx: str
-    markdown: str
+    docx_path: str
+    markdown_path: str
 
 class EmptySummary(BaseModel):
     model_config = ConfigDict(extra="forbid")
 ```
 
-`ArtifactRef` 用于 `engineering_facts.json`、`work_package.json` 这类单一 JSON 产物。`report_finalize` 为保持现有页面契约，使用 `ReportArtifacts` 返回 DOCX 和 Markdown 的 URI 字符串，不与 `ArtifactRef` 混用。
+`ArtifactRef` 用于 `engineering_facts.json`、`work_package.json` 这类单一 JSON 产物。`report_finalize` 使用 `ReportArtifacts` 返回 DOCX、Markdown 的逻辑路径，并在 `data.manifest_path` 中返回提交清单路径字符串；不定义额外的 manifest 引用模型。
 
 每个 Tool 分别定义成功/失败模型，并用 `status` 作为判别字段导出联合 Schema。不得继续使用通用 `dict[str, Any]`，也不得让无效状态组合通过校验：
 
@@ -277,7 +321,46 @@ return ToolResult(
 )
 ```
 
-#### 3.1.5 取消检查点（三个 Tool 通用）
+#### 3.1.5 `report_manifest` Schema
+
+新增 `schemas/report_manifest.schema.json`，作为报告产物组的提交清单契约。manifest 使用逻辑 path，不使用本地绝对路径。
+
+字段写死为：
+
+```json
+{
+  "schema_version": "1.0",
+  "created_at": "2026-09-08T10:30:00Z",
+  "markdown": {
+    "path": "runs/.../可行性研究报告_初稿.md",
+    "sha256": "<64 hex chars>",
+    "size_bytes": 12345,
+    "media_type": "text/markdown"
+  },
+  "docx": {
+    "path": "runs/.../可行性研究报告_初稿.docx",
+    "sha256": "<64 hex chars>",
+    "size_bytes": 67890,
+    "media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+  },
+  "summary": {
+    "section_count": 20,
+    "fallback_section_count": 3
+  }
+}
+```
+
+约束：
+
+- `schema_version` 固定为 `"1.0"`；
+- 同一次 finalize 仅靠内部唯一逻辑路径前缀关联；内部时间戳 + UUID 不写入 manifest 字段，也不作为 MCP 参数或返回独立字段；
+- `markdown.path`、`docx.path` 和 `manifest_path` 必须位于同一个内部唯一逻辑路径前缀下；
+- `sha256` 必须是对应本地临时文件上传前计算出的 64 位十六进制哈希；
+- `size_bytes` 必须是对应本地临时文件上传前的字节数，且大于 0；
+- manifest 保存前必须先用 `schemas/report_manifest.schema.json` 校验；
+- 验收不能只检查“manifest 存在”，必须校验 manifest Schema、路径关联、hash 和 size。
+
+#### 3.1.6 取消检查点（三个 Tool 通用）
 
 ```python
 import threading
@@ -288,8 +371,9 @@ async def engineering_facts(...) -> ToolResult:
     worker = asyncio.create_task(asyncio.to_thread(
         execute_engineering_facts,
         request,
-        artifact_dir,
-        cancel_event,
+        content=content,
+        host_client=host_client,
+        cancel_event=cancel_event,
     ))
 
     try:
@@ -315,13 +399,19 @@ async def engineering_facts(...) -> ToolResult:
 - 首次等待使用 `asyncio.shield()`，避免外层取消把 worker 包装任务一并取消；
 - 收到取消后先设置 Event，再等待 worker 完成清理，最后传播原始 `CancelledError`。清理期间的内部异常只写服务端日志，不能覆盖客户端取消语义。
 
-只修改 MCP 外壳不够。两个业务核心的 `execute()` 都要增加向后兼容的可选参数，并用专用异常穿过现有的宽泛异常边界：
+只修改 MCP 外壳不够。三个业务核心的 `execute()` 都要接收实际需要的 duck 能力和向后兼容的可选取消参数，并用专用异常穿过现有的宽泛异常边界：
 
 ```python
 class OperationCancelled(Exception):
     pass
 
-def execute(request, artifact_dir, cancel_event: threading.Event | None = None):
+def execute(
+    request,
+    *,
+    content: Content,
+    host_client: HostClient,
+    cancel_event: threading.Event | None = None,
+):
     try:
         ...
         if cancel_event and cancel_event.is_set():
@@ -341,29 +431,77 @@ def execute(request, artifact_dir, cancel_event: threading.Event | None = None):
 |------|--------|
 | `engineering_facts` | 来源发现前后、每个来源文件读取前后、事实组装前后、最终 JSON 写入前 |
 | `report_prepare` | 工程事实读取前后、章节循环顶部、章节 context 写入前、工作包写入前 |
-| `report_finalize` | 工作包/结果读取前后、章节循环顶部、Markdown/DOCX 导出前后、最终 `os.replace` 前 |
+| `report_finalize` | 工作包/结果读取前后、章节循环顶部、本地临时 Markdown/DOCX 导出前后、HostClient 写入前、manifest 写入前 |
 
 在正式产物提交点之前观察到取消时，不得发布未完成产物，临时 `.tmp` 文件应清理。`CancelledError` 必须重新抛出，不能返回正常信封，否则 MCP 框架可能二次响应。外层协程取消后，后台线程应在下一个检查点协作退出；测试必须等待该线程退出后再检查目录，而不是只断言外层协程已取消。
 
-DOCX 与 Markdown 必须作为一组发布，并定义唯一提交点：
+DOCX 与 Markdown 必须作为一组报告产物发布，但现有 `HostClient` 没有事务、删除或跨文件原子提交能力，因此不能虚称“整组原子写入”。本方案采用通过 Schema 校验的 manifest 作为唯一有效提交标志：
 
-1. 两个文件都先写入本次运行目录的临时名称；
-2. 校验两个临时文件均完整可读；
-3. 在进入提交段前最后检查一次取消信号；若已取消，删除整组临时文件并抛出 `OperationCancelled`；
-4. 进入提交段后不再检查取消信号，连续完成两个 `os.replace`；
-5. 只有两个正式文件都发布成功，核心才返回 artifacts，UI/Skill 才能把它们视为有效结果。
+1. 在本地临时目录导出 Markdown 和 DOCX；
+2. 校验两个本地临时文件均完整可读，并计算 `sha256`、`size_bytes`；
+3. 在 HostClient 写入前检查取消信号；若已取消，清理本地临时文件并抛出 `OperationCancelled`；
+4. 通过 `HostClient.save_file()` 将 Markdown 和 DOCX 写入同一个唯一逻辑路径前缀下；
+5. 上传后通过 `HostClient.get_file()` 回读 Markdown 和 DOCX，重新核对 `sha256` 与 `size_bytes`；
+6. 回读核验通过后生成 manifest，校验 `schemas/report_manifest.schema.json`、路径关联、hash 和 size；
+7. 两个文件写入成功、回读核验成功且 manifest 校验通过后，最后通过 `HostClient.save_file()` 写入 `report_manifest.json`；
+8. 只有 manifest 写入成功，核心才返回 `status="completed"`、`artifacts` 和 `manifest_path`，UI/Skill 才能把这组报告视为有效结果。
 
-取消的线性化时点就是第 3 步：在此之前取消，保证不发布正式产物；进入第 4 步后才收到取消，则完成整组提交，并按“已经完成的原子发布不回滚”处理。若任一 replace 因系统错误失败，清理本次运行中可清理的半组文件并抛出内部异常，不返回 artifacts。
+取消/异常规则：
 
-每个生产 Tool 调用入口继续使用 `make_host_client(ctx)`，不改成全局或静态 client。
+- manifest 写入前观察到取消：不写 manifest，不返回 `completed`；
+- Markdown 或 DOCX 已经通过 HostClient 写入、但 manifest 未写入时，允许留下不可达的孤儿文件，因为 HostClient 无删除能力；
+- 没有 manifest 的孤儿文件不得被 UI、Skill、验证脚本或 Agent 视为有效交付；
+- HostClient 写入 Markdown/DOCX 或 manifest 失败时，核心抛内部存储异常，MCP 层转为 `ToolError`，不返回 `completed`；
+- 上传后 `HostClient.get_file()` 回读失败属于 HostClient 存储故障，核心抛内部存储异常，MCP 层转为 `ToolError`；
+- 上传后回读内容的 `sha256` 或 `size_bytes` 与本地临时文件不匹配，视为内部存储完整性错误，核心抛内部存储异常，不写 manifest，MCP 层转为 `ToolError`；
+- manifest 写入成功后才是提交点，之后取消不回滚已完成结果。
 
-#### 3.1.6 错误分类
+每个生产 Tool 调用入口继续使用 `make_host_client(ctx)`，不改成全局或静态 client，也不能创建后丢弃。三核心都要向宿主工作区输出或读取产物，因此 `host_client` 是必需依赖；三核心都要报告真实阶段进度，因此 `content` 也是必需依赖。只有 `cancel_event` 保持可选。
+
+### 3.1.7 duck 真实注入
+
+参考 `.trae/skills/build_mcp-server/business-mcp-demo/mcp_server/duck_implement`，本项目采用同样边界：
+
+- `duck/content.py` 和 `duck/host_client.py` 是业务层可依赖的协议；
+- `mcp_server/duck_implement/content.py` 和 `mcp_server/duck_implement/host_client.py` 是 MCP 环境下的具体实现；
+- `mcp_server/server.py` 在每次 Tool 调用内创建实现对象，并传入 `src` 核心；
+- `src` 只能看到 `Content` / `HostClient` 协议，不能 import FastMCP、Context、ToolResult、ToolError 或 `mcp_server.duck_implement`。
+
+示意：
+
+```python
+content = MCPContent(ctx, asyncio.get_running_loop())
+host_client = make_host_client(ctx)
+
+result = execute_report_prepare(
+    request,
+    content=content,
+    host_client=host_client,
+    cancel_event=cancel_event,
+)
+```
+
+不能出现这种形式：
+
+```python
+make_host_client(ctx)  # 返回值未使用
+result = execute_report_prepare(request)
+```
+
+能力注入规则：
+
+- 三个核心都接收 `content`，用于真实阶段进度和必要的 UI 中间事件；
+- 三个核心都接收 `host_client`，用于读取/保存宿主工作区产物；
+- `source_location.provider=local_directory` 的目录枚举仍可使用本地文件系统；
+- Tool 间产物传递和报告最终产物必须走 `HostClient` 逻辑路径。
+
+#### 3.1.8 错误分类
 
 | 场景 | 对外语义 | 处理方式 |
 |---|---|---|
 | MCP 参数缺失、类型错误 | 协议校验失败 | 交给 Pydantic/FastMCP 返回参数校验错误，不进入业务核心 |
-| 不支持的 provider、源文件缺失、JSON/Schema 无效、工作包或工作结果无效 | 可预期业务失败 | 返回 `status="failed"` 信封和稳定 `data.error.code`；可由用户修正时 `retryable=true` |
-| 输出目录权限失败、原子写失败、未分类内部异常 | 系统异常 | 记录服务端日志并抛出 `ToolError`，不得把 traceback 或敏感绝对路径返回给模型/UI |
+| 用户提供的逻辑路径不存在、路径指向内容不是预期 JSON/二进制、输入内容或 Schema 无效、不支持的 provider、源文件缺失、工作包或工作结果无效 | 可预期业务失败 | 返回 `status="failed"` 信封和稳定 `data.error.code`；可由用户修正时 `retryable=true` |
+| HostClient 鉴权失败、连接失败、超时、存储服务 5xx、`save_file`/`get_file` 存储服务异常、未分类内部异常 | 内部系统异常 | 核心抛内部存储异常或内部异常，MCP 层记录服务端日志并转为 `ToolError`；禁止返回 `status="failed"` |
 | 客户端取消 | 已取消 | 设置取消信号，核心协作退出，对外传播 `CancelledError`，不返回失败信封 |
 
 ### 3.2 UI 层变更
@@ -388,7 +526,7 @@ return {
 };
 ```
 
-实现时不能展开整个 `ui_payload` 覆盖结构化结果。只允许白名单读取 `engineering_facts`、`markdown_content` 两个大字段；状态、产物 URI、摘要、warnings 和 error 始终以 `structuredContent` 为准。不同页面只取自己需要的白名单字段。
+实现时不能展开整个 `ui_payload` 覆盖结构化结果。只允许白名单读取 `engineering_facts`、`markdown_content` 两个大字段；状态、产物路径、摘要、warnings 和 error 始终以 `structuredContent` 为准。不同页面只取自己需要的白名单字段。
 
 由于 `_meta` 的传输和可见性取决于实际 MCP Host，落地前必须用代表性数据完成集成验证：
 
@@ -396,7 +534,7 @@ return {
 - 约 780 KB 的工程事实和约 42 KB 的 Markdown 不会被 Host 截断；
 - 无 UI 客户端仍能仅凭 `structuredContent` 和 Host 已有文件系统能力完成链路。
 
-若真实 Host 不满足上述条件，本轮改造暂停，保留改造前的现有实现并单独评审大结果传输方案；不能在严格新信封中临时塞回旧顶层字段，也不能因此新增 `read_artifact`。只有另行明确内联字段在成功 `data` 模型中的 Schema 和 UI 归一化协议后，才能采用内联方案。该验证完成前不实施 `_meta` 搬迁。
+允许先完成代码实现和本地测试，但在真实 Host 完成上述验证前，不得宣布最终验收、不得发布为可交付版本。若真实 Host 不满足 `_meta` 可见性、不截断或 E2E 链路要求，应暂停最终验收并单独评审大结果传输方案；不能在严格新信封中临时塞回旧顶层字段，也不能因此新增 `read_artifact` 或 `read_file`。只有另行明确内联字段在成功 `data` 模型中的 Schema 和 UI 归一化协议后，才能采用内联方案。
 
 ### 3.3 Skill 层变更
 
@@ -415,24 +553,49 @@ tools:
 | 状态 | Agent 动作 | 完成条件 |
 |------|-----------|----------|
 | `engineering_facts.status=failed` | 展示 `data.error` 和 `warnings`，修正后重试 | 返回 `completed` |
-| `engineering_facts.status=completed` | 核对 `data.artifact.uri`、`data.summary` | 可进入 `report_prepare` |
+| `engineering_facts.status=completed` | 核对 `data.artifact.path`、`data.summary` | 可进入 `report_prepare` |
 | `report_prepare.status=failed` | 展示 `data.error` 和 `warnings`，修正后重试 | 返回 `prepared` |
-| `report_prepare.status=prepared` | Host Agent 用已有文件系统能力读取 `work_package.json`，按 `research_tasks`/`writing_tasks`/`synthesis_tasks` 完成工作 | `work_results.json` 满足 schema |
+| `report_prepare.status=prepared` | Host Agent 用已有文件系统能力读取 `data.artifact.path` 指向的 `work_package.json`，按 `research_tasks`/`writing_tasks`/`synthesis_tasks` 完成工作 | 进入编写，或显式选择跳过工作结果生成 fallback 草稿 |
 | `report_finalize.status=failed` | 展示 `data.error` 和 `warnings`，修正后重试 | 返回 `completed` |
-| `report_finalize.status=completed` 且 `fallback_section_count=0` | 核对 DOCX、Markdown 和摘要并作为完整报告交付 | 两个文件存在且无 fallback |
-| `report_finalize.status=completed` 且 `fallback_section_count>0` | 通过现有 summary/diagnostics 明确标注“未闭合草稿”，交付草稿并继续补充工作结果 | 两个文件存在，fallback 数量已披露 |
+| `report_finalize.status=completed` 且 `fallback_section_count=0` | 核对 `data.artifacts`、`data.manifest_path` 和摘要并作为完整报告交付 | manifest 通过 Schema、路径关联、hash、size 校验，两个文件存在且无 fallback |
+| `report_finalize.status=completed` 且 `fallback_section_count>0` | 通过现有 summary/diagnostics 明确标注“未闭合草稿”，交付草稿并继续补充工作结果 | manifest 通过 Schema、路径关联、hash、size 校验，两个文件存在，fallback 数量已披露 |
 
 ### 3.4 业务层（`src/`）变更
 
-**业务算法不变，接口只增加取消参数。** `execute()` 的既有 request 和业务返回结构保持现状，信封转换仍在 `mcp_server/server.py` 完成；为使取消真正生效，两个核心增加默认值为 `None` 的 `cancel_event` 参数和阶段检查点。
+业务算法保持不变，但业务核心边界必须重划。迁移完成后的有效入口只有：
 
-`src/engineering_facts/core.py` 与 `src/report_generation/core.py` 是本方案唯一有效的业务核心来源，当前 `mcp_server/server.py` 也直接导入二者。不得重新接入旧的四阶段 runner、历史兼容包装或其他同名实现。
+```text
+src.engineering_facts.core.execute(...)
+src.report_prepare.core.execute(...)
+src.report_finalize.core.execute(...)
+```
+
+`src/report_generation/core.py` 的 `operation` 路由器属于被替代文件。迁移并全仓清除旧引用后，删除整个 `src/report_generation/` 目录，不保留空包或兼容 `__init__.py`。`context_builder.py`、`deterministic_builders.py`、`template_loader.py`、`exporters.py`、`rules/`、`templates/` 等 prepare/finalize 共用算法移动到 `src/report_shared/`。移动只改变模块归属和 import 路径，不改变算法规则。
+
+三个核心职责：
+
+| 核心 | 职责 | 主要依赖 |
+|---|---|---|
+| `src.engineering_facts` | 从 `source_location` 识别工程事实，保存 `engineering_facts.json` | 本地目录枚举、`Content`、`HostClient` |
+| `src.report_prepare` | 读取工程事实，构造 Agent 编写工作包，保存 `work_package.json` | `HostClient`、`Content`、`report_shared` |
+| `src.report_finalize` | 读取工作包和工作结果，导出 Markdown/DOCX/manifest | `HostClient`、`Content`、`report_shared` |
+
+接口原则：
+
+- 三个核心均为同步 `def execute(...)`，不改成 `async def`；
+- 核心必须接收 `content: Content`、`host_client: HostClient`，并可接收 `cancel_event: threading.Event | None`；
+- 核心返回原有业务结果语义，统一信封转换仍在 `mcp_server/server.py`；
+- 核心不 import FastMCP、Context、ToolResult、ToolError 或 `mcp_server`；
+- `report_prepare` / `report_finalize` 请求模型不再包含 `operation`；
+- 本地脚本或单元测试注入 fake/local `Content` 与 fake/local `HostClient` adapter，不需要启动 MCP Server。
 
 理由：
-- 业务层不依赖 MCP Context、ToolResult 或 ToolError，仍可独立测试。
-- `threading.Event | None` 只提供通用协作式停止能力，不改变计算规则。
-- 现有本地脚本和测试不传该参数时，行为保持不变。
-- 现有 `_artifact_dir()` 的时间戳 + UUID 唯一目录机制保持不变，不额外引入或暴露 `run_id`。
+
+- 每个公开 Tool 都有独立可测试的业务入口；
+- FastMCP 层只负责协议适配、取消桥接、信封转换和 UI payload；
+- 共享报告算法进入 `report_shared` 后，prepare/finalize 不复制逻辑；
+- `threading.Event | None` 只提供通用协作式停止能力，不改变计算规则；
+- 内部时间戳 + UUID 目录机制继续存在，但不作为公开字段返回。
 
 ---
 
@@ -440,21 +603,37 @@ tools:
 
 | 文件 | 改动类型 | 说明 |
 |------|---------|------|
-| `mcp_server/server.py` | 局部改造 | 拆 Tool、Pydantic 输入/输出 Schema、统一信封、ToolResult metadata、取消桥接、ToolError |
-| `src/engineering_facts/core.py` | 小改 | 增加可选 `cancel_event` 和阶段检查点，不改事实算法 |
-| `src/report_generation/core.py` | 小改 | 增加可选 `cancel_event` 和 prepare/finalize 检查点，不改报告算法 |
+| `duck/content.py` | 新增 | 放置业务层可依赖的 Content 协议 |
+| `duck/host_client.py` | 新增 | 放置业务层可依赖的 HostClient 协议 |
+| `mcp_server/duck_implement/content.py` | 保留并校验 | MCPContent 作为 Content 的 MCP 实现 |
+| `mcp_server/duck_implement/host_client.py` | 保留并校验 | `make_host_client(ctx)` 与 MCPHostClient，按 `.trae` demo 模式实现 |
+| `mcp_server/server.py` | 局部改造 | 拆 Tool、Pydantic 输入/输出 Schema、统一信封、ToolResult metadata、取消桥接、ToolError、真实 duck 注入 |
+| `src/engineering_facts/core.py` | 改造 | 独立核心入口，增加 duck 能力和取消检查点，不改事实算法 |
+| `src/report_prepare/core.py` | 新增 | prepare 独立核心入口，不接收 `operation` |
+| `src/report_finalize/core.py` | 新增 | finalize 独立核心入口，不接收 `operation`，负责报告成组提交和 manifest |
+| `src/report_shared/` | 新增并迁移 | 承接 prepare/finalize 共享的上下文构造、确定性构建器、模板、规则和导出逻辑 |
+| `src/report_generation/` | 迁移后删除整个目录 | 迁移并全仓清除旧引用后删除整个目录，不保留空包或兼容 `__init__.py` |
 | `SKILL.md` | 编辑 | 更新 tool 声明、状态闭环表、description |
 | `skill.yaml` | 编辑 | `tools` 列表更新 |
 | `README.md` | 编辑 | 更新公开 Tool 清单和调用链 |
-| 两个 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 解包信封并合并 `_meta.ui_payload`；页面组件不改 |
+| `schemas/report_work_package.schema.json` | 编辑 | 工程事实引用字段改为 `engineering_facts.path`；写作任务上下文字段改为 `context_path` |
+| `schemas/report_work_results.schema.json` | 复核 | 当前未发现需要迁移的旧路径字段；保持结果块 schema，验证无需迁移 |
+| `schemas/engineering_facts.schema.json` | 复核 | 当前为工程事实内容 schema，不承载 Tool 产物引用；验证无需迁移 |
+| `schemas/report_manifest.schema.json` | 新增 | 定义 manifest 的 `schema_version`、Markdown/DOCX 逻辑 path、sha256、size_bytes、media_type 和 summary |
+| `scripts/run_report_generation.py` | 改造 | 从旧 `src.report_generation.execute(operation=...)` 改为调用 `src.report_prepare` + `src.report_finalize`；默认仍允许不传 `work_results_path` 生成 fallback 草稿 |
+| `scripts/run_engineering_facts.py` | 改造 | 注入本地 `Content` / `HostClient` adapter，输出逻辑路径而非旧 artifact 引用字段 |
+| `scripts/validate_output.py` | 改造 | 从检查输出目录改为检查 `report_manifest.json` 指向的 Markdown/DOCX 逻辑路径 |
+| `scripts/package_result.py` | 改造 | 打包入口改为 manifest；不得把无 manifest 的孤儿文件打包为有效交付 |
+| `scripts/local_adapters.py` | 新增 | 提供 CLI 用本地 `Content` 与本地 `HostClient` adapter，不放进业务 `src` |
+| `tests/fakes.py` | 新增 | 提供单测用 fake `Content` 与 fake `HostClient` adapter，不放进业务 `src` |
+| 工程事实 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 解包信封并白名单读取 `_meta.ui_payload.engineering_facts`；页面组件不改 |
+| 报告 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 将 UI 绑定从旧 `report_generation` 结果切到 `report_finalize` 结果；白名单读取 `_meta.ui_payload.markdown_content`；页面组件不改 |
 | 两个 UI 的 `host/src/mockData.ts` 及必要协议类型 | 编辑 | 同步新 Tool 名称、统一信封和 UI payload |
 | `tests/test_mcp_server_contract.py` | 编辑 | 更新 tools/list、UI 绑定、输入/输出 Schema 断言 |
 | `tests/test_engineering_facts_tool.py` | 编辑 | 增加取消检查点与取消后不发布产物测试 |
-| `tests/test_report_generation_tool.py` | 编辑 | 增加 prepare/finalize 取消与错误映射测试 |
-| `src/report_generation/context_builder.py` | 不变 | — |
-| `src/report_generation/deterministic_builders.py` | 不变 | — |
-| `src/report_generation/template_loader.py` | 不变 | — |
-| `src/report_generation/exporters.py` | 不变 | — |
+| `tests/test_report_prepare_tool.py` | 新增 | 覆盖 prepare 独立核心、HostClient 读写、取消、错误映射 |
+| `tests/test_report_finalize_tool.py` | 新增 | 覆盖 finalize 独立核心、HostClient 读写、manifest、取消、错误映射 |
+| `tests/test_report_generation_tool.py` | 迁移后删除 | 旧二合一 report 测试拆到 prepare/finalize 后删除，不保留旧核心测试文件 |
 | 两个 UI/Host 的 dist | 重新构建 | 同步实际被 Server/Host 使用的构建产物，不手工编辑 |
 
 ---
@@ -463,10 +642,10 @@ tools:
 
 - **破坏性变更**：模型可见返回从顶层平铺结构变为 `{status, data, warnings}`，旧调用方需要适配
 - **Tool 名称变更**：`report_generation` 不再存在，拆为 `report_prepare` + `report_finalize`
-- **MCP 输入变更**：`report_finalize` 只公开可选 `work_results_uri`，不再公开 inline `work_results`
+- **MCP 输入变更**：公开路径字段统一使用 `*_path`；`report_finalize` 保留可选 `work_results_path`，不再公开 inline `work_results`
 - **UI 兼容**：页面代码和展示不变；公共结果归一化层读取 `data` 和 `_meta.ui_payload`
-- **业务层兼容**：内部仍使用 `operation=prepare|finalize`；`execute()` 只增加默认 `None` 的取消参数
-- **产物兼容**：现有唯一目录和原子写入保留；不新增显式 `run_id`
+- **业务层变更**：不再保留 prepare/finalize 二合一路由器；三个 Tool 分别调用三个 `src` 核心入口
+- **产物兼容**：内部唯一目录保留；对外只返回 HostClient 逻辑路径，不新增显式 `run_id`
 - **Tool 数量边界**：不新增 `read_artifact`、`read_file` 或其他文件读取 Tool
 
 ---
@@ -479,12 +658,13 @@ tools:
 | 返回格式 | 字段平铺、output schema 宽松 | `{status, data, warnings}` + 明确 Pydantic output schema |
 | 大结果返回 | 与模型结果混在一起 | 模型侧路径/摘要，UI 侧 `_meta.ui_payload` |
 | 文件读取 Tool | 无 | 仍然无，不新增 `read_artifact` |
-| run_id | 内部唯一目录隐含实现 | 保持现状，不新增字段 |
+| run_id | 内部唯一目录隐含实现 | 保持内部实现，不新增公开字段 |
 | 取消支持 | async task 取消后线程继续 | Event 逐层传入真实阶段检查 |
 | 异常处理 | 业务失败与内部错误边界不清 | 业务失败信封；未预期异常 `ToolError` |
 | 入参数量 | `report_generation` 6 个顶级参数 | 每个 Tool 2 个业务参数 |
 | description | 缺"何时不调用" | 四要素齐全 |
-| UI 绑定 | `engineering_facts` → engineering-confirmation-ui / `report_generation` → report-generation-ui | `engineering_facts` → engineering-confirmation-ui / `report_prepare` → 无 / `report_finalize` → report-generation-ui |
+| UI 绑定 | `engineering_facts` → 工程事实 UI / `report_generation` → 报告编写与生成 UI | `engineering_facts` → 工程事实 UI / `report_prepare` → 无 / `report_finalize` → 报告编写与生成 UI |
+| 业务核心 | `engineering_facts` + `report_generation` 二合一路由核心 | `engineering_facts` + `report_prepare` + `report_finalize` 三个核心，共享逻辑在 `report_shared` |
 
 ---
 
@@ -495,10 +675,13 @@ tools:
 - `tools/list` 只公开 `engineering_facts`、`report_prepare`、`report_finalize`。
 - 不存在新增的 `read_artifact`、`read_file` 或其他 app-only 文件 Tool。
 - 三个 Tool 的输入 Schema 准确表达 required、可选字段、枚举和 `additionalProperties`。
+- `report_finalize` 的输入 Schema 必须是 `work_package_path` 必填、`work_results_path` 可选。
 - 三个 Tool 的 output schema 包含明确的 `status`、`data`、`warnings` 和各自 data 字段，不再是任意 object。
 - 三个 Tool 的成功/失败联合输出能拒绝 `completed/prepared + error`、`failed + 产物` 等无效组合。
 - 每个 Tool description 包含职责、适用场景、返回关键字段、错误和不调用边界。
-- 每个生产 Tool 入口继续调用 `make_host_client(ctx)`。
+- 每个生产 Tool 入口继续调用 `make_host_client(ctx)`，并把返回值传入对应 `src` 核心。
+- 全仓扫描旧公开字段：所有 `_uri` 后缀字段、旧 artifact 引用字段、旧 context 引用字段不得作为新 MCP/Schema/Skill/README/scripts/tests 契约残留；历史说明必须明确标注为改造前。
+- 全仓扫描 `src.report_generation`、`src/report_generation`、旧 `operation` 路由字段和 `report_generation` 旧核心引用；迁移完成后，除历史说明外不得残留。
 
 ### 7.2 返回与错误
 
@@ -507,12 +690,19 @@ tools:
 - 未预期异常表现为 MCP `ToolError`，不返回裸 traceback。
 - `ToolError` 和失败信封均不泄露 traceback 或不必要的敏感绝对路径。
 - `CancelledError` 设置 Event 后重新抛出，不产生第二次 MCP 响应。
+- 用户提供的逻辑路径不存在、内容格式错误或 Schema 无效时返回业务失败信封。
+- HostClient 鉴权、连接、超时、存储服务异常和 `save_file`/`get_file` 存储异常必须转为 `ToolError`，不得返回 `status="failed"`。
 
 ### 7.3 取消
 
 - 业务核心收到已设置 Event 时，在下一个检查点停止。
 - prepare/finalize 的章节循环能够中途停止。
-- 在各自产物提交点前取消时，不发布最终工程事实、工作包、Markdown 或 DOCX，也不遗留临时 `.tmp`；进入报告分组提交段后取消时，DOCX 与 Markdown 必须整组发布，不出现半组结果。
+- 在工程事实和工作包提交点前取消时，不发布最终工程事实或工作包，也不遗留本地临时 `.tmp`。
+- `report_prepare` 的 `work_package.json` 是章节 context 组的提交标志；失败或取消时不得返回 `prepared` 和 `data.artifact.path`，无工作包指向的孤儿 context 不得被视为有效。
+- 在报告 manifest 写入前取消或异常时，不返回 `completed`，不写 manifest；允许 HostClient 中已写入但没有 manifest 指向的 Markdown/DOCX 成为不可达孤儿文件。
+- 没有 manifest 的 Markdown/DOCX 不得被验证脚本、Skill、UI 或 Agent 当成有效报告交付。
+- manifest 存在不等于有效；必须校验 `schemas/report_manifest.schema.json`、Markdown/DOCX 路径关联、sha256 和 size_bytes。
+- finalize 上传 Markdown/DOCX 后必须用 `HostClient.get_file()` 回读并重新核对 sha256 和 size_bytes；回读失败或核验不一致时，不写 manifest，不返回 `completed`，MCP 层返回 `ToolError`。
 - MCP 集成取消后 session 不崩溃，后台线程在检查点退出。
 - 测试等待后台线程退出后，再断言本次运行没有半成品和 `.tmp` 文件。
 
@@ -521,9 +711,18 @@ tools:
 - 工程事实页面继续显示采用方案、设备汇总和事实文件信息。
 - 报告页面继续显示完整 Markdown、目录、DOCX/Markdown 路径和摘要。
 - 页面组件无业务改动，只由归一化层适配信封和 UI payload。
-- 真实 Host 能用返回的工作包 URI，通过已有文件系统能力完成 prepare → 编制 → finalize，不依赖任何新增读取 Tool。
-- 代表性大数据下 `_meta.ui_payload` 完整到达 UI 且不进入模型上下文；若不满足，暂停本轮改造并单独评审，不临时改 Schema、不新增读取 Tool。
+- `提示词.md` 零差异；`EngineeringFactsPage.tsx`、`ReportGenerationPage.tsx` 页面组件零差异。
+- 真实 Host 能用返回的工作包路径，通过已有文件系统能力完成 prepare → 编制 → finalize，不依赖任何新增读取 Tool。
+- 代表性大数据下 `_meta.ui_payload` 完整到达 UI 且不进入模型上下文；该验证未通过前，允许本地实现和本地测试完成，但不得宣布最终验收或发布。
 - 两个 UI 和两个 Host 构建通过，实际使用的 dist 已同步并完成生产构建产物运行时验证。
 - 并发运行的内部目录和产物相互隔离，不覆盖、不串读；不增加公开 `run_id`。
 - 现有工程事实、报告、Schema、Markdown、DOCX 测试继续通过。
+- `schemas/report_work_package.schema.json` 使用 `engineering_facts.path` 和 `context_path` 后，prepare 产物与 schema 校验一致。
+- `report_prepare` 必须先保存全部 context，再保存并校验 `work_package.json`；验收必须检查工作包中的每个 `context_path` 都位于同一逻辑路径前缀下并能被 HostClient 读取。
+- 新增 `schemas/report_manifest.schema.json` 后，finalize manifest 产物与 schema、路径关联、hash 和 size 校验一致。
+- `scripts/run_report_generation.py` 走 `report_prepare` + `report_finalize` 双核心链路，并验证“无 `work_results_path` 时生成 fallback 草稿”的既有语义。
+- `scripts/run_engineering_facts.py` 使用本地 adapter 注入 `content` / `host_client`，不依赖 FastMCP。
+- `scripts/validate_output.py` 以 manifest 为有效性入口，并校验 manifest Schema、Markdown/DOCX 路径关联、hash 和 size；不按目录存在两个文件就判定有效。
+- `scripts/validate_output.py` 使用 HostClient 兼容的本地 adapter 回读 manifest 指向的 Markdown/DOCX，重新计算 sha256 和 size_bytes。
+- `scripts/local_adapters.py` 和 `tests/fakes.py` 提供 CLI/测试 adapter；业务 `src` 不包含具体 local/fake adapter。
 - MCP 契约测试、编译检查、Skill 校验和 `git diff --check` 通过。

@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import base64
 import logging
+import time
 import unicodedata
 from typing import Optional, Union
 from urllib.parse import quote
@@ -64,11 +65,17 @@ class MCPHostClient:
     def _extract_platform_headers(ctx: Optional[Context]) -> Optional[dict[str, str]]:
         if ctx is None:
             return None
-        try:
-            extras = ctx.request_context.meta.model_extra
-            capability = extras.get(PLATFORM_META_KEY).get("capability")
-        except (AttributeError, KeyError, TypeError):
+        request_context = getattr(ctx, "request_context", None)
+        if request_context is None:
             return None
+        meta = getattr(request_context, "meta", None)
+        if meta is None:
+            return None
+        extras = getattr(meta, "model_extra", None)
+        platform_meta = (extras or {}).get(PLATFORM_META_KEY)
+        if not isinstance(platform_meta, dict):
+            return None
+        capability = platform_meta.get("capability")
         if not isinstance(capability, str) or not capability:
             return None
         return {"Authorization": f"Bearer {capability}"}
@@ -115,6 +122,43 @@ class MCPHostClient:
             code=code,
         )
 
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        headers: Optional[dict] = None,
+        json: Optional[dict] = None,
+        content: Optional[bytes] = None,
+    ) -> httpx.Response:
+        """Retry transient transport failures for idempotent workspace I/O."""
+        url = self._url(path)
+        last_exc: Exception | None = None
+        for attempt in range(3):
+            try:
+                return self._client.request(
+                    method,
+                    url,
+                    headers=headers,
+                    json=json,
+                    content=content,
+                )
+            except (httpx.RequestError, httpx.RemoteProtocolError) as exc:
+                last_exc = exc
+                if attempt >= 2:
+                    break
+                time.sleep(0.25 * (2**attempt))
+                logger.warning(
+                    "MCPHostClient.%s 连接异常 (第 %d 次重试) path=%s err=%r",
+                    method,
+                    attempt + 1,
+                    path,
+                    exc,
+                )
+        if last_exc is None:  # pragma: no cover - defensive guard
+            raise RuntimeError("MCPHostClient request failed without an exception")
+        raise last_exc
+
     def save_file(
         self,
         path: str,
@@ -123,8 +167,7 @@ class MCPHostClient:
         kind: str = "auto",
     ) -> None:
         platform = self._platform_headers is not None
-        url = self._url(path)
-        request = self._client.put if platform else self._client.post
+        method = "PUT" if platform else "POST"
         headers = None
         if platform:
             headers = dict(self._platform_headers)
@@ -145,8 +188,9 @@ class MCPHostClient:
         if kind == "json":
             if not isinstance(data, dict):
                 raise TypeError(f"kind='json' 需要 dict，得到 {type(data).__name__}")
-            resp = request(
-                url,
+            resp = self._request(
+                method,
+                path,
                 json=data,
                 headers=headers or {"Content-Type": "application/json"},
             )
@@ -157,20 +201,21 @@ class MCPHostClient:
                 payload = bytes(data)
             else:
                 raise TypeError(f"kind='text' 需要 str 或 bytes，得到 {type(data).__name__}")
-            resp = request(
-                url,
+            resp = self._request(
+                method,
+                path,
                 content=payload,
                 headers=headers or {"Content-Type": "text/plain; charset=utf-8"},
             )
         elif kind == "bytes":
             if not isinstance(data, (bytes, bytearray)):
                 raise TypeError(f"kind='bytes' 需要 bytes，得到 {type(data).__name__}")
-            resp = request(url, content=bytes(data), headers=headers)
+            resp = self._request(method, path, content=bytes(data), headers=headers)
         else:
             raise ValueError(f"不支持的 kind: {kind}，可选值: json / text / bytes / auto")
 
         self._raise_for_status(resp, path, "save_file")
-        logger.info("MCPHostClient 保存文件: %s (kind=%s)", url, kind)
+        logger.info("MCPHostClient 保存文件: %s (kind=%s)", self._url(path), kind)
 
     def get_file(
         self,
@@ -179,7 +224,7 @@ class MCPHostClient:
         kind: str = "auto",
     ) -> Union[dict, str, bytes]:
         url = self._url(path)
-        resp = self._client.get(url, headers=self._platform_headers)
+        resp = self._request("GET", path, headers=self._platform_headers)
         if resp.status_code == 404:
             raise FileNotFoundError(f"MCPHostClient.get_file: {url} 不存在")
         self._raise_for_status(resp, path, "get_file")
@@ -195,13 +240,20 @@ class MCPHostClient:
 
         if kind == "json":
             try:
-                return resp.json()
+                data = resp.json()
             except (ValueError, httpx.DecodingError) as exc:
                 raise MCPHostError(
                     f"get_file 响应不是有效的 JSON: {exc}",
                     status_code=resp.status_code,
                     path=path,
                 ) from exc
+            if not isinstance(data, dict):
+                raise MCPHostError(
+                    f"get_file 期望 JSON dict，实际得到 {type(data).__name__}",
+                    status_code=resp.status_code,
+                    path=path,
+                )
+            return data
         elif kind == "text":
             return resp.content.decode("utf-8")
         elif kind == "bytes":
@@ -213,6 +265,6 @@ class MCPHostClient:
 _shared_http_client = httpx.Client(timeout=30.0)
 
 
-def make_host_client(ctx: Context, base_url: str = "http://localhost9000") -> MCPHostClient:
+def make_host_client(ctx: Context, base_url: str = "http://localhost:9000") -> MCPHostClient:
     """为每次 tool 调用创建 HostClient，构造时从 ctx 捕获平台凭证。"""
     return MCPHostClient(base_url=base_url, client=_shared_http_client, ctx=ctx)

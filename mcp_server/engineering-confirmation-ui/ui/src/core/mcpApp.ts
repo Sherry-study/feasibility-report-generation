@@ -50,7 +50,19 @@ export interface ToolResult {
   structuredContent?: Record<string, unknown>;
   /** 文本内容数组（fallback）。 */
   content?: Array<{ type: string; text?: string }>;
+  /** MCP ToolResult._meta：宿主透传给 UI 的扩展元数据（ui_payload）。 */
+  _meta?: ToolResultMeta;
+  /** 兼容宿主以非别名（meta）形式透传元数据的情况。 */
+  meta?: ToolResultMeta;
   isError?: boolean;
+  [k: string]: unknown;
+}
+
+/** ToolResult._meta：完整工程事实等大字段只放在 ui_payload，供 UI 白名单读取。 */
+export interface ToolResultMeta {
+  ui_payload?: {
+    [k: string]: unknown;
+  };
   [k: string]: unknown;
 }
 
@@ -434,17 +446,68 @@ export function useNormalizedToolResult(): {
     return { finalResult: null, rawResult: toolResult, isError: !!toolResult?.isError };
   }
 
-  const finalResult = normalizeResult(raw);
+  // 优先读 _meta（MCP 规范字段名）；兼容宿主以 meta 形式透传的情况
+  const meta = (toolResult?._meta ?? toolResult?.meta) as ToolResultMeta | undefined;
+  const finalResult = normalizeResult(raw, meta);
   return { finalResult, rawResult: toolResult, isError: !!toolResult?.isError };
 }
 
-/** 把不同工具的返回结构归一化为页面期望的 final_result。
+/** 把 engineering_facts 的 {status, data, warnings} 信封归一化为页面期望的 final_result。
  *
- * 模板默认空实现(直接返回原始数据)。
- * 如你的工具返回结构需要适配(如嵌套展开、字段重命名),在此实现。
+ * - 状态、产物路径、摘要、warnings、error 始终以 structuredContent 为准；
+ * - 完整工程事实只从 _meta.ui_payload.engineering_facts 白名单读取，
+ *   不展开整个 ui_payload 覆盖结构化结果；
+ * - warnings 与 data.error 映射为页面现有 diagnostics 结构。
  */
-function normalizeResult(raw: Record<string, unknown>): Record<string, unknown> {
-  return raw;
+function normalizeResult(
+  raw: Record<string, unknown>,
+  meta: ToolResultMeta | undefined,
+): Record<string, unknown> {
+  const data = raw.data;
+  // 非新信封结构（无 status/data 判别字段）：原样透传，避免破坏未知上游
+  if (typeof raw.status !== 'string' || typeof data !== 'object' || data === null) {
+    return raw;
+  }
+
+  const envelope = raw as {
+    status: string;
+    data: {
+      artifact?: unknown;
+      summary?: unknown;
+      error?: { code?: unknown; message?: unknown } | null;
+    };
+    warnings?: Array<{ level?: unknown; code?: unknown; message?: unknown }>;
+  };
+
+  const diagnostics: Array<{ level: string; code: string; message: string }> = [];
+  for (const w of envelope.warnings ?? []) {
+    if (typeof w !== 'object' || w === null) continue;
+    diagnostics.push({
+      level: typeof w.level === 'string' ? w.level : 'warning',
+      code: typeof w.code === 'string' ? w.code : '',
+      message: typeof w.message === 'string' ? w.message : '',
+    });
+  }
+  if (envelope.data.error) {
+    diagnostics.push({
+      level: 'fatal',
+      code: typeof envelope.data.error.code === 'string' ? envelope.data.error.code : '',
+      message: typeof envelope.data.error.message === 'string' ? envelope.data.error.message : '',
+    });
+  }
+
+  const normalizedData = { ...envelope.data } as Record<string, unknown>;
+  const artifact = normalizedData.artifact as { path?: unknown } | undefined;
+  if (artifact && typeof artifact.path === 'string') {
+    normalizedData.artifact = { ...artifact, uri: artifact.path };
+  }
+
+  return {
+    ...normalizedData,
+    status: envelope.status,
+    engineering_facts: meta?.ui_payload?.engineering_facts,
+    diagnostics,
+  };
 }
 
 /**

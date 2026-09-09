@@ -2,7 +2,7 @@
 
 本目录是旧四阶段运行链路的归档参考，不再作为正式两 Tool 运行时入口。
 
-正式运行使用 `src/report_generation/rules/chapter_rules.json`。如需调整当前报告章节、模板、动态槽位或章节工作包，应优先修改正式 `src/report_generation/rules/` 下的规则文件，并通过 `report_generation.prepare/finalize` 验证。
+正式运行使用 `src/report_shared/rules/chapter_rules.json`。如需调整当前报告章节、模板、动态槽位或章节工作包，应优先修改 `src/report_shared/rules/` 下的规则文件，并通过 `report_prepare` / `report_finalize` 验证。
 
 旧四阶段章节规则层曾定义：
 
@@ -23,4 +23,4 @@ Chapter Rules 不定义算法字段语义，字段语义由 `references/engineer
 | `deterministic_only` | 仅由确定性工具/表格渲染 | 否 |
 | `plan_parent_or_range` | 章节计划中的父级或区间条目（如 `10.1-10.6`），本身无规则体 | 否 |
 
-`template_rendered` 的判定标准：research 均为 none、required_structure 以规范引用/条件保留类表述为主、LLM 撰写不产生项目特异叙述价值。旧集合曾由四阶段实现维护；当前正式集合以 `src/report_generation/rules/chapter_rules.json` 为准。历史项目 `section_drafts.json` 中这些章节的既有草稿仅用于理解旧产物，不再进入正式运行链路。
+`template_rendered` 的判定标准：research 均为 none、required_structure 以规范引用/条件保留类表述为主、LLM 撰写不产生项目特异叙述价值。旧集合曾由四阶段实现维护；当前正式集合以 `src/report_shared/rules/chapter_rules.json` 为准。历史项目 `section_drafts.json` 中这些章节的既有草稿仅用于理解旧产物，不再进入正式运行链路。

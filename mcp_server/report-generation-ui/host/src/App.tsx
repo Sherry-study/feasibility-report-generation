@@ -164,6 +164,7 @@ export default function App() {
       connectorRef.current?.sendToolResult(
         currentScenario.review.resultIsError ? undefined : currentScenario.review.result,
         currentScenario.review.resultIsError,
+        currentScenario.review.resultMeta,
       );
     }
   }, [currentScenario]);
@@ -208,7 +209,11 @@ export default function App() {
       // 剩余等待 UI 交互；onReviewSubmitted 会回发 tool-result
     } else {
       // 无审核或跳过审核：直接回发结果
-      connector.sendToolResult(currentScenario.review?.finalResult ?? {});
+      connector.sendToolResult(
+        currentScenario.review?.finalResult ?? {},
+        false,
+        currentScenario.review?.resultMeta,
+      );
     }
     setPlaying(false);
   }, [currentScenario]);

@@ -68,6 +68,7 @@ export default function App() {
           connector.sendToolResult(
             r.resultIsError ? undefined : r.result,
             r.resultIsError,
+            r.resultMeta,
           );
         }
       },

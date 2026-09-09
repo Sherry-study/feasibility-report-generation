@@ -1,9 +1,10 @@
 /**
- * report_generation 的 mock 数据。
+ * report_finalize 的 mock 数据。
  *
- * 本 host 控制台只服务 report_generation 一个工具:有进度推送,无审核。
+ * 本 host 控制台只服务 report_finalize 一个工具:有进度推送,无审核。
  * 进度步骤镜像 server 中真实的 ctx.report_progress 调用。
- * 同一工具通过 operation=prepare|finalize 覆盖工作包准备与报告定稿两个分支。
+ * structuredContent 为 {status, data, warnings} 统一信封(模型可见);
+ * 完整 Markdown 只经 ToolResult._meta.ui_payload 透传给 UI。
  */
 
 export interface UiEvent {
@@ -25,6 +26,8 @@ export interface ReviewStage {
   reviewId: string;
   finalResult: Record<string, unknown>;
   result: Record<string, unknown>;
+  /** ToolResult._meta：完整 Markdown 等 UI 大字段经 ui_payload 透传。 */
+  resultMeta?: { ui_payload?: Record<string, unknown> };
   resultIsError?: boolean;
 }
 
@@ -50,96 +53,109 @@ export interface ToolGroup {
 
 const OUT = 'report_output_dir';
 
-function preparedResult(): Record<string, unknown> {
+/** mock structuredContent：{status, data, warnings} 统一信封（模型可见，不含完整 Markdown）。 */
+function completedResult(fallbackSectionCount: number): Record<string, unknown> {
   return {
-    status: 'prepared',
-    artifact: {
-      uri: `${OUT}/mcp_runs/report_generation_prepare/work_package.json`,
-      schema_version: '1.0',
-      media_type: 'application/json',
+    status: 'completed',
+    data: {
+      artifacts: {
+        docx_path: `${OUT}/mcp_runs/report_finalize/可行性研究报告_初稿.docx`,
+        docx_media_type:
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+        markdown_path: `${OUT}/mcp_runs/report_finalize/可行性研究报告_初稿.md`,
+        markdown_media_type: 'text/markdown; charset=utf-8',
+      },
+      manifest_path: `${OUT}/mcp_runs/report_finalize/report_manifest.json`,
+      summary: {
+        section_count: 42,
+        fallback_section_count: fallbackSectionCount,
+      },
+      error: null,
     },
-    summary: {
-      research_task_count: 3,
-      writing_task_count: 13,
-      deterministic_summary_count: 7,
-      synthesis_task_count: 7,
-    },
-    diagnostics: [],
+    warnings:
+      fallbackSectionCount > 0
+        ? [
+            {
+              level: 'warning',
+              code: 'SECTION_FALLBACK',
+              message: `共 ${fallbackSectionCount} 个章节缺失或非法，已使用模板 fallback 兜底；本次报告为未闭合草稿，请补充工作结果后重新定稿。`,
+            },
+          ]
+        : [],
   };
 }
 
-function completedResult(): Record<string, unknown> {
+/** mock ToolResult._meta：完整 Markdown 只经 ui_payload 供 UI 白名单读取。 */
+function completedResultMeta(): { ui_payload: Record<string, unknown> } {
   return {
-    status: 'completed',
-    artifacts: {
-      docx: `${OUT}/mcp_runs/report_generation_finalize/可行性研究报告_初稿.docx`,
-      markdown: `${OUT}/mcp_runs/report_generation_finalize/可行性研究报告_初稿.md`,
+    ui_payload: {
+      markdown_content: REPORT_MARKDOWN,
     },
-    markdown_content: REPORT_MARKDOWN,
-    summary: {
-      section_count: 42,
-      fallback_section_count: 0,
-    },
-    diagnostics: [],
   };
 }
 
 function finalizeFailedResult(): Record<string, unknown> {
   return {
     status: 'failed',
-    artifact: null,
-    artifacts: null,
-    summary: {},
-    diagnostics: [
-      { level: 'fatal', code: 'REPORT_TOOL_FAILED', message: 'work_results missing required fields: writing_results' },
-    ],
+    data: {
+      artifacts: null,
+      summary: {},
+      error: {
+        code: 'REPORT_TOOL_FAILED',
+        message: 'work_results missing required fields: writing_results',
+        retryable: true,
+      },
+    },
+    warnings: [],
   };
 }
 
-function reportProgressSteps(operation: 'prepare' | 'finalize'): ProgressStep[] {
-  const total = operation === 'finalize' ? 4 : 3;
+function reportFinalizeProgressSteps(): ProgressStep[] {
   return [
-    { progress: 1, total, message: '校验报告生成参数' },
-    { progress: 2, total, message: '执行业务核心' },
-    { progress: total, total, message: '报告生成分支完成' },
+    { progress: 0, total: 100, message: '读取工作包' },
+    { progress: 20, total: 100, message: '读取工作结果' },
+    { progress: 45, total: 100, message: '组装报告内容' },
+    { progress: 65, total: 100, message: '导出 Markdown 与 DOCX' },
+    { progress: 80, total: 100, message: '保存并回读校验报告产物' },
+    { progress: 95, total: 100, message: '保存报告清单' },
+    { progress: 100, total: 100, message: '报告已生成' },
   ];
-}
-
-function prepareScenario(): MockScenario {
-  return {
-    id: 'prepare',
-    label: 'prepare:工作包已准备',
-    toolName: 'report_generation',
-    args: {
-      operation: 'prepare',
-      engineering_facts_uri: `${OUT}/mcp_runs/engineering_facts/engineering_facts.json`,
-      report_context: { project_name: '1万吨/年异戊烯联合生产装置技术改造项目' },
-    },
-    steps: reportProgressSteps('prepare'),
-    review: {
-      reviewId: 'review-report-prepare',
-      finalResult: preparedResult(),
-      result: preparedResult(),
-    },
-    skipReview: true,
-  };
 }
 
 function finalizeScenario(): MockScenario {
   return {
     id: 'finalize',
-    label: 'finalize:报告完成',
-    toolName: 'report_generation',
+    label: '定稿:报告完成',
+    toolName: 'report_finalize',
     args: {
-      operation: 'finalize',
-      work_package_uri: `${OUT}/mcp_runs/report_generation_prepare/work_package.json`,
-      work_results_uri: `${OUT}/work_results.json`,
+      work_package_path: `${OUT}/mcp_runs/report_prepare/work_package.json`,
+      work_results_path: `${OUT}/work_results.json`,
     },
-    steps: reportProgressSteps('finalize'),
+    steps: reportFinalizeProgressSteps(),
     review: {
       reviewId: 'review-report-finalize',
-      finalResult: completedResult(),
-      result: completedResult(),
+      finalResult: completedResult(0),
+      result: completedResult(0),
+      resultMeta: completedResultMeta(),
+    },
+    skipReview: true,
+  };
+}
+
+function finalizeDraftScenario(): MockScenario {
+  return {
+    id: 'finalize-draft',
+    label: '定稿:未闭合草稿',
+    toolName: 'report_finalize',
+    args: {
+      work_package_path: `${OUT}/mcp_runs/report_prepare/work_package.json`,
+    },
+    steps: reportFinalizeProgressSteps(),
+    review: {
+      reviewId: 'review-report-finalize-draft',
+      finalResult: completedResult(3),
+      result: completedResult(3),
+      resultMeta: completedResultMeta(),
     },
     skipReview: true,
   };
@@ -148,14 +164,13 @@ function finalizeScenario(): MockScenario {
 function finalizeFailedScenario(): MockScenario {
   return {
     id: 'finalize-failed',
-    label: 'finalize:工作结果缺字段',
-    toolName: 'report_generation',
+    label: '定稿:工作结果缺字段',
+    toolName: 'report_finalize',
     args: {
-      operation: 'finalize',
-      work_package_uri: `${OUT}/mcp_runs/report_generation_prepare/work_package.json`,
-      work_results_uri: `${OUT}/broken_work_results.json`,
+      work_package_path: `${OUT}/mcp_runs/report_prepare/work_package.json`,
+      work_results_path: `${OUT}/broken_work_results.json`,
     },
-    steps: reportProgressSteps('finalize'),
+    steps: reportFinalizeProgressSteps(),
     review: {
       reviewId: 'review-report-finalize-failed',
       finalResult: finalizeFailedResult(),
@@ -165,29 +180,29 @@ function finalizeFailedScenario(): MockScenario {
   };
 }
 
-function missingOperationArgsScenario(): MockScenario {
+function missingWorkPackagePathScenario(): MockScenario {
   return {
-    id: 'missing-prepare-uri',
-    label: 'prepare:缺少工程事实 URI',
-    toolName: 'report_generation',
-    args: { operation: 'prepare' },
-    steps: reportProgressSteps('prepare'),
+    id: 'missing-work-package-path',
+    label: '定稿:缺少工作包 path',
+    toolName: 'report_finalize',
+    args: {},
+    steps: reportFinalizeProgressSteps(),
     errorResult: {
-      content: [{ type: 'text', text: 'engineering_facts_uri must be a non-empty string' }],
+      content: [{ type: 'text', text: 'work_package_path must be a non-empty string' }],
     },
   };
 }
 
 export const MOCK_TOOLS: ToolGroup[] = [
   {
-    name: 'report_generation',
-    label: '报告生成',
+    name: 'report_finalize',
+    label: '报告定稿',
     page: 'ReportGenerationPage',
     scenarios: [
-      prepareScenario(),
       finalizeScenario(),
+      finalizeDraftScenario(),
       finalizeFailedScenario(),
-      missingOperationArgsScenario(),
+      missingWorkPackagePathScenario(),
     ],
   },
 ];
@@ -199,8 +214,7 @@ export function findToolGroup(toolName: string): ToolGroup | undefined {
 /**
  * 报告 Markdown 全文（镜像 report_output_dir/可行性研究报告_初稿.md）。
  *
- * 供 host 的 ``read_file`` mock 分支返回：UI 通过工具结果中的 markdown 路径
- * 反向读取该文件，目录与正文完全由 Markdown 标题结构解析，不写死章节。
+ * 供 ToolResult._meta.ui_payload.markdown_content 透传给 UI。
  */
 export const REPORT_MARKDOWN = `# 1万吨/年异戊烯联合生产装置
 
@@ -825,8 +839,3 @@ export const REPORT_MARKDOWN = `# 1万吨/年异戊烯联合生产装置
 3. 在工程量和价格条件具备后完成投资估算，并据此开展财务评价。
 4. 待上述工程条件和经济评价资料落实后，复核本报告研究结论并形成正式成果。
 `;
-
-/** mock 文件内容表：read_file 工具按 path 返回内容。 */
-export const MOCK_FILES: Record<string, string> = {
-  [`${OUT}/可行性研究报告_初稿.md`]: REPORT_MARKDOWN,
-};

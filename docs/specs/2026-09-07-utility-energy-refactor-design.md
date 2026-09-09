@@ -18,7 +18,7 @@
 1. `src/engineering_facts` 继续整理设备事实。
 2. 在 `derived_facts.utility_consumption_summary` 中输出规范化后的公用工程条目、来源对象、工况、输入量和可复算年量。
 3. 在 `derived_facts.energy_conversion` 中输出核算体系、逐项折算结果、未折算原因和合计值。
-4. `src/report_generation` 的 `utilities` builder 优先读取公用工程汇总。
+4. `src/report_shared` 的 `utilities` builder 优先读取公用工程汇总。
 5. `energy` builder 只读取折算结果和未折算项，动态生成表头及表行；没有识别结果时只输出统一的缺口行，不再固定生成电力、蒸汽、导热油和循环水。
 
 ## 规则

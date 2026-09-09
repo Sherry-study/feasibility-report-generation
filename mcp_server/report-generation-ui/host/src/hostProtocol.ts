@@ -9,8 +9,6 @@
  *     ui/notifications/tool-result 驱动 UI
  */
 
-import { MOCK_FILES } from './mockData';
-
 export type LogEntry = {
   dir: 'host->ui' | 'ui->host';
   method: string;
@@ -181,24 +179,6 @@ export class HostConnector {
         break;
       }
 
-      case 'read_file': {
-        const path = (args.path as string) ?? '';
-        const content = MOCK_FILES[path];
-        if (content == null) {
-          this.respond(id, {
-            structuredContent: null,
-            content: [{ type: 'text', text: `文件不存在: ${path}` }],
-            isError: true,
-          });
-        } else {
-          this.respond(id, {
-            structuredContent: { path, content, mime_type: 'text/markdown' },
-            content: [],
-          });
-        }
-        break;
-      }
-
       case 'submit_review': {
         const approved = !!args.approved;
         const reason = (args.reason as string) ?? '';
@@ -311,8 +291,8 @@ export class HostConnector {
     });
   }
 
-  /** 发送工具结果。 */
-  sendToolResult(result: unknown, isError = false): void {
+  /** 发送工具结果（meta 为 ToolResult._meta，含 ui_payload 等 UI 大字段）。 */
+  sendToolResult(result: unknown, isError = false, meta?: Record<string, unknown>): void {
     this.post({
       jsonrpc: '2.0',
       method: 'ui/notifications/tool-result',
@@ -320,6 +300,7 @@ export class HostConnector {
         ...(isError
           ? { content: [{ type: 'text', text: '工具执行失败' }], isError: true }
           : { structuredContent: result }),
+        ...(meta ? { _meta: meta } : {}),
       },
     });
     this.onLog({
