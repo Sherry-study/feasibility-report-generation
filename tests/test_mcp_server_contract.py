@@ -6,12 +6,20 @@ import asyncio
 import threading
 import time
 import unittest
+from unittest.mock import AsyncMock, patch
 
+from fastmcp.exceptions import ToolError
 import httpx
 import jsonschema
-from fastmcp.exceptions import ToolError
 
-from mcp_server.server import _run_with_cancellation, mcp
+from mcp_server.server import (
+    ReportFinalizeInput,
+    SourceLocation,
+    _run_with_cancellation,
+    engineering_facts,
+    mcp,
+    report_finalize,
+)
 from mcp_server.duck_implement.host_client import MCPHostClient
 from src.errors import HostStorageError
 from src.report_prepare import OperationCancelled
@@ -29,6 +37,14 @@ def _tool(name: str):
         if tool.name == name:
             return tool
     raise AssertionError(f"tool {name} not found")
+
+
+class FakeCtx:
+    def __init__(self) -> None:
+        self.messages: list[str] = []
+
+    async def info(self, message: str) -> None:
+        self.messages.append(message)
 
 
 def _engineering_facts_success_envelope() -> dict:
@@ -134,6 +150,73 @@ class MCPServerContractTests(unittest.TestCase):
 
         _run(scenario())
 
+    def test_engineering_facts_pushes_final_ui_result_via_progress(self) -> None:
+        core_result = {
+            "status": "completed",
+            "artifact": {
+                "path": "runs/engineering_facts/engineering_facts.json",
+                "media_type": "application/json",
+                "schema_version": "2.0",
+            },
+            "engineering_facts": {"unit": {"name": "测试装置"}},
+            "summary": _engineering_facts_success_envelope()["data"]["summary"],
+            "diagnostics": [],
+        }
+
+        async def scenario() -> None:
+            progress = AsyncMock()
+            with (
+                patch("mcp_server.server.make_host_client", return_value=object()),
+                patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
+                patch("mcp_server.server._send_progress_with_data", new=progress),
+            ):
+                await engineering_facts(
+                    FakeCtx(),
+                    SourceLocation(provider="local_directory", location="inputs"),
+                )
+            args = progress.await_args.args
+            self.assertEqual(args[3], "工程事实已完成")
+            final_result = args[4]["final_result"]
+            self.assertEqual(final_result["engineering_facts"], {"unit": {"name": "测试装置"}})
+            self.assertEqual(final_result["artifact"]["uri"], "runs/engineering_facts/engineering_facts.json")
+
+        _run(scenario())
+
+    def test_report_finalize_pushes_markdown_ui_result_via_progress(self) -> None:
+        core_result = {
+            "status": "completed",
+            "artifacts": {
+                "docx_path": "runs/report_finalize/report.docx",
+                "docx_media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "markdown_path": "runs/report_finalize/report.md",
+                "markdown_media_type": "text/markdown; charset=utf-8",
+            },
+            "manifest_path": "runs/report_finalize/report_manifest.json",
+            "markdown_content": "# 可行性研究报告\n\n正文",
+            "summary": _report_finalize_success_envelope()["data"]["summary"],
+            "diagnostics": [],
+        }
+
+        async def scenario() -> None:
+            progress = AsyncMock()
+            with (
+                patch("mcp_server.server.make_host_client", return_value=object()),
+                patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
+                patch("mcp_server.server._send_progress_with_data", new=progress),
+            ):
+                await report_finalize(
+                    FakeCtx(),
+                    ReportFinalizeInput(work_package_path="runs/report_prepare/work_package.json"),
+                )
+            args = progress.await_args.args
+            self.assertEqual(args[3], "报告已生成")
+            final_result = args[4]["final_result"]
+            self.assertEqual(final_result["markdown_content"], "# 可行性研究报告\n\n正文")
+            self.assertEqual(final_result["artifacts"]["markdown"], "runs/report_finalize/report.md")
+            self.assertEqual(final_result["artifacts"]["docx"], "runs/report_finalize/report.docx")
+
+        _run(scenario())
+
     def test_unexpected_internal_error_is_translated_to_tool_error(self) -> None:
         def fail() -> dict:
             raise RuntimeError("algorithm bug")
@@ -145,17 +228,31 @@ class MCPServerContractTests(unittest.TestCase):
         def bad_json_handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(200, headers={"Content-Type": "application/json"}, content=b"{bad json")
 
-        bad_client = MCPHostClient(base_url="http://host", client=httpx.Client(transport=httpx.MockTransport(bad_json_handler)))
-        result = execute_prepare({"engineering_facts_path": "inputs/facts.json"}, content=FakeContent(), host_client=bad_client)
+        bad_client = MCPHostClient(
+            base_url="http://host",
+            client=httpx.Client(transport=httpx.MockTransport(bad_json_handler)),
+        )
+        result = execute_prepare(
+            {"engineering_facts_path": "inputs/facts.json"},
+            content=FakeContent(),
+            host_client=bad_client,
+        )
         self.assertEqual(result["status"], "failed")
         self.assertIn("valid JSON object", result["diagnostics"][0]["message"])
 
         def unavailable_handler(request: httpx.Request) -> httpx.Response:
             return httpx.Response(503, json={"error": "unavailable"})
 
-        unavailable = MCPHostClient(base_url="http://host", client=httpx.Client(transport=httpx.MockTransport(unavailable_handler)))
+        unavailable = MCPHostClient(
+            base_url="http://host",
+            client=httpx.Client(transport=httpx.MockTransport(unavailable_handler)),
+        )
         with self.assertRaises(HostStorageError):
-            execute_prepare({"engineering_facts_path": "inputs/facts.json"}, content=FakeContent(), host_client=unavailable)
+            execute_prepare(
+                {"engineering_facts_path": "inputs/facts.json"},
+                content=FakeContent(),
+                host_client=unavailable,
+            )
 
     def test_internal_storage_error_is_translated_to_tool_error(self) -> None:
         def fail() -> dict:
@@ -222,7 +319,10 @@ class MCPServerContractTests(unittest.TestCase):
         source = schema["properties"]["source_location"]
         self.assertFalse(source.get("additionalProperties", True))
         self.assertEqual(set(source["required"]), {"provider", "location"})
-        self.assertEqual(source["properties"]["provider"]["const"], "local_directory")
+        provider_values = source["properties"]["provider"].get("enum") or [
+            source["properties"]["provider"].get("const")
+        ]
+        self.assertEqual(set(provider_values), {"local_directory", "host_file"})
 
     def test_report_prepare_input_schema(self) -> None:
         schema = _tool("report_prepare").parameters

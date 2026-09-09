@@ -29,7 +29,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
-from mcp_server.duck_implement import MCPContent, make_host_client
+from mcp_server.duck_implement import MCPContent, _send_progress_with_data, make_host_client
 from src.engineering_facts import OperationCancelled as EngineeringFactsCancelled
 from src.engineering_facts import execute as execute_engineering_facts
 from src.report_finalize import OperationCancelled as ReportFinalizeCancelled
@@ -92,11 +92,17 @@ class SourceLocation(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["local_directory"] = Field(
-        description="工程事实来源提供方；当前仅支持 local_directory。"
+    provider: Literal["local_directory", "host_file"] = Field(
+        description=(
+            "工程事实来源提供方；local_directory 读取本地目录，"
+            "host_file 通过 HostClient 读取宿主逻辑文件。"
+        )
     )
     location: str = Field(
-        description="上游工程或算法产物所在的本地目录路径；Tool 只读取该目录内受支持的输入文件。"
+        description=(
+            "上游工程或算法产物位置；provider=local_directory 时为本地目录路径，"
+            "provider=host_file 时为宿主存储逻辑文件路径。"
+        )
     )
 
 
@@ -472,6 +478,76 @@ def _report_finalize_envelope(result: dict[str, Any]) -> dict[str, Any]:
     return envelope.model_dump()
 
 
+def _diagnostics_for_ui(envelope: dict[str, Any]) -> list[dict[str, str]]:
+    """Map the public envelope diagnostics into the existing UI result shape."""
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    diagnostics: list[dict[str, str]] = []
+    for item in envelope.get("warnings") or []:
+        if not isinstance(item, dict):
+            continue
+        diagnostics.append(
+            {
+                "level": "info" if item.get("level") == "info" else "warning",
+                "code": str(item.get("code", "")),
+                "message": str(item.get("message", "")),
+            }
+        )
+    error = data.get("error")
+    if isinstance(error, dict):
+        diagnostics.append(
+            {
+                "level": "fatal",
+                "code": str(error.get("code", "")),
+                "message": str(error.get("message", "")),
+            }
+        )
+    return diagnostics
+
+
+def _artifact_uri_alias(value: Any) -> Any:
+    if isinstance(value, dict) and isinstance(value.get("path"), str):
+        return {**value, "uri": value["path"]}
+    return value
+
+
+def _report_artifact_aliases(value: Any) -> Any:
+    if not isinstance(value, dict):
+        return value
+    return {
+        **value,
+        "markdown": value.get("markdown_path") if isinstance(value.get("markdown_path"), str) else None,
+        "docx": value.get("docx_path") if isinstance(value.get("docx_path"), str) else None,
+    }
+
+
+def _engineering_facts_ui_result(
+    envelope: dict[str, Any],
+    engineering_facts_payload: Any,
+) -> dict[str, Any]:
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    return {
+        **data,
+        "artifact": _artifact_uri_alias(data.get("artifact")),
+        "status": envelope.get("status"),
+        "engineering_facts": engineering_facts_payload,
+        "diagnostics": _diagnostics_for_ui(envelope),
+    }
+
+
+def _report_finalize_ui_result(
+    envelope: dict[str, Any],
+    markdown_content: Any,
+) -> dict[str, Any]:
+    data = envelope.get("data") if isinstance(envelope.get("data"), dict) else {}
+    return {
+        **data,
+        "artifacts": _report_artifact_aliases(data.get("artifacts")),
+        "status": envelope.get("status"),
+        "markdown_content": markdown_content,
+        "diagnostics": _diagnostics_for_ui(envelope),
+    }
+
+
 # ---------------------------------------------------------------------------
 # 协作式取消桥接
 # ---------------------------------------------------------------------------
@@ -565,12 +641,25 @@ async def engineering_facts(
     result = await _run_with_cancellation(
         _run, cancel_event, "engineering_facts", "工程事实整理出现未预期内部错误"
     )
+    envelope = _engineering_facts_envelope(result)
     ui_payload: dict[str, Any] = {}
     if result.get("status") == "completed":
         # 完整工程事实只进 UI payload，不进模型可见 structuredContent
         ui_payload["engineering_facts"] = result.get("engineering_facts")
+    await _send_progress_with_data(
+        ctx,
+        100,
+        100,
+        "工程事实已完成" if result.get("status") == "completed" else "工程事实整理失败",
+        {
+            "final_result": _engineering_facts_ui_result(
+                envelope,
+                ui_payload.get("engineering_facts"),
+            )
+        },
+    )
     return ToolResult(
-        structured_content=_engineering_facts_envelope(result),
+        structured_content=envelope,
         meta={"ui_payload": ui_payload},
     )
 
@@ -664,12 +753,25 @@ async def report_finalize(
     result = await _run_with_cancellation(
         _run, cancel_event, "report_finalize", "报告定稿出现未预期内部错误"
     )
+    envelope = _report_finalize_envelope(result)
     ui_payload: dict[str, Any] = {}
     if result.get("status") == "completed":
         # 完整 Markdown 只进 UI payload，不进模型可见 structuredContent
         ui_payload["markdown_content"] = result.get("markdown_content")
+    await _send_progress_with_data(
+        ctx,
+        100,
+        100,
+        "报告已生成" if result.get("status") == "completed" else "报告定稿失败",
+        {
+            "final_result": _report_finalize_ui_result(
+                envelope,
+                ui_payload.get("markdown_content"),
+            )
+        },
+    )
     return ToolResult(
-        structured_content=_report_finalize_envelope(result),
+        structured_content=envelope,
         meta={"ui_payload": ui_payload},
     )
 

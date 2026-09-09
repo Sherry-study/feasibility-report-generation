@@ -37,7 +37,7 @@ engineering_facts
 → report_finalize
 ```
 
-`engineering_facts` 输入只接受 `source_location={provider:"local_directory", location:"..."}` 和可选 `construction_unit`（未提供时按空值处理，不自动推断）。本地目录例外仅用于在用户明确传入的根目录内枚举、读取受支持的工程输入文件；产出的 Engineering Facts 仍保存到宿主逻辑路径。`report_prepare` 接收 `engineering_facts_path` 和可选 `project_name`，适配层将项目名映射到核心的 `report_context`；核心先生成并完整校验工作包，再保存全部章节 context，最后保存 `work_package.json` 作为提交标志。`report_finalize` 接收必填 `work_package_path` 和可选 `work_results_path`，不接受 inline `work_results`；未提供工作结果时仍生成由模板 fallback 兜底的未闭合草稿。
+`engineering_facts` 输入只接受 `source_location` 和可选 `construction_unit`（未提供时按空值处理，不自动推断）。`source_location.provider` 支持 `local_directory` 与 `host_file`：`local_directory` 仅用于在用户明确传入的本地根目录内枚举、读取受支持的工程输入文件；`host_file` 把 `location` 作为宿主存储逻辑文件路径，并通过 `HostClient.get_file()` 读取单个上游算法文件。产出的 Engineering Facts 始终保存到宿主逻辑路径。`report_prepare` 接收 `engineering_facts_path` 和可选 `project_name`，适配层将项目名映射到核心的 `report_context`；核心先生成并完整校验工作包，再保存全部章节 context，最后保存 `work_package.json` 作为提交标志。`report_finalize` 接收必填 `work_package_path` 和可选 `work_results_path`，不接受 inline `work_results`；未提供工作结果时仍生成由模板 fallback 兜底的未闭合草稿。
 
 `report_finalize` 先在本地临时目录生成并校验 Markdown/DOCX，再保存到宿主逻辑路径并通过 HostClient 回读核对哈希和大小，最后保存通过 Schema 校验的 `report_manifest.json`。manifest 是有效交付的提交标志；没有 manifest 不得把本次调用视为 `completed`。
 

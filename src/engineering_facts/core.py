@@ -122,9 +122,12 @@ class Source:
     source_type: str
     path: Path
     schema_version: str | None = None
+    logical_location: str | None = None
 
     def location(self, source_root: Path) -> str:
         """返回相对来源根目录的 POSIX 风格路径，无法相对时回退绝对路径。"""
+        if self.logical_location is not None:
+            return self.logical_location
         try:
             return self.path.relative_to(source_root).as_posix()
         except ValueError:
@@ -177,16 +180,26 @@ def execute(
     if fatal:
         return _failed_response(diagnostics)
 
-    source_root = Path(request["source_location"]["location"]).resolve()
+    source_location = request["source_location"]
+    source_root = _source_root_for_facts(source_location)
     construction_unit = _construction_unit(request)
 
     _check_cancel(cancel_event)  # 来源发现前
     content.report_progress(0, 100, "扫描工程输入来源")
-    sources = _discover_sources(source_root, diagnostics, cancel_event)
+    if source_location["provider"] == "host_file":
+        content.report_progress(35, 100, "读取工程输入来源")
+        sources, payloads = _load_host_file_source(
+            source_location["location"],
+            host_client,
+            diagnostics,
+            cancel_event,
+        )
+    else:
+        sources = _discover_sources(source_root, diagnostics, cancel_event)
+        content.report_progress(35, 100, "读取工程输入来源")
+        payloads = _load_payloads(sources, diagnostics, cancel_event)
     _check_cancel(cancel_event)  # 来源发现后
     _validate_source_set(sources, diagnostics)
-    content.report_progress(35, 100, "读取工程输入来源")
-    payloads = _load_payloads(sources, diagnostics, cancel_event)
     _check_cancel(cancel_event)  # 来源读取后
     _warn_related_source_gaps(payloads, diagnostics)
 
@@ -268,7 +281,7 @@ def _validate_request(request: dict[str, Any], diagnostics: list[Diagnostic]) ->
             )
 
     if isinstance(source_location, dict) and (
-        source_location.get("provider") != "local_directory"
+        source_location.get("provider") not in {"local_directory", "host_file"}
     ):
         diagnostics.append(
             Diagnostic(
@@ -287,7 +300,9 @@ def _validate_request(request: dict[str, Any], diagnostics: list[Diagnostic]) ->
                     "source_location.location is required.",
                 )
             )
-        elif not Path(location).exists() or not Path(location).is_dir():
+        elif source_location.get("provider") == "local_directory" and (
+            not Path(location).exists() or not Path(location).is_dir()
+        ):
             diagnostics.append(
                 Diagnostic(
                     "fatal",
@@ -330,6 +345,13 @@ def _failed_response(diagnostics: list[Diagnostic]) -> dict[str, Any]:
 def _has_fatal(diagnostics: list[Diagnostic]) -> bool:
     """是否存在致命错误诊断。"""
     return any(item.level == "fatal" for item in diagnostics)
+
+
+def _source_root_for_facts(source_location: dict[str, Any]) -> Path:
+    """返回用于 facts.sources 相对路径计算的来源根。"""
+    if source_location["provider"] == "local_directory":
+        return Path(source_location["location"]).resolve()
+    return Path(".")
 
 
 def _read_json(path: Path) -> Any:
@@ -504,6 +526,110 @@ def _load_payloads(
         except Exception as exc:
             diagnostics.append(Diagnostic("fatal", "SOURCE_READ_FAILED", f"{source_type}: {exc}"))
     return payloads
+
+
+def _load_host_file_source(
+    logical_path: str,
+    host_client: HostClient,
+    diagnostics: list[Diagnostic],
+    cancel_event: threading.Event | None = None,
+) -> tuple[dict[str, Source], dict[str, Any]]:
+    """通过 HostClient 读取一个宿主逻辑文件，并识别为上游来源。"""
+    _check_cancel(cancel_event)
+    try:
+        payload = host_client.get_file(logical_path, kind="bytes")
+    except FileNotFoundError:
+        diagnostics.append(
+            Diagnostic(
+                "fatal",
+                "SOURCE_LOCATION_NOT_FOUND",
+                f"source file not found: {logical_path}",
+            )
+        )
+        return {}, {}
+    except Exception as exc:  # noqa: BLE001 - storage adapter boundary
+        raise HostStorageError(
+            f"HostClient.get_file failed for source file {logical_path}: {exc}"
+        ) from exc
+
+    _check_cancel(cancel_event)
+    source_type, schema_version, decoded = _classify_host_file_payload(
+        logical_path,
+        payload,
+        diagnostics,
+    )
+    if not source_type:
+        return {}, {}
+
+    source = Source(
+        source_id=source_type,
+        source_type=source_type,
+        path=Path(logical_path),
+        schema_version=schema_version,
+        logical_location=logical_path,
+    )
+    return {source_type: source}, {source_type: decoded}
+
+
+def _classify_host_file_payload(
+    logical_path: str,
+    payload: Any,
+    diagnostics: list[Diagnostic],
+) -> tuple[str | None, str | None, Any]:
+    """识别 HostClient 读到的单文件内容，返回来源角色、版本和已解码内容。"""
+    suffix = Path(logical_path).suffix.lower()
+    if isinstance(payload, dict):
+        source_type, schema_version = _classify_json(payload)
+        return source_type, schema_version, payload
+
+    try:
+        text = _host_payload_text(payload)
+    except (TypeError, UnicodeDecodeError) as exc:
+        diagnostics.append(
+            Diagnostic(
+                "fatal",
+                "SOURCE_READ_FAILED",
+                f"{logical_path}: cannot decode as UTF-8 text: {exc}",
+            )
+        )
+        return None, None, None
+
+    if suffix in {".json", ".jsonc"}:
+        try:
+            data = json.loads(text)
+        except json.JSONDecodeError as exc:
+            diagnostics.append(
+                Diagnostic(
+                    "fatal",
+                    "SOURCE_JSON_INVALID",
+                    f"{logical_path} is not valid JSON: {exc.msg}",
+                )
+            )
+            return None, None, None
+        source_type, schema_version = _classify_json(data)
+        return source_type, schema_version, data
+
+    if suffix in {".md", ".txt"}:
+        if Path(logical_path).name == "scheme_report.md":
+            return None, None, text
+        head = text[:20000]
+        if head.lstrip().startswith("# 工艺诊断报告") or (
+            "## 一、装置总体指标" in head
+            and "## 三、关键瓶颈分析" in head
+        ):
+            return "plant_diagnosis", None, text
+        if "diagnosis" in logical_path.lower() or "诊断" in logical_path:
+            return "plant_diagnosis", None, text
+    return None, None, text
+
+
+def _host_payload_text(payload: Any) -> str:
+    """把 HostClient 返回值归一化为文本，供单文件来源识别使用。"""
+    if isinstance(payload, str):
+        return payload.lstrip("\ufeff")
+    if isinstance(payload, (bytes, bytearray)):
+        return bytes(payload).decode("utf-8-sig")
+    raise TypeError(f"unsupported payload type: {type(payload).__name__}")
 
 
 def _validate_source_set(

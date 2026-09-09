@@ -425,14 +425,6 @@ export function EngineeringFactsPage() {
                             {scheme.description || 'engineering_facts.json 未形成 adopted_scheme 描述'}
                           </p>
                         )}
-                        {result.artifact?.uri && (
-                          <div className="ef-cell">
-                            <span className="ef-cell-label">事实文件</span>
-                            <span className="truncate font-mono text-[11px]" style={{ color: '#183456' }} title={result.artifact.uri}>
-                              {result.artifact.uri}
-                            </span>
-                          </div>
-                        )}
                       </div>
                     </article>
 

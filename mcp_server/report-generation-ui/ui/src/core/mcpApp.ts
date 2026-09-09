@@ -52,6 +52,8 @@ export interface ToolResult {
   content?: Array<{ type: string; text?: string }>;
   /** MCP ToolResult._meta：宿主透传给 UI 的扩展元数据（ui_payload）。 */
   _meta?: ToolResultMeta;
+  /** 兼容宿主以非别名（meta）形式透传元数据的情况。 */
+  meta?: ToolResultMeta;
   isError?: boolean;
   [k: string]: unknown;
 }
@@ -439,12 +441,21 @@ export function useNormalizedToolResult(): {
   const { toolResult } = app;
 
   const raw = toolResult?.structuredContent ?? null;
+  const progressFinalResult =
+    typeof app.progress?.uiEvent?.final_result === 'object' &&
+    app.progress.uiEvent.final_result !== null
+      ? (app.progress.uiEvent.final_result as Record<string, unknown>)
+      : null;
 
   if (!raw) {
+    if (progressFinalResult) {
+      return { finalResult: progressFinalResult, rawResult: toolResult, isError: !!toolResult?.isError };
+    }
     return { finalResult: null, rawResult: toolResult, isError: !!toolResult?.isError };
   }
 
-  const finalResult = normalizeResult(raw, toolResult?._meta);
+  const meta = (toolResult?._meta ?? toolResult?.meta) as ToolResultMeta | undefined;
+  const finalResult = normalizeResult(raw, meta, progressFinalResult);
   return { finalResult, rawResult: toolResult, isError: !!toolResult?.isError };
 }
 
@@ -458,6 +469,7 @@ export function useNormalizedToolResult(): {
 function normalizeResult(
   raw: Record<string, unknown>,
   meta: ToolResultMeta | undefined,
+  progressFinalResult: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const data = raw.data;
   // 非新信封结构（无 status/data 判别字段）：原样透传，避免破坏未知上游
@@ -519,7 +531,8 @@ function normalizeResult(
   return {
     ...normalizedData,
     status: envelope.status,
-    markdown_content: meta?.ui_payload?.markdown_content,
+    markdown_content:
+      meta?.ui_payload?.markdown_content ?? progressFinalResult?.markdown_content,
     diagnostics,
   };
 }

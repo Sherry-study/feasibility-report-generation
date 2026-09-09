@@ -10,7 +10,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.local_adapters import LocalHostClient
-from tests.fakes import FakeContent
+from tests.fakes import FakeContent, FakeHostClient
 from src.engineering_facts import OperationCancelled
 from src.engineering_facts import core as facts_core
 
@@ -157,6 +157,53 @@ class EngineeringFactsToolTests(unittest.TestCase):
                     {"source_id", "source_type", "location", "schema_version"}
                 )
             )
+
+    def test_host_file_source_reads_upstream_file_through_host_client(self) -> None:
+        source_payload = json.loads(self.scheme_path.read_text(encoding="utf-8"))
+        host = FakeHostClient()
+        host.save_file("inputs/upstream/scheme.json", source_payload)
+
+        result = facts_core.execute(
+            {
+                "source_location": {
+                    "provider": "host_file",
+                    "location": "inputs/upstream/scheme.json",
+                },
+                "construction_unit": "测试建设单位",
+            },
+            content=FakeContent(),
+            host_client=host,
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(
+            result["engineering_facts"]["sources"],
+            [
+                {
+                    "source_id": "scheme",
+                    "source_type": "scheme",
+                    "location": "inputs/upstream/scheme.json",
+                    "schema_version": "topology_retrofit_v1",
+                }
+            ],
+        )
+        self.assertIn(result["artifact"]["path"], host.files)
+
+    def test_missing_host_file_source_is_business_failure(self) -> None:
+        result = facts_core.execute(
+            {
+                "source_location": {
+                    "provider": "host_file",
+                    "location": "inputs/missing.json",
+                }
+            },
+            content=FakeContent(),
+            host_client=FakeHostClient(),
+        )
+
+        self.assertEqual(result["status"], "failed")
+        self.assertIsNone(result["artifact"])
+        self.assertEqual(result["diagnostics"][0]["code"], "SOURCE_LOCATION_NOT_FOUND")
 
     def test_latest_scheme_drives_adopted_scheme(self) -> None:
         result = self.execute()
