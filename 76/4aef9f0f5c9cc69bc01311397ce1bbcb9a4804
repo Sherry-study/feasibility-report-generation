@@ -22,16 +22,16 @@ tests/test_mcp_server_contract.py
       },
       "human_author": "Xiaoting <huangxiaoting@supcon.com>",
       "custom_attributes": {
-        "tool_use_id": "6aa15e08b682ab5927d6267e",
-        "display_model_name": "deepseek-v4-flash",
-        "source_scene": "agent",
-        "operation_id": "6aa15e08b682ab5927d6267e",
         "runtime_client": "trae-tob-git-ai",
-        "tool_name": "RunCommand",
-        "client_type": "ide",
         "external_session_id": "6aa1141cb682ab5927d62443",
         "edit_kind": "bash",
-        "session_id": "6aa1141cb682ab5927d62443"
+        "client_type": "ide",
+        "display_model_name": "deepseek-v4-flash",
+        "operation_id": "6aa15e08b682ab5927d6267e",
+        "session_id": "6aa1141cb682ab5927d62443",
+        "tool_use_id": "6aa15e08b682ab5927d6267e",
+        "source_scene": "agent",
+        "tool_name": "RunCommand"
       }
     },
     "s_e8834f2e41c2e8": {
@@ -42,17 +42,17 @@ tests/test_mcp_server_contract.py
       },
       "human_author": "Xiaoting <huangxiaoting@supcon.com>",
       "custom_attributes": {
-        "session_id": "6aa13e89b682ab5927d62562",
-        "external_session_id": "6aa13e89b682ab5927d62562",
-        "source_scene": "unknown",
-        "edit_kind": "file_edit",
-        "operation_id": "6aa14c2fb682ab5927d6266c",
-        "tool_type": "agent",
-        "tool_use_id": "6aa14c2fb682ab5927d6266c",
-        "dedupe_key": "6aa13e89b682ab5927d62562:6aa14c2fb682ab5927d6266c:afterEdit:18af83e3",
         "runtime_client": "trae-tob-git-ai",
+        "session_id": "6aa13e89b682ab5927d62562",
+        "edit_kind": "file_edit",
+        "tool_type": "agent",
+        "dedupe_key": "6aa13e89b682ab5927d62562:6aa14c2fb682ab5927d6266c:afterEdit:18af83e3",
+        "external_session_id": "6aa13e89b682ab5927d62562",
+        "tool_id": "Edit",
+        "tool_use_id": "6aa14c2fb682ab5927d6266c",
         "client_type": "ide",
-        "tool_id": "Edit"
+        "operation_id": "6aa14c2fb682ab5927d6266c",
+        "source_scene": "unknown"
       }
     }
   }
