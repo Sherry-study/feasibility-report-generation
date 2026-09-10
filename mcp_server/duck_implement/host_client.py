@@ -124,6 +124,14 @@ class MCPHostClient:
                         detail = f" (platform code={code}, message={message})"
             except (ValueError, httpx.DecodingError):
                 pass
+            logger.error(
+                "MCPHostClient 404: op=%s path=%s url=%s status=%d body=%s",
+                op,
+                path,
+                resp.url,
+                resp.status_code,
+                resp.text[:500] if resp.text else "",
+            )
             raise FileNotFoundError(f"MCPHostClient.{op}: {path or resp.url} 不存在{detail}")
         raise MCPHostError(
             f"MCPHostClient.{op} failed: {resp.status_code} {message}",

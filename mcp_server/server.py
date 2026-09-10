@@ -832,8 +832,10 @@ async def _run_with_cancellation(
         logger.exception("%s 出现未预期内部错误", log_label)
         code = getattr(exc, "code", "INTERNAL_ERROR")
         retryable = getattr(exc, "retryable", False)
+        # 用 status=failed 而非 error：relay 侧 output schema 只认 failed
+        # 分支，status=error 会导致 -32602 掩盖真实错误码。
         return {
-            "status": "error",
+            "status": "failed",
             "diagnostics": [
                 {
                     "level": "fatal",

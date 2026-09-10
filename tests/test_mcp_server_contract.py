@@ -600,7 +600,8 @@ class MCPServerContractTests(unittest.TestCase):
 
         with self.assertLogs("mcp_server.server", level="ERROR"):
             result = _run(_run_with_cancellation(fail, threading.Event(), "bug", "internal"))
-        self.assertEqual(result["status"], "error")
+        # relay 侧只认 status=failed，status=error 会导致 -32602 掩盖真实错误
+        self.assertEqual(result["status"], "failed")
         self.assertEqual(result["diagnostics"][0]["code"], "INTERNAL_ERROR")
         self.assertFalse(result["diagnostics"][0]["retryable"])
 
@@ -647,7 +648,7 @@ class MCPServerContractTests(unittest.TestCase):
                     "内部存储错误",
                 )
         )
-        self.assertEqual(result["status"], "error")
+        self.assertEqual(result["status"], "failed")
         self.assertEqual(result["diagnostics"][0]["code"], "HOST_STORAGE_ERROR")
         self.assertIn("内部存储错误", result["diagnostics"][0]["message"])
         self.assertIn("simulated storage outage", result["diagnostics"][0]["message"])
