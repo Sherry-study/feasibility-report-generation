@@ -1,0 +1,46 @@
+mcp_server/engineering-confirmation-ui/ui/dist/index.html
+  s_8e51c8343969cc::t_36dbe3fee8a10c 8,16,24,32,40,44-45,47-48
+mcp_server/engineering-confirmation-ui/ui/src/core/mcpApp.ts
+  s_8e51c8343969cc::t_36dbe3fee8a10c 437,441-445,450,458,463,514
+mcp_server/server.py
+  s_8e51c8343969cc::t_36dbe3fee8a10c 823-824,924-925
+mcp_server/report-generation-ui/ui/dist/index.html
+  s_8e51c8343969cc::t_36dbe3fee8a10c 8,16,24,32,40,44-45,47-49
+mcp_server/report-generation-ui/ui/src/core/mcpApp.ts
+  s_8e51c8343969cc::t_36dbe3fee8a10c 437,441-445,450,458,463,532
+tests/test_mcp_server_contract.py
+  s_8e51c8343969cc::t_36dbe3fee8a10c 319,347-351,390,420-457
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "39fb8598c095453864505b11a44813bdeb0f0ef9",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_8e51c8343969cc": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa1141cb682ab5927d62443",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "display_model_name": "deepseek-v4-flash",
+        "client_type": "ide",
+        "session_id": "6aa1141cb682ab5927d62443",
+        "external_session_id": "6aa1141cb682ab5927d62443",
+        "runtime_client": "trae-tob-git-ai",
+        "operation_id": "6aa2402896e973c4987a932d",
+        "source_scene": "agent",
+        "tool_use_id": "6aa2402896e973c4987a932d",
+        "tool_name": "RunCommand",
+        "edit_kind": "bash"
+      }
+    }
+  }
+}
