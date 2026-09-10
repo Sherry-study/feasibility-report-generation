@@ -562,8 +562,10 @@ class MCPServerContractTests(unittest.TestCase):
         self.assertEqual(schema["required"], ["input"])
         self.assertEqual(set(schema["properties"]), {"input"})
         tool_input = schema["properties"]["input"]
-        self.assertFalse(tool_input.get("additionalProperties", True))
-        self.assertEqual(set(tool_input["required"]), {"provider", "root"})
+        # extra="ignore" allows legacy format (source_location) to pass through
+        self.assertTrue(tool_input.get("additionalProperties", True))
+        # provider and root now have defaults (for legacy format compatibility)
+        self.assertEqual(set(tool_input.get("required", [])), set())
         self.assertEqual(
             set(tool_input["properties"]),
             {"provider", "root", "file_overrides", "construction_unit"},

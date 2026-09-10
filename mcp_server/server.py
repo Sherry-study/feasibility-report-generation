@@ -25,7 +25,7 @@ from typing import Any, Literal
 from fastmcp import Context, FastMCP
 from fastmcp.apps import AppConfig
 from fastmcp.tools import ToolResult
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
@@ -163,17 +163,25 @@ class EngineeringSourceFileOverrides(BaseModel):
 
 
 class EngineeringFactsInput(BaseModel):
-    """工程事实整理输入。"""
+    """工程事实整理输入。
 
-    model_config = ConfigDict(extra="forbid")
+    同时兼容新旧两种调用格式：
+    - 新格式：{provider, root, file_overrides?, construction_unit?}
+    - 旧格式：{source_location: {provider, location, file_overrides?}, construction_unit?}
+    旧格式的 source_location.location 会被自动映射为 root。
+    """
+
+    model_config = ConfigDict(extra="ignore")
 
     provider: Literal["local_directory", "host_directory"] = Field(
+        default="local_directory",
         description=(
             "来源类型。正式部署、平台上传文件、HostClient 逻辑目录必须使用 host_directory；"
             "只有本地调试且 MCP Server 进程能直接读取真实目录时，才使用 local_directory。"
         )
     )
     root: str = Field(
+        default="",
         description=(
             "来源根路径。provider=local_directory 时填写服务端可直接读取的本地目录；"
             "provider=host_directory 时填写宿主文件服务中的逻辑目录前缀。"
@@ -187,6 +195,22 @@ class EngineeringFactsInput(BaseModel):
         default=None,
         description="可选建设单位名称；未提供时按空值处理，不自动推断。",
     )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _normalize_legacy_format(cls, data: Any) -> Any:
+        """将旧格式 {source_location: {provider, location, ...}} 归一化为新格式。"""
+        if not isinstance(data, dict):
+            return data
+        sl = data.get("source_location")
+        if isinstance(sl, dict):
+            if "provider" not in data:
+                data["provider"] = sl.get("provider", "local_directory")
+            if "root" not in data:
+                data["root"] = sl.get("location", "")
+            if "file_overrides" not in data and "file_overrides" in sl:
+                data["file_overrides"] = sl["file_overrides"]
+        return data
 
 
 class ReportContext(BaseModel):
