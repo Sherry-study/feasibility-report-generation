@@ -1,0 +1,39 @@
+tests/test_mcp_server_contract.py
+  s_9c5fe6c5dc50b3::t_42e99c12cd7b68 270,275,277-278
+mcp_server/duck_implement/host_client.py
+  s_9c5fe6c5dc50b3::t_1195f484eecef4 196-197,199,211,225,231
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "7a9eeba7457e135f5439f516b60b503fe9c676ad",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_9c5fe6c5dc50b3": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa2a20f96e973c4987a9887",
+        "model": "deepseek-V4-Pro__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "operation_id": "6aa2b64496e973c4987a9bfd",
+        "dedupe_key": "6aa2a20f96e973c4987a9887:6aa2b64496e973c4987a9bfd:afterEdit:4e5d82cb",
+        "session_id": "6aa2a20f96e973c4987a9887",
+        "edit_kind": "file_edit",
+        "source_scene": "unknown",
+        "runtime_client": "trae-tob-git-ai",
+        "external_session_id": "6aa2a20f96e973c4987a9887",
+        "tool_id": "Edit",
+        "tool_use_id": "6aa2b64496e973c4987a9bfd",
+        "tool_type": "agent",
+        "client_type": "ide"
+      }
+    }
+  }
+}
