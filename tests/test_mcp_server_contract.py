@@ -316,6 +316,7 @@ class MCPServerContractTests(unittest.TestCase):
         _run(scenario())
 
     def test_engineering_facts_pushes_final_ui_result_via_progress(self) -> None:
+        schema = _tool("engineering_facts").output_schema
         core_result = {
             "status": "completed",
             "artifact": {
@@ -343,9 +344,11 @@ class MCPServerContractTests(unittest.TestCase):
             self.assertIsNone(tool_result.meta)
             args = progress.await_args.args
             self.assertEqual(args[3], "工程事实已完成")
-            final_result = args[4]["final_result"]
-            self.assertEqual(final_result["engineering_facts"], {"unit": {"name": "测试装置"}})
-            self.assertEqual(final_result["artifact"]["uri"], "runs/engineering_facts/engineering_facts.json")
+            ui_event = args[4]
+            final_result = ui_event["final_result"]
+            self.assertEqual(final_result, _engineering_facts_success_envelope())
+            jsonschema.validate(final_result, schema)
+            self.assertEqual(ui_event["engineering_facts"], {"unit": {"name": "测试装置"}})
 
         _run(scenario())
 
@@ -384,6 +387,7 @@ class MCPServerContractTests(unittest.TestCase):
         _run(scenario())
 
     def test_report_finalize_pushes_markdown_ui_result_via_progress(self) -> None:
+        schema = _tool("report_finalize").output_schema
         core_result = {
             "status": "completed",
             "artifacts": {
@@ -413,10 +417,44 @@ class MCPServerContractTests(unittest.TestCase):
             self.assertIsNone(tool_result.meta)
             args = progress.await_args.args
             self.assertEqual(args[3], "报告已生成")
-            final_result = args[4]["final_result"]
-            self.assertEqual(final_result["markdown_content"], "# 可行性研究报告\n\n正文")
-            self.assertEqual(final_result["artifacts"]["markdown"], "runs/report_finalize/report.md")
-            self.assertEqual(final_result["artifacts"]["docx"], "runs/report_finalize/report.docx")
+            ui_event = args[4]
+            final_result = ui_event["final_result"]
+            self.assertEqual(final_result, _report_finalize_success_envelope())
+            jsonschema.validate(final_result, schema)
+            self.assertEqual(ui_event["markdown_content"], "# 可行性研究报告\n\n正文")
+
+        _run(scenario())
+
+    def test_engineering_facts_error_progress_final_result_matches_output_schema(self) -> None:
+        schema = _tool("engineering_facts").output_schema
+        core_result = {
+            "status": "error",
+            "diagnostics": [
+                {
+                    "level": "fatal",
+                    "code": "ENGINEERING_FACTS_ARTIFACT_SAVE_FAILED",
+                    "message": "HostClient failed to save engineering facts artifact",
+                    "retryable": False,
+                }
+            ],
+        }
+
+        async def scenario() -> None:
+            progress = AsyncMock()
+            with (
+                patch("mcp_server.server.make_host_client", return_value=object()),
+                patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
+                patch("mcp_server.server._send_progress_with_data", new=progress),
+            ):
+                tool_result = await engineering_facts(
+                    FakeCtx(),
+                    SourceLocation(provider="local_directory", location="inputs"),
+                )
+            jsonschema.validate(tool_result.structured_content, schema)
+            ui_event = progress.await_args.args[4]
+            jsonschema.validate(ui_event["final_result"], schema)
+            self.assertNotIn("business_status", ui_event["final_result"])
+            self.assertIsNone(ui_event["engineering_facts"])
 
         _run(scenario())
 

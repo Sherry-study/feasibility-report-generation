@@ -820,10 +820,8 @@ async def engineering_facts(
         100,
         "工程事实已完成" if result.get("status") == "completed" else "工程事实整理失败",
         {
-            "final_result": _engineering_facts_ui_result(
-                envelope,
-                engineering_facts_payload,
-            )
+            "final_result": envelope,
+            "engineering_facts": engineering_facts_payload,
         },
     )
     return ToolResult(structured_content=envelope)
@@ -923,10 +921,8 @@ async def report_finalize(
         100,
         "报告已生成" if result.get("status") == "completed" else "报告定稿失败",
         {
-            "final_result": _report_finalize_ui_result(
-                envelope,
-                markdown_content,
-            )
+            "final_result": envelope,
+            "markdown_content": markdown_content,
         },
     )
     return ToolResult(structured_content=envelope)

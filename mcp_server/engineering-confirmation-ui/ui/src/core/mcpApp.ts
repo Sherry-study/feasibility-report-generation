@@ -434,15 +434,20 @@ export function useNormalizedToolResult(): {
     app.progress.uiEvent.final_result !== null
       ? (app.progress.uiEvent.final_result as Record<string, unknown>)
       : null;
+  const progressUiEvent = app.progress?.uiEvent ?? null;
 
   if (!raw) {
     if (progressFinalResult) {
-      return { finalResult: progressFinalResult, rawResult: toolResult, isError: !!toolResult?.isError };
+      return {
+        finalResult: normalizeResult(progressFinalResult, progressUiEvent),
+        rawResult: toolResult,
+        isError: !!toolResult?.isError,
+      };
     }
     return { finalResult: null, rawResult: toolResult, isError: !!toolResult?.isError };
   }
 
-  const finalResult = normalizeResult(raw, progressFinalResult);
+  const finalResult = normalizeResult(raw, progressUiEvent);
   return { finalResult, rawResult: toolResult, isError: !!toolResult?.isError };
 }
 
@@ -450,12 +455,12 @@ export function useNormalizedToolResult(): {
  *
  * - 状态、产物路径、摘要、warnings、error 始终以 structuredContent 为准；
  * - Tool 外层三态中的 success 会映射为 data.business_status，兼容既有页面状态；
- * - 完整工程事实只从 progress.uiEvent.final_result.engineering_facts 读取；
+ * - 完整工程事实只从 progress.uiEvent.engineering_facts 读取；
  * - warnings 与 data.error 映射为页面现有 diagnostics 结构。
  */
 function normalizeResult(
   raw: Record<string, unknown>,
-  progressFinalResult: Record<string, unknown> | null,
+  progressUiEvent: Record<string, unknown> | null,
 ): Record<string, unknown> {
   const data = raw.data;
   // 非新信封结构（无 status/data 判别字段）：原样透传，避免破坏未知上游
@@ -506,7 +511,7 @@ function normalizeResult(
   return {
     ...normalizedData,
     status: pageStatus,
-    engineering_facts: progressFinalResult?.engineering_facts,
+    engineering_facts: progressUiEvent?.engineering_facts,
     diagnostics,
   };
 }
