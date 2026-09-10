@@ -15,7 +15,7 @@ import jsonschema
 from docx import Document
 from docx.oxml.ns import qn
 
-from src.errors import HostStorageError, HostStorageIntegrityError
+from src.errors import HostStorageError, HostStorageIntegrityError, ToolInternalError
 from src.report_finalize import OperationCancelled as FinalizeCancelled
 from src.report_finalize import execute as execute_finalize
 from src.report_prepare import OperationCancelled as PrepareCancelled
@@ -878,7 +878,82 @@ class ReportPrepareFinalizeTests(unittest.TestCase):
         self.host.save_file("inputs/engineering_facts.json", "{bad json")
         result = execute_prepare({"engineering_facts_path": "inputs/engineering_facts.json"}, content=self.content, host_client=self.host)
         self.assertEqual(result["status"], "failed")
+        self.assertEqual(
+            result["diagnostics"][0]["code"],
+            "REPORT_PREPARE_ENGINEERING_FACTS_JSON_INVALID",
+        )
+        self.assertTrue(result["diagnostics"][0]["retryable"])
         self.assertIn("valid JSON object", result["diagnostics"][0]["message"])
+
+    def test_missing_engineering_facts_path_has_specific_code(self) -> None:
+        result = execute_prepare(
+            {"engineering_facts_path": "inputs/missing.json"},
+            content=self.content,
+            host_client=self.host,
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(
+            result["diagnostics"][0]["code"],
+            "REPORT_PREPARE_ENGINEERING_FACTS_NOT_FOUND",
+        )
+        self.assertTrue(result["diagnostics"][0]["retryable"])
+        self.assertIn("inputs/missing.json", result["diagnostics"][0]["message"])
+
+    def test_prepare_save_failure_preserves_specific_storage_code(self) -> None:
+        self.host.fail_on_save_prefix = "runs/report_prepare"
+        with self.assertRaises(HostStorageError) as ctx:
+            execute_prepare(
+                {"engineering_facts_path": "inputs/engineering_facts.json"},
+                content=self.content,
+                host_client=self.host,
+            )
+        self.assertEqual(ctx.exception.code, "REPORT_PREPARE_CONTEXT_SAVE_FAILED")
+        self.assertFalse(ctx.exception.retryable)
+
+    def test_missing_work_package_path_has_specific_code(self) -> None:
+        result = execute_finalize(
+            {"work_package_path": "runs/report_prepare/missing/work_package.json"},
+            content=self.content,
+            host_client=self.host,
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(
+            result["diagnostics"][0]["code"],
+            "REPORT_FINALIZE_WORK_PACKAGE_NOT_FOUND",
+        )
+        self.assertTrue(result["diagnostics"][0]["retryable"])
+
+    def test_bad_work_results_json_has_specific_code(self) -> None:
+        prepared, _ = self.prepare()
+        self.host.save_file("inputs/work_results.json", "{bad json")
+        result = execute_finalize(
+            {
+                "work_package_path": prepared["artifact"]["path"],
+                "work_results_path": "inputs/work_results.json",
+            },
+            content=self.content,
+            host_client=self.host,
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(
+            result["diagnostics"][0]["code"],
+            "REPORT_FINALIZE_WORK_RESULTS_JSON_INVALID",
+        )
+        self.assertTrue(result["diagnostics"][0]["retryable"])
+
+    def test_work_results_schema_error_has_specific_code(self) -> None:
+        prepared, package = self.prepare()
+        result = self.finalize_with_results(
+            prepared,
+            package,
+            {"schema_version": "1.0", "writing_results": [], "synthesis_results": [], "extra": True},
+        )
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(
+            result["diagnostics"][0]["code"],
+            "REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+        )
+        self.assertTrue(result["diagnostics"][0]["retryable"])
 
     def test_corrupt_shared_template_is_internal_exception(self) -> None:
         with patch("src.report_shared.workflow.load_template", side_effect=ValueError("corrupt template")):
@@ -931,7 +1006,7 @@ class ReportPrepareFinalizeTests(unittest.TestCase):
             "src.report_shared.workflow.validate_with_schema",
             side_effect=jsonschema.ValidationError("generated package invalid"),
         ):
-            with self.assertRaisesRegex(jsonschema.ValidationError, "generated package invalid"):
+            with self.assertRaisesRegex(ToolInternalError, "generated work package"):
                 execute_prepare({"engineering_facts_path": "inputs/engineering_facts.json"}, content=self.content, host_client=self.host)
 
     def test_generated_manifest_schema_failure_is_internal_and_uncommitted(self) -> None:

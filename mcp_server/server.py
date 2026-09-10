@@ -15,6 +15,7 @@
 from __future__ import annotations
 
 import asyncio
+import datetime as _dt
 import logging
 import os
 import threading
@@ -37,6 +38,38 @@ from src.report_prepare import OperationCancelled as ReportPrepareCancelled
 from src.report_prepare import execute as execute_report_prepare
 
 logger = logging.getLogger(__name__)
+_EAST_8 = _dt.timezone(_dt.timedelta(hours=8))
+
+
+class _East8Formatter(logging.Formatter):
+    """Formatter with a fixed UTC+8 timestamp independent of system timezone."""
+
+    converter = staticmethod(
+        lambda ts: _dt.datetime.fromtimestamp(ts, _EAST_8).timetuple()
+    )
+
+
+def setup_logging(level: int = logging.INFO) -> None:
+    """Configure service logs with fixed UTC+8 timestamps.
+
+    Uvicorn loggers are left to propagate so ``uvicorn_config={"log_config": None}``
+    can route access/error logs through the same root formatter.
+    """
+    handler = logging.StreamHandler()
+    handler.setFormatter(
+        _East8Formatter(
+            "%(asctime)s - %(levelname)s - %(message)s",
+            datefmt="%Y-%m-%d %H:%M:%S",
+        )
+    )
+    root = logging.getLogger()
+    root.handlers.clear()
+    root.addHandler(handler)
+    root.setLevel(level)
+    for logger_name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+        uvicorn_logger = logging.getLogger(logger_name)
+        uvicorn_logger.handlers.clear()
+        uvicorn_logger.propagate = True
 
 # 三个业务核心各自定义 OperationCancelled；MCP 层统一捕获三者
 _CANCELLED_ERRORS = (
@@ -710,14 +743,16 @@ async def _run_with_cancellation(
         raise asyncio.CancelledError() from exc
     except Exception as exc:
         logger.exception("%s 出现未预期内部错误", log_label)
+        code = getattr(exc, "code", "INTERNAL_ERROR")
+        retryable = getattr(exc, "retryable", False)
         return {
             "status": "error",
             "diagnostics": [
                 {
                     "level": "fatal",
-                    "code": "INTERNAL_ERROR",
-                    "message": tool_error_message,
-                    "retryable": False,
+                    "code": code if isinstance(code, str) else "INTERNAL_ERROR",
+                    "message": f"{tool_error_message}: {exc}",
+                    "retryable": retryable if isinstance(retryable, bool) else False,
                 }
             ],
         }
@@ -917,9 +952,10 @@ def main() -> None:
         port=port,
         host_origin_protection=False,
         middleware=[cors_middleware],
+        uvicorn_config={"log_config": None},
     )
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     main()

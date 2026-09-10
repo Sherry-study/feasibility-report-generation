@@ -549,7 +549,8 @@ def _load_host_file_source(
         return {}, {}
     except Exception as exc:  # noqa: BLE001 - storage adapter boundary
         raise HostStorageError(
-            f"HostClient.get_file failed for source file {logical_path}: {exc}"
+            f"HostClient failed to read engineering source file: {logical_path}. Cause: {exc}",
+            code="ENGINEERING_FACTS_HOST_STORAGE_ERROR",
         ) from exc
 
     _check_cancel(cancel_event)
@@ -2301,7 +2302,10 @@ def _write_artifact(facts: dict[str, Any], host_client: HostClient) -> dict[str,
     try:
         host_client.save_file(path, facts)
     except Exception as exc:  # noqa: BLE001 - storage adapter boundary
-        raise HostStorageError(f"HostClient.save_file failed for {path}: {exc}") from exc
+        raise HostStorageError(
+            f"HostClient failed to save engineering facts artifact: {path}. Cause: {exc}",
+            code="ENGINEERING_FACTS_ARTIFACT_SAVE_FAILED",
+        ) from exc
     return {
         "path": path,
         "schema_version": SCHEMA_VERSION,

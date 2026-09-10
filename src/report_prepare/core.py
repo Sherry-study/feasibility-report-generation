@@ -14,7 +14,7 @@ from src.report_shared.workflow import (
     OperationCancelled,
     build_work_package,
     check_cancel,
-    diagnostic,
+    diagnostic_from_exception,
     load_json_from_host,
     reject_undeclared_fields,
     required_string,
@@ -32,21 +32,45 @@ def execute(
     """Prepare a report work package and commit it through HostClient."""
     try:
         if not isinstance(request, dict):
-            raise BusinessValidationError("request must be an object")
+            raise BusinessValidationError(
+                "report_prepare request must be an object",
+                code="REPORT_PREPARE_INVALID_REQUEST",
+            )
         reject_undeclared_fields(
             request,
             {"engineering_facts_path", "report_context"},
             "report_prepare request",
+            code="REPORT_PREPARE_INVALID_REQUEST",
         )
-        engineering_facts_path = required_string(request, "engineering_facts_path")
+        engineering_facts_path = required_string(
+            request,
+            "engineering_facts_path",
+            code="REPORT_PREPARE_INVALID_REQUEST",
+            label="engineering_facts_path",
+        )
         report_context = request.get("report_context") or {}
         if not isinstance(report_context, dict):
-            raise BusinessValidationError("report_context must be an object")
-        reject_undeclared_fields(report_context, {"project_name"}, "report_context")
+            raise BusinessValidationError(
+                "report_context must be an object",
+                code="REPORT_PREPARE_CONTEXT_INVALID",
+            )
+        reject_undeclared_fields(
+            report_context,
+            {"project_name"},
+            "report_context",
+            code="REPORT_PREPARE_CONTEXT_INVALID",
+        )
 
         content.report_progress(0, 100, "读取工程事实")
         check_cancel(cancel_event)
-        facts = load_json_from_host(host_client, engineering_facts_path)
+        facts = load_json_from_host(
+            host_client,
+            engineering_facts_path,
+            label="engineering facts file",
+            not_found_code="REPORT_PREPARE_ENGINEERING_FACTS_NOT_FOUND",
+            invalid_json_code="REPORT_PREPARE_ENGINEERING_FACTS_JSON_INVALID",
+            storage_code="REPORT_PREPARE_ENGINEERING_FACTS_READ_FAILED",
+        )
         check_cancel(cancel_event)
 
         content.report_progress(25, 100, "生成报告工作包")
@@ -65,12 +89,24 @@ def execute(
         content.report_progress(70, 100, "提交章节上下文")
         for context_path, context_payload in context_payloads:
             check_cancel(cancel_event)
-            save_json_to_host(host_client, context_path, context_payload)
+            save_json_to_host(
+                host_client,
+                context_path,
+                context_payload,
+                code="REPORT_PREPARE_CONTEXT_SAVE_FAILED",
+                label="chapter context",
+            )
 
         check_cancel(cancel_event)
         content.report_progress(90, 100, "提交工作包")
         check_cancel(cancel_event)
-        save_json_to_host(host_client, work_package_path, work_package)
+        save_json_to_host(
+            host_client,
+            work_package_path,
+            work_package,
+            code="REPORT_PREPARE_WORK_PACKAGE_SAVE_FAILED",
+            label="work package",
+        )
         content.report_progress(100, 100, "工作包已生成")
         return {
             "status": "prepared",
@@ -96,5 +132,12 @@ def execute(
             "status": "failed",
             "artifact": None,
             "summary": {},
-            "diagnostics": [diagnostic("fatal", "REPORT_PREPARE_FAILED", str(exc))],
+            "diagnostics": [
+                diagnostic_from_exception(
+                    "fatal",
+                    exc,
+                    default_code="REPORT_PREPARE_FAILED",
+                    default_retryable=True,
+                )
+            ],
         }

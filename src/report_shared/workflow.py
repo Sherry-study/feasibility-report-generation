@@ -19,7 +19,12 @@ from typing import Any
 import jsonschema
 
 from duck.host_client import HostClient
-from src.errors import BusinessValidationError, HostStorageError, HostStorageIntegrityError
+from src.errors import (
+    BusinessValidationError,
+    HostStorageError,
+    HostStorageIntegrityError,
+    ToolInternalError,
+)
 
 from .context_builder import FACT_ROOTS, build_fact_slice, normalize_fact_roots
 from .deterministic_builders import build_blocks
@@ -75,14 +80,50 @@ def check_cancel(cancel_event: threading.Event | None) -> None:
         raise OperationCancelled("report operation cancelled")
 
 
-def diagnostic(level: str, code: str, message: str) -> dict[str, str]:
-    return {"level": level, "code": code, "message": message}
+def diagnostic(
+    level: str,
+    code: str,
+    message: str,
+    *,
+    retryable: bool | None = None,
+) -> dict[str, Any]:
+    item: dict[str, Any] = {"level": level, "code": code, "message": message}
+    if retryable is not None:
+        item["retryable"] = retryable
+    return item
 
 
-def required_string(request: dict[str, Any], key: str) -> str:
+def diagnostic_from_exception(
+    level: str,
+    exc: Exception,
+    *,
+    default_code: str,
+    default_retryable: bool,
+) -> dict[str, Any]:
+    code = getattr(exc, "code", default_code)
+    retryable = getattr(exc, "retryable", default_retryable)
+    return diagnostic(
+        level,
+        str(code),
+        str(exc),
+        retryable=retryable if isinstance(retryable, bool) else default_retryable,
+    )
+
+
+def required_string(
+    request: dict[str, Any],
+    key: str,
+    *,
+    code: str = "INVALID_REQUEST",
+    label: str | None = None,
+) -> str:
     value = request.get(key)
     if not isinstance(value, str) or not value.strip():
-        raise BusinessValidationError(f"{key} must be a non-empty string")
+        name = label or key
+        raise BusinessValidationError(
+            f"{name} must be a non-empty string",
+            code=code,
+        )
     return value.strip()
 
 
@@ -90,10 +131,15 @@ def reject_undeclared_fields(
     payload: dict[str, Any],
     allowed: set[str],
     label: str,
+    *,
+    code: str = "INVALID_REQUEST",
 ) -> None:
     extra = sorted(set(payload) - allowed)
     if extra:
-        raise BusinessValidationError(f"{label} has unsupported fields: {extra}")
+        raise BusinessValidationError(
+            f"{label} has unsupported fields: {extra}",
+            code=code,
+        )
 
 
 def get_path_or_empty(data: dict[str, Any], path: str) -> Any:
@@ -105,13 +151,27 @@ def get_path_or_empty(data: dict[str, Any], path: str) -> Any:
     return value
 
 
-def load_json_from_host(host_client: HostClient, logical_path: str) -> dict[str, Any]:
+def load_json_from_host(
+    host_client: HostClient,
+    logical_path: str,
+    *,
+    label: str = "JSON file",
+    not_found_code: str = "LOGICAL_PATH_NOT_FOUND",
+    invalid_json_code: str = "JSON_INVALID",
+    storage_code: str = "HOST_STORAGE_READ_FAILED",
+) -> dict[str, Any]:
     try:
         payload = host_client.get_file(logical_path, kind="bytes")
     except FileNotFoundError as exc:
-        raise BusinessValidationError(f"logical path not found: {logical_path}") from exc
+        raise BusinessValidationError(
+            f"{label} not found: {logical_path}. Check that the previous Tool completed and passed the returned logical path.",
+            code=not_found_code,
+        ) from exc
     except Exception as exc:  # noqa: BLE001 - storage adapter boundary
-        raise HostStorageError(f"HostClient.get_file failed for {logical_path}: {exc}") from exc
+        raise HostStorageError(
+            f"HostClient failed to read {label}: {logical_path}. Cause: {exc}",
+            code=storage_code,
+        ) from exc
     try:
         if isinstance(payload, dict):
             return payload
@@ -121,10 +181,14 @@ def load_json_from_host(host_client: HostClient, logical_path: str) -> dict[str,
             data = json.loads(payload)
             if isinstance(data, dict):
                 return data
-        raise BusinessValidationError(f"{logical_path} must contain a JSON object")
+        raise BusinessValidationError(
+            f"{label} must contain a JSON object: {logical_path}",
+            code=invalid_json_code,
+        )
     except (UnicodeDecodeError, json.JSONDecodeError, ValueError) as exc:
         raise BusinessValidationError(
-            f"{logical_path} must contain valid JSON object: {exc}"
+            f"{label} is not a valid JSON object: {logical_path}. Cause: {exc}",
+            code=invalid_json_code,
         ) from exc
 
 
@@ -132,36 +196,60 @@ def save_json_to_host(
     host_client: HostClient,
     logical_path: str,
     payload: dict[str, Any],
+    *,
+    code: str = "HOST_STORAGE_SAVE_FAILED",
+    label: str = "JSON artifact",
 ) -> None:
     try:
         host_client.save_file(logical_path, payload)
     except Exception as exc:  # noqa: BLE001 - storage adapter boundary
-        raise HostStorageError(f"HostClient.save_file failed for {logical_path}: {exc}") from exc
+        raise HostStorageError(
+            f"HostClient failed to save {label}: {logical_path}. Cause: {exc}",
+            code=code,
+        ) from exc
 
 
 def save_bytes_to_host(
     host_client: HostClient,
     logical_path: str,
     payload: bytes,
+    *,
+    code: str = "HOST_STORAGE_SAVE_FAILED",
+    label: str = "artifact",
 ) -> None:
     try:
         host_client.save_file(logical_path, payload)
     except Exception as exc:  # noqa: BLE001 - storage adapter boundary
-        raise HostStorageError(f"HostClient.save_file failed for {logical_path}: {exc}") from exc
+        raise HostStorageError(
+            f"HostClient failed to save {label}: {logical_path}. Cause: {exc}",
+            code=code,
+        ) from exc
 
 
-def read_bytes_from_host(host_client: HostClient, logical_path: str) -> bytes:
+def read_bytes_from_host(
+    host_client: HostClient,
+    logical_path: str,
+    *,
+    code: str = "HOST_STORAGE_READ_FAILED",
+    label: str = "artifact",
+) -> bytes:
     try:
         payload = host_client.get_file(logical_path, kind="bytes")
     except Exception as exc:  # noqa: BLE001 - storage adapter boundary
-        raise HostStorageError(f"HostClient.get_file failed for {logical_path}: {exc}") from exc
+        raise HostStorageError(
+            f"HostClient failed to read {label}: {logical_path}. Cause: {exc}",
+            code=code,
+        ) from exc
     if isinstance(payload, bytes):
         return payload
     if isinstance(payload, str):
         return payload.encode("utf-8")
     if isinstance(payload, dict):
         return json.dumps(payload, ensure_ascii=False, sort_keys=True).encode("utf-8")
-    raise HostStorageError(f"HostClient.get_file returned unsupported type for {logical_path}")
+    raise HostStorageError(
+        f"HostClient returned unsupported payload type for {label}: {logical_path}",
+        code=code,
+    )
 
 
 def validate_with_schema(payload: dict[str, Any], schema_path: Path) -> None:
@@ -180,7 +268,10 @@ def build_work_package(
     try:
         facts = normalize_fact_roots(facts)
     except ValueError as exc:
-        raise BusinessValidationError(str(exc)) from exc
+        raise BusinessValidationError(
+            f"engineering facts schema invalid: {exc}",
+            code="REPORT_PREPARE_ENGINEERING_FACTS_SCHEMA_INVALID",
+        ) from exc
     check_cancel(cancel_event)
     template = load_template()
     project_name = _project_name(facts, report_context)
@@ -279,7 +370,13 @@ def build_work_package(
         "deterministic_summaries": deterministic_summaries,
         "synthesis_tasks": synthesis_tasks,
     }
-    validate_with_schema(work_package, PACKAGE_SCHEMA_PATH)
+    try:
+        validate_with_schema(work_package, PACKAGE_SCHEMA_PATH)
+    except jsonschema.ValidationError as exc:
+        raise ToolInternalError(
+            f"generated work package failed schema validation: {exc.message}",
+            code="REPORT_PREPARE_WORK_PACKAGE_SCHEMA_ERROR",
+        ) from exc
     return work_package, context_payloads
 
 
@@ -364,26 +461,40 @@ def build_report_result(
 
 
 def render_export_to_host_payload(report: dict[str, Any]) -> str:
-    with tempfile.TemporaryDirectory() as temp_dir:
-        markdown_path = Path(temp_dir) / "report.md"
-        export_markdown(report, markdown_path)
-        if not markdown_path.is_file() or not markdown_path.read_text(encoding="utf-8").strip():
-            raise ValueError("exported markdown is empty or missing")
-        return markdown_path.read_text(encoding="utf-8")
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            markdown_path = Path(temp_dir) / "report.md"
+            export_markdown(report, markdown_path)
+            if not markdown_path.is_file() or not markdown_path.read_text(
+                encoding="utf-8"
+            ).strip():
+                raise ValueError("exported markdown is empty or missing")
+            return markdown_path.read_text(encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001 - exporter boundary
+        raise ToolInternalError(
+            f"failed to render Markdown preview content. Cause: {exc}",
+            code="REPORT_FINALIZE_REPORT_BUILD_ERROR",
+        ) from exc
 
 
 def export_report_files(report: dict[str, Any]) -> tuple[bytes, bytes]:
-    with tempfile.TemporaryDirectory() as temp_dir:
-        temp_root = Path(temp_dir)
-        markdown_path = temp_root / "可行性研究报告_初稿.md"
-        docx_path = temp_root / "可行性研究报告_初稿.docx"
-        export_markdown(report, markdown_path)
-        export_docx(report, docx_path)
-        _validate_export_group(markdown_path, docx_path)
-        return (
-            markdown_path.read_text(encoding="utf-8").encode("utf-8"),
-            docx_path.read_bytes(),
-        )
+    try:
+        with tempfile.TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            markdown_path = temp_root / "可行性研究报告_初稿.md"
+            docx_path = temp_root / "可行性研究报告_初稿.docx"
+            export_markdown(report, markdown_path)
+            export_docx(report, docx_path)
+            _validate_export_group(markdown_path, docx_path)
+            return (
+                markdown_path.read_text(encoding="utf-8").encode("utf-8"),
+                docx_path.read_bytes(),
+            )
+    except Exception as exc:  # noqa: BLE001 - exporter boundary
+        raise ToolInternalError(
+            f"failed to export Markdown/DOCX report files. Cause: {exc}",
+            code="REPORT_FINALIZE_EXPORT_FAILED",
+        ) from exc
 
 
 def file_stat(payload: bytes) -> dict[str, Any]:
@@ -397,13 +508,17 @@ def verify_host_bytes(
     host_client: HostClient,
     logical_path: str,
     expected_payload: bytes,
+    *,
+    code: str = "HOST_STORAGE_INTEGRITY_ERROR",
+    label: str = "artifact",
 ) -> None:
-    actual = read_bytes_from_host(host_client, logical_path)
+    actual = read_bytes_from_host(host_client, logical_path, code=code, label=label)
     expected = file_stat(expected_payload)
     observed = file_stat(actual)
     if observed != expected:
         raise HostStorageIntegrityError(
-            f"HostClient readback mismatch for {logical_path}: expected {expected}, observed {observed}"
+            f"HostClient readback mismatch for {label}: {logical_path}. Expected {expected}, observed {observed}",
+            code=code,
         )
 
 
@@ -430,7 +545,13 @@ def build_manifest(
         },
         "summary": summary,
     }
-    validate_with_schema(manifest, MANIFEST_SCHEMA_PATH)
+    try:
+        validate_with_schema(manifest, MANIFEST_SCHEMA_PATH)
+    except jsonschema.ValidationError as exc:
+        raise ToolInternalError(
+            f"generated report manifest failed schema validation: {exc.message}",
+            code="REPORT_FINALIZE_MANIFEST_BUILD_FAILED",
+        ) from exc
     return manifest
 
 
@@ -442,11 +563,20 @@ def validate_work_package(package: dict[str, Any]) -> None:
     try:
         validate_with_schema(package, PACKAGE_SCHEMA_PATH)
     except jsonschema.ValidationError as exc:
-        raise BusinessValidationError(f"work_package schema invalid: {exc.message}") from exc
+        raise BusinessValidationError(
+            f"work_package schema invalid: {exc.message}",
+            code="REPORT_FINALIZE_WORK_PACKAGE_SCHEMA_INVALID",
+        ) from exc
     if package.get("status") != "prepared":
-        raise BusinessValidationError("work_package must have status=prepared")
+        raise BusinessValidationError(
+            "work_package must have status=prepared",
+            code="REPORT_FINALIZE_WORK_PACKAGE_SCHEMA_INVALID",
+        )
     if (package.get("engineering_facts") or {}).get("root_keys") != FACT_ROOTS:
-        raise BusinessValidationError("work_package fact roots do not match the contract")
+        raise BusinessValidationError(
+            "work_package fact roots do not match the contract",
+            code="REPORT_FINALIZE_WORK_PACKAGE_SCHEMA_INVALID",
+        )
 
 
 def validate_work_results(results: dict[str, Any]) -> None:
@@ -632,16 +762,28 @@ def _output_contract(section_id: str) -> dict[str, Any]:
 
 def _validate_results_envelope(results: dict[str, Any]) -> None:
     if not isinstance(results, dict):
-        raise BusinessValidationError("work_results must be an object")
+        raise BusinessValidationError(
+            "work_results must be an object",
+            code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+        )
     required = {"schema_version", "writing_results", "synthesis_results"}
     missing = sorted(required - set(results))
     if missing:
-        raise BusinessValidationError(f"work_results missing required fields: {missing}")
+        raise BusinessValidationError(
+            f"work_results missing required fields: {missing}",
+            code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+        )
     extra = sorted(set(results) - required)
     if extra:
-        raise BusinessValidationError(f"work_results has unsupported fields: {extra}")
+        raise BusinessValidationError(
+            f"work_results has unsupported fields: {extra}",
+            code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+        )
     if results.get("schema_version") != "1.0":
-        raise BusinessValidationError("work_results schema_version must be 1.0")
+        raise BusinessValidationError(
+            "work_results schema_version must be 1.0",
+            code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+        )
 
 
 def _result_map(
@@ -650,18 +792,33 @@ def _result_map(
     label: str,
 ) -> dict[str, dict[str, Any]]:
     if not isinstance(results, list):
-        raise BusinessValidationError(f"{label} must be a list")
+        raise BusinessValidationError(
+            f"{label} must be a list",
+            code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+        )
     mapped: dict[str, dict[str, Any]] = {}
     for item in results:
         if not isinstance(item, dict) or not isinstance(item.get("section_id"), str):
-            raise BusinessValidationError(f"{label} item missing section_id")
+            raise BusinessValidationError(
+                f"{label} item missing section_id",
+                code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+            )
         section_id = item["section_id"]
         if section_id not in expected_section_ids:
-            raise BusinessValidationError(f"{label} contains unknown section_id: {section_id}")
+            raise BusinessValidationError(
+                f"{label} contains unknown section_id: {section_id}",
+                code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+            )
         if item.get("implementation_schedule") is not None and section_id != IMPLEMENTATION_SCHEDULE_SECTION_ID:
-            raise BusinessValidationError("implementation_schedule is only supported for section 18.2")
+            raise BusinessValidationError(
+                "implementation_schedule is only supported for section 18.2",
+                code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+            )
         if section_id in mapped:
-            raise BusinessValidationError(f"{label} contains duplicate section_id: {section_id}")
+            raise BusinessValidationError(
+                f"{label} contains duplicate section_id: {section_id}",
+                code="REPORT_FINALIZE_WORK_RESULTS_SCHEMA_INVALID",
+            )
         mapped[section_id] = item
     return mapped
 

@@ -3,6 +3,8 @@
 from __future__ import annotations
 
 import asyncio
+import io
+import logging
 import threading
 import time
 import unittest
@@ -16,8 +18,10 @@ from mcp_server.server import (
     SourceLocation,
     _run_with_cancellation,
     engineering_facts,
+    main,
     mcp,
     report_finalize,
+    setup_logging,
 )
 from mcp_server.duck_implement import _send_progress_with_data
 from mcp_server.duck_implement.host_client import MCPHostClient
@@ -157,6 +161,55 @@ def _report_finalize_success_envelope() -> dict:
 
 
 class MCPServerContractTests(unittest.TestCase):
+    def test_setup_logging_adds_east_8_timestamp_formatter(self) -> None:
+        root = logging.getLogger()
+        old_handlers = list(root.handlers)
+        old_level = root.level
+        old_uvicorn_state = {
+            name: (
+                list(logging.getLogger(name).handlers),
+                logging.getLogger(name).propagate,
+            )
+            for name in ("uvicorn", "uvicorn.error", "uvicorn.access")
+        }
+        try:
+            setup_logging()
+            stream = io.StringIO()
+            root.handlers[0].stream = stream
+
+            logging.getLogger("uvicorn.access").info(
+                '127.0.0.1:65150 - "GET /mcp HTTP/1.1" 406'
+            )
+
+            line = stream.getvalue().strip()
+            self.assertRegex(line, r"^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} - INFO - ")
+            self.assertIn('"GET /mcp HTTP/1.1" 406', line)
+            formatter = root.handlers[0].formatter
+            record = logging.LogRecord("test", logging.INFO, "", 0, "epoch", (), None)
+            record.created = 0
+            self.assertTrue(formatter)
+            self.assertEqual(
+                formatter.formatTime(record, "%Y-%m-%d %H:%M:%S"),
+                "1970-01-01 08:00:00",
+            )
+            for name in ("uvicorn", "uvicorn.error", "uvicorn.access"):
+                self.assertTrue(logging.getLogger(name).propagate)
+        finally:
+            root.handlers.clear()
+            root.handlers.extend(old_handlers)
+            root.setLevel(old_level)
+            for name, (handlers, propagate) in old_uvicorn_state.items():
+                uvicorn_logger = logging.getLogger(name)
+                uvicorn_logger.handlers.clear()
+                uvicorn_logger.handlers.extend(handlers)
+                uvicorn_logger.propagate = propagate
+
+    def test_main_disables_uvicorn_log_config(self) -> None:
+        with patch("mcp_server.server.mcp.run") as run:
+            main()
+
+        self.assertEqual(run.call_args.kwargs["uvicorn_config"], {"log_config": None})
+
     def test_progress_with_data_keeps_related_request_id(self) -> None:
         ctx = FakeProgressCtx()
 
@@ -169,12 +222,16 @@ class MCPServerContractTests(unittest.TestCase):
         self.assertEqual(len(ctx.session.calls), 1)
         notification, related_request_id = ctx.session.calls[0]
         self.assertEqual(related_request_id, "request-1")
-        progress = notification.root.params
+        progress = notification.params
         self.assertEqual(progress.progressToken, "progress-token-1")
         self.assertEqual(progress.progress, 100)
         self.assertEqual(progress.total, 100)
         self.assertEqual(progress.message, "工程事实已完成")
         self.assertEqual(progress.model_extra["uiEvent"], {"final_result": {"ok": True}})
+        # 线上序列化须保留 uiEvent（mcp 2.x 默认会丢弃多余字段）
+        wire = notification.model_dump(by_alias=True, mode="json", exclude_none=True)
+        self.assertEqual(wire["params"]["progressToken"], "progress-token-1")
+        self.assertEqual(wire["params"]["uiEvent"], {"final_result": {"ok": True}})
         self.assertEqual(ctx.fallback_calls, [])
 
     def test_cancellation_bridge_returns_normal_result(self) -> None:
@@ -333,9 +390,11 @@ class MCPServerContractTests(unittest.TestCase):
                     "storage-test",
                     "内部存储错误",
                 )
-            )
+        )
         self.assertEqual(result["status"], "error")
-        self.assertEqual(result["diagnostics"][0]["message"], "内部存储错误")
+        self.assertEqual(result["diagnostics"][0]["code"], "HOST_STORAGE_ERROR")
+        self.assertIn("内部存储错误", result["diagnostics"][0]["message"])
+        self.assertIn("simulated storage outage", result["diagnostics"][0]["message"])
         self.assertFalse(result["diagnostics"][0]["retryable"])
 
     def test_public_tools_are_limited_to_three_tool_contract(self) -> None:

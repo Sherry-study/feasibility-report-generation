@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import logging
-
-from mcp_server.server import main
+from mcp_server.server import main, setup_logging
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    setup_logging()
     main()
