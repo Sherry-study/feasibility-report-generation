@@ -1,0 +1,101 @@
+skills/feasibility-report-generation/references/io-contract.md
+  s_b40f1228ce2f41::t_0ae40c01c7b25e 1-51
+tests/test_mcp_server_contract.py
+  s_b40f1228ce2f41::t_86e9e4dea50d67 19,341,451,562-566,568-569,571-573,575-579,593-598,617-627
+docs/tool-refactor-design.md
+  s_b40f1228ce2f41::t_a8d8bd97c1e7af 689
+  s_b40f1228ce2f41::t_43ccdbee2e73a9 729
+README.md
+  s_b40f1228ce2f41::t_e0c5674afa624b 61-65
+  s_b40f1228ce2f41::t_4ad9cd09ca31aa 10-13
+  s_b40f1228ce2f41::t_6da83e12b4778b 32
+  s_b40f1228ce2f41::t_847af6711f7498 55
+  s_b40f1228ce2f41::t_aca4912839dcc5 56-57
+  s_b40f1228ce2f41::t_e722987d3c3bcd 66,71
+  s_b40f1228ce2f41::t_c789ca9b41d97f 14-15
+src/engineering_facts/core.py
+  s_b40f1228ce2f41::t_86e9e4dea50d67 56-79,189-190,204-207,226-234,274-310,314-316,323,344,359,388,403-454,482,703-809
+  s_b40f1228ce2f41::t_bdb1c01894f913 810-811
+mcp_server/engineering-confirmation-ui/host/src/mockData.ts
+  s_b40f1228ce2f41::t_86e9e4dea50d67 252,262,272,280,282,285
+docs/superpowers/specs/2026-09-03-chapter-planning-performance-design.md
+  s_b40f1228ce2f41::t_0d7157cad8164d 3-5
+  s_b40f1228ce2f41::t_6c0bb8ad391485 246
+  s_b40f1228ce2f41::t_15f14978273ede 365
+  s_b40f1228ce2f41::t_b397a4ee68bbf8 47
+  s_b40f1228ce2f41::t_92f6d4ee776a04 329
+  s_b40f1228ce2f41::t_7108a745f7d2b4 250
+  s_b40f1228ce2f41::t_1502cfdf802377 357
+skills/feasibility-report-generation/references/engineering_rules/energy_rules.md
+  s_b40f1228ce2f41::t_1a9ea16c57dd3d 3
+src/report_shared/deterministic_builders.py
+  s_b40f1228ce2f41::t_b3e89508575005 473
+tests/test_engineering_facts_tool.py
+  s_b40f1228ce2f41::t_86e9e4dea50d67 161-175,207-273
+  s_b40f1228ce2f41::t_06cbe5eddad90b 274
+scripts/run_engineering_facts.py
+  s_b40f1228ce2f41::t_e5873d8c1791d4 37-38
+mcp_server/engineering-confirmation-ui/host/dist/index.html
+  s_b40f1228ce2f41::t_86e9e4dea50d67 7
+skills/feasibility-report-generation/SKILL.md
+  s_b40f1228ce2f41::t_2b84f2b3316bee 129-131
+  s_b40f1228ce2f41::t_dd0ce348e05c08 128,133
+  s_b40f1228ce2f41::t_55905b0323e5ee 127
+  s_b40f1228ce2f41::t_86e9e4dea50d67 94-96,144-150
+  h_c47bb0c7223297 59-60,71-72,84-85,92-93,97-117
+mcp_server/server.py
+  h_c47bb0c7223297 122-123,127-170,172-173,176,178-179,182-185,209-212,226-229,233-236,829,831,839,841,848,894,896
+  s_b40f1228ce2f41::t_86e9e4dea50d67 186-188,828,830,832-834,883-888,926-931
+  s_5e4216e53f4b28::t_c44d3091815dd2 189,827,835,880-882,889-890,925,932
+mcp_server/engineering-confirmation-ui/host/dist/assets/index-CaJaix6P.js
+  s_b40f1228ce2f41::t_86e9e4dea50d67 47,55,63,71,79,83-84,86-87,226
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "480334ec7f69c8d1f02373e9c88994cf6506ba7e",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_5e4216e53f4b28": {
+      "agent_id": {
+        "tool": "trae-code-edit",
+        "id": "ai_tab-2026091015385901000315818625204D1",
+        "model": "default"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "tool": "trae-code-edit",
+        "client_type": "ide",
+        "source_scene": "cue",
+        "edit_kind": "file_edit",
+        "external_session_id": "2026091015385901000315818625204D1"
+      }
+    },
+    "s_b40f1228ce2f41": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa25c9396e973c4987a9366",
+        "model": "glm-5.3__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "client_type": "ide",
+        "dedupe_key": "6aa25c9396e973c4987a9366:6aa28fd496e973c4987a96e0:afterEdit:b9577b6c",
+        "external_session_id": "6aa25c9396e973c4987a9366",
+        "operation_id": "6aa28fd496e973c4987a96e0",
+        "tool_id": "Edit",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_use_id": "6aa28fd496e973c4987a96e0",
+        "tool_type": "agent",
+        "edit_kind": "file_edit",
+        "session_id": "6aa25c9396e973c4987a9366",
+        "source_scene": "unknown"
+      }
+    }
+  }
+}
