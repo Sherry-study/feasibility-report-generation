@@ -1,0 +1,56 @@
+mcp_server/server.py
+  h_c47bb0c7223297 18,41,43-72,746-747,753-755,955,960
+src/report_finalize/core.py
+  s_498868822ce10a::t_eced0819993e05 19,41-44,49-55,62-63,69-76,81-88,115-121,123-129,131-137,139-145,157-163,189-196
+src/engineering_facts/core.py
+  s_498868822ce10a::t_eced0819993e05 552-553,2305-2308
+src/report_shared/workflow.py
+  s_498868822ce10a::t_eced0819993e05 22-27,83-93,96-119,122-126,134-135,139-142,154-162,166-169,171-174,184-187,190-191,199-201,206-209,216-218,223-226,229-235,239-242,249-252,271-274,373-379,464-477,481-497,511-513,515,520-521,548-554,566-569,571-574,576-579,765-768,772-775,778-781,783-786,795-798,802-805,808-811,813-816,818-821
+src/errors.py
+  s_498868822ce10a::t_eced0819993e05 1,6-14,22-35,40-59,63-76
+mcp_server/duck_implement/content.py
+  s_498868822ce10a::t_eced0819993e05 18-19,24-35,46-47,50-54,56,64,80-81,91-111
+  s_498868822ce10a::t_7610b7cfb86b67 67-69
+tests/test_report_prepare_finalize_tools.py
+  s_498868822ce10a::t_eced0819993e05 18,881-885,888-957,1009
+src/report_prepare/core.py
+  s_498868822ce10a::t_eced0819993e05 17,35-38,43-49,53-62,66-73,92-98,103-109,135-142
+mcp_server/__main__.py
+  s_498868822ce10a::t_eced0819993e05 5,9
+tests/test_mcp_server_contract.py
+  s_498868822ce10a::t_eced0819993e05 6-7,21,24,164-212,225,231-234,393,395-397
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "26b5d93920f129aa9ccaba92e05ddd651c86c478",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_498868822ce10a": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa155adb682ab5927d62673",
+        "model": "deepseek-v4-flash"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "tool_use_id": "6aa2179196e973c4987a9288",
+        "tool_type": "agent",
+        "client_type": "ide",
+        "external_session_id": "6aa155adb682ab5927d62673",
+        "tool_id": "Edit",
+        "dedupe_key": "6aa155adb682ab5927d62673:6aa2179196e973c4987a9288:afterEdit:4e5d82cb",
+        "edit_kind": "file_edit",
+        "runtime_client": "trae-tob-git-ai",
+        "session_id": "6aa155adb682ab5927d62673",
+        "source_scene": "unknown",
+        "operation_id": "6aa2179196e973c4987a9288"
+      }
+    }
+  }
+}
