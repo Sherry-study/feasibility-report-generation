@@ -197,11 +197,11 @@ class MCPHostClient:
                     f"save_file 不支持的数据类型: {type(data).__name__}，可选 dict / str / bytes"
                 )
 
-        # 平台工作区 API (/internal/platform/workspace/files/) 不支持创建新
-        # 文件（POST 返回 404），写操作统一走普通 /files/ 端点。读操作仍走
-        # 平台工作区 API（get_file 已验证可用）。
+        # 平台工作区 API (/internal/platform/workspace/files/) 和平台 /files/
+        # 端点均不支持创建新文件（POST 返回 404）。写操作改用本地文件服务
+        # 127.0.0.1:8200，读操作仍走平台工作区 API（get_file 已验证可用）。
         write_url = (
-            f"{self._base_url}/files/{quote(path.lstrip('/'), safe='/')}"
+            f"http://127.0.0.1:8200/files/{quote(path.lstrip('/'), safe='/')}"
             if platform
             else None
         )
