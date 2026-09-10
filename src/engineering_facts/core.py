@@ -25,7 +25,6 @@ from typing import Any
 
 from duck.content import Content
 from duck.host_client import HostClient
-from src.artifact_paths import new_logical_prefix
 from src.errors import HostStorageError
 
 
@@ -2534,8 +2533,13 @@ def _clean(value: Any, *, keep_top: bool = False) -> Any:
 
 
 def _write_artifact(facts: dict[str, Any], host_client: HostClient) -> dict[str, str]:
-    """把工程事实 JSON 保存到 HostClient，返回 path/schema/媒体类型。"""
-    path = f"{new_logical_prefix('engineering_facts')}/engineering_facts.json"
+    """把工程事实 JSON 保存到 HostClient，返回 path/schema/媒体类型。
+
+    保存到工作区根级 ``engineering_facts.json``：平台工作区文件接口对深层
+    新目录返回 404（装置级工具同样以根级/一层路径保存成功），且
+    report_prepare 默认从根级读取该文件。
+    """
+    path = "engineering_facts.json"
     try:
         host_client.save_file(path, facts)
     except Exception as exc:  # noqa: BLE001 - storage adapter boundary

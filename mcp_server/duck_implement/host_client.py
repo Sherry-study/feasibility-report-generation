@@ -114,7 +114,17 @@ class MCPHostClient:
         except (ValueError, httpx.DecodingError):
             pass
         if resp.status_code == 404:
-            raise FileNotFoundError(f"MCPHostClient.{op}: {path or resp.url} 不存在")
+            detail = ""
+            try:
+                data = resp.json()
+                if isinstance(data, dict):
+                    code = data.get("code")
+                    message = data.get("error") or data.get("message")
+                    if code or message:
+                        detail = f" (platform code={code}, message={message})"
+            except (ValueError, httpx.DecodingError):
+                pass
+            raise FileNotFoundError(f"MCPHostClient.{op}: {path or resp.url} 不存在{detail}")
         raise MCPHostError(
             f"MCPHostClient.{op} failed: {resp.status_code} {message}",
             status_code=resp.status_code,

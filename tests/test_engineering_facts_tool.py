@@ -141,7 +141,7 @@ class EngineeringFactsToolTests(unittest.TestCase):
     def test_real_sources_generate_strict_contract(self) -> None:
         result = self.execute()
         self.assertEqual(result["status"], "completed")
-        self.assertTrue(result["artifact"]["path"].startswith("runs/engineering_facts/"))
+        self.assertEqual(result["artifact"]["path"], "engineering_facts.json")
         self.assertEqual(result["artifact"]["schema_version"], "2.0")
 
         facts = self.read_facts()
@@ -572,7 +572,7 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "completed")
         self.assertTrue(default_artifact.is_file())
-        self.assertTrue(result["artifact"]["path"].endswith("/engineering_facts.json"))
+        self.assertEqual(result["artifact"]["path"], "engineering_facts.json")
 
     def test_business_input_rejects_undeclared_fields(self) -> None:
         result = execute(
