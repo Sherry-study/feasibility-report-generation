@@ -13,12 +13,21 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
-import jsonschema
+from pydantic import ValidationError
 
 from mcp_server.server import (
+    EngineeringFactsError,
+    EngineeringFactsFailure,
     EngineeringFactsInput,
+    EngineeringFactsSuccess,
+    ReportFinalizeError,
+    ReportFinalizeFailure,
     ReportFinalizeInput,
+    ReportFinalizeSuccess,
+    ReportPrepareError,
+    ReportPrepareFailure,
     ReportPrepareInput,
+    ReportPrepareSuccess,
     SourceLocationParam,
     _run_with_cancellation,
     engineering_facts,
@@ -324,7 +333,6 @@ class MCPServerContractTests(unittest.TestCase):
         _run(scenario())
 
     def test_engineering_facts_pushes_final_ui_result_via_progress(self) -> None:
-        schema = _tool("engineering_facts").output_schema
         core_result = {
             "status": "completed",
             "artifact": {
@@ -355,7 +363,7 @@ class MCPServerContractTests(unittest.TestCase):
             ui_event = args[4]
             final_result = ui_event["final_result"]
             self.assertEqual(final_result, _engineering_facts_success_envelope())
-            jsonschema.validate(final_result, schema)
+            EngineeringFactsSuccess.model_validate(final_result)
             self.assertEqual(ui_event["engineering_facts"], {"unit": {"name": "测试装置"}})
 
         _run(scenario())
@@ -428,13 +436,12 @@ class MCPServerContractTests(unittest.TestCase):
             ui_event = args[4]
             final_result = ui_event["final_result"]
             self.assertEqual(final_result, _report_finalize_success_envelope())
-            jsonschema.validate(final_result, schema)
+            ReportFinalizeSuccess.model_validate(final_result)
             self.assertEqual(ui_event["markdown_content"], "# 可行性研究报告\n\n正文")
 
         _run(scenario())
 
-    def test_engineering_facts_error_progress_final_result_matches_output_schema(self) -> None:
-        schema = _tool("engineering_facts").output_schema
+    def test_engineering_facts_error_progress_final_result_is_error_envelope(self) -> None:
         core_result = {
             "status": "error",
             "diagnostics": [
@@ -458,9 +465,9 @@ class MCPServerContractTests(unittest.TestCase):
                     FakeCtx(),
                     EngineeringFactsInput(provider="local_directory", root="inputs"),
                 )
-            jsonschema.validate(tool_result.structured_content, schema)
+            EngineeringFactsError.model_validate(tool_result.structured_content)
             ui_event = progress.await_args.args[4]
-            jsonschema.validate(ui_event["final_result"], schema)
+            EngineeringFactsError.model_validate(ui_event["final_result"])
             self.assertNotIn("business_status", ui_event["final_result"])
             self.assertIsNone(ui_event["engineering_facts"])
 
@@ -766,158 +773,103 @@ class MCPServerContractTests(unittest.TestCase):
         # MCP 层不再公开 inline work_results 对象，只接受逻辑路径字符串
         self.assertNotIn("work_results", finalize_input["properties"])
 
-    def test_output_schemas_are_discriminated_unions(self) -> None:
-        cases = {
-            "engineering_facts": "completed",
-            "report_prepare": "prepared",
-            "report_finalize": "completed",
-        }
-        for name, business_status in cases.items():
+    def test_tools_do_not_declare_output_schema(self) -> None:
+        """中转层 outputSchema 校验器不支持 oneOf 联合形态，会以 -32602
+        拒绝合法的错误信封；因此 Tool 不声明 outputSchema，信封契约改由
+        Pydantic 模型在组装时强制（见下方信封模型测试）。"""
+        for name in ("engineering_facts", "report_prepare", "report_finalize"):
             with self.subTest(tool=name):
-                schema = _tool(name).output_schema
-                self.assertEqual(schema["type"], "object")
-                branches = schema["oneOf"]
-                self.assertEqual(len(branches), 3)
-                status_consts = {
-                    branch["properties"]["status"]["const"] for branch in branches
+                self.assertIsNone(_tool(name).output_schema)
+
+    def test_envelope_models_validate_three_states(self) -> None:
+        cases = [
+            (
+                EngineeringFactsSuccess,
+                EngineeringFactsFailure,
+                EngineeringFactsError,
+                _engineering_facts_success_envelope(),
+            ),
+            (
+                ReportPrepareSuccess,
+                ReportPrepareFailure,
+                ReportPrepareError,
+                _report_prepare_success_envelope(),
+            ),
+            (
+                ReportFinalizeSuccess,
+                ReportFinalizeFailure,
+                ReportFinalizeError,
+                _report_finalize_success_envelope(),
+            ),
+        ]
+        for success_model, failure_model, error_model, success in cases:
+            with self.subTest(tool=type(success_model).__name__):
+                success_model.model_validate(success)
+                data = success["data"]
+                artifact_key = "artifacts" if "artifacts" in data else "artifact"
+                failure = {
+                    "status": "failed",
+                    "data": {
+                        "business_status": "failed",
+                        artifact_key: None,
+                        "summary": {},
+                        "error": {"code": "SOME_CODE", "message": "失败", "retryable": True},
+                    },
+                    "warnings": [],
                 }
-                self.assertEqual(status_consts, {"success", "failed", "error"})
-                success_branch = next(
-                    branch
-                    for branch in branches
-                    if branch["properties"]["status"]["const"] == "success"
-                )
-                data_properties = success_branch["properties"]["data"]["properties"]
-                self.assertEqual(
-                    data_properties["business_status"]["const"],
-                    business_status,
-                )
-                for branch in branches:
-                    # warnings 有默认值，不在 required；status 与 data 必填
-                    self.assertEqual(set(branch["required"]), {"status", "data"})
-                    self.assertIn("warnings", branch["properties"])
-                    self.assertFalse(branch.get("additionalProperties", True))
+                failure_model.model_validate(failure)
+                error = {
+                    "status": "error",
+                    "data": {
+                        "business_status": "error",
+                        artifact_key: None,
+                        "summary": {},
+                        "error": {"code": "INTERNAL_ERROR", "message": "内部错误", "retryable": False},
+                    },
+                    "warnings": [],
+                }
+                error_model.model_validate(error)
 
-    def test_engineering_facts_output_schema_accepts_valid_envelopes(self) -> None:
-        schema = _tool("engineering_facts").output_schema
-        jsonschema.validate(_engineering_facts_success_envelope(), schema)
-        failure = {
-            "status": "failed",
-            "data": {
-                "business_status": "failed",
-                "artifact": None,
-                "summary": {},
-                "error": {"code": "NO_RECOGNIZED_SOURCES", "message": "无有效来源", "retryable": True},
-            },
-            "warnings": [
-                {"level": "warning", "code": "PLANT_INFO_MISSING", "message": "缺少装置信息"}
-            ],
-        }
-        jsonschema.validate(failure, schema)
-        error = {
-            "status": "error",
-            "data": {
-                "business_status": "error",
-                "artifact": None,
-                "summary": {},
-                "error": {"code": "INTERNAL_ERROR", "message": "内部错误", "retryable": False},
-            },
-            "warnings": [],
-        }
-        jsonschema.validate(error, schema)
-
-    def test_report_prepare_output_schema_accepts_valid_envelopes(self) -> None:
-        schema = _tool("report_prepare").output_schema
-        jsonschema.validate(_report_prepare_success_envelope(), schema)
-        failure = {
-            "status": "failed",
-            "data": {
-                "business_status": "failed",
-                "artifact": None,
-                "summary": {},
-                "error": {"code": "FACTS_PATH_INVALID", "message": "工程事实路径无效", "retryable": True},
-            },
-            "warnings": [],
-        }
-        jsonschema.validate(failure, schema)
-        error = {
-            "status": "error",
-            "data": {
-                "business_status": "error",
-                "artifact": None,
-                "summary": {},
-                "error": {"code": "INTERNAL_ERROR", "message": "内部错误", "retryable": False},
-            },
-            "warnings": [],
-        }
-        jsonschema.validate(error, schema)
-
-    def test_report_finalize_output_schema_accepts_valid_envelopes(self) -> None:
-        schema = _tool("report_finalize").output_schema
-        jsonschema.validate(_report_finalize_success_envelope(), schema)
-        failure = {
-            "status": "failed",
-            "data": {
-                "business_status": "failed",
-                "artifacts": None,
-                "summary": {},
-                "error": {"code": "WORK_PACKAGE_INVALID", "message": "工作包无效", "retryable": True},
-            },
-            "warnings": [],
-        }
-        jsonschema.validate(failure, schema)
-        error = {
-            "status": "error",
-            "data": {
-                "business_status": "error",
-                "artifacts": None,
-                "summary": {},
-                "error": {"code": "INTERNAL_ERROR", "message": "内部错误", "retryable": False},
-            },
-            "warnings": [],
-        }
-        jsonschema.validate(error, schema)
-
-    def test_output_schemas_reject_cross_combinations(self) -> None:
+    def test_envelope_models_reject_cross_combinations(self) -> None:
         import copy
 
-        cases = {
-            "engineering_facts": _engineering_facts_success_envelope(),
-            "report_prepare": _report_prepare_success_envelope(),
-            "report_finalize": _report_finalize_success_envelope(),
-        }
+        cases = [
+            (EngineeringFactsSuccess, _engineering_facts_success_envelope()),
+            (ReportPrepareSuccess, _report_prepare_success_envelope()),
+            (ReportFinalizeSuccess, _report_finalize_success_envelope()),
+        ]
         error_info = {"code": "SOME_CODE", "message": "some error", "retryable": True}
 
-        for name, success in cases.items():
-            schema = _tool(name).output_schema
-            data = success["data"]
+        for success_model, success in cases:
+            with self.subTest(tool=success_model.__name__):
+                data = success["data"]
+                artifact_key = "artifacts" if "artifacts" in data else "artifact"
 
-            # 成功状态 + 非 null error 必须被拒绝
-            with_error = copy.deepcopy(success)
-            with_error["data"]["error"] = error_info
-            with self.assertRaises(jsonschema.ValidationError):
-                jsonschema.validate(with_error, schema)
+                # 成功状态 + 非 null error 必须被拒绝
+                with_error = copy.deepcopy(success)
+                with_error["data"]["error"] = error_info
+                with self.assertRaises(ValidationError):
+                    success_model.model_validate(with_error)
 
-            # 成功状态 + 缺少产物字段必须被拒绝
-            missing_artifact = copy.deepcopy(success)
-            artifact_key = "artifacts" if "artifacts" in data else "artifact"
-            del missing_artifact["data"][artifact_key]
-            with self.assertRaises(jsonschema.ValidationError):
-                jsonschema.validate(missing_artifact, schema)
+                # 成功状态 + 缺少产物字段必须被拒绝
+                missing_artifact = copy.deepcopy(success)
+                del missing_artifact["data"][artifact_key]
+                with self.assertRaises(ValidationError):
+                    success_model.model_validate(missing_artifact)
 
-            # 失败状态 + 产物必须被拒绝
-            with_artifact = copy.deepcopy(success)
-            with_artifact["status"] = "failed"
-            with_artifact["data"]["error"] = error_info
-            with self.assertRaises(jsonschema.ValidationError):
-                jsonschema.validate(with_artifact, schema)
+                # 失败状态 + 产物必须被拒绝
+                with_artifact = copy.deepcopy(success)
+                with_artifact["status"] = "failed"
+                with_artifact["data"]["error"] = error_info
+                with self.assertRaises(ValidationError):
+                    success_model.model_validate(with_artifact)
 
-            # 失败状态 + 缺少 error 必须被拒绝
-            no_error = copy.deepcopy(success)
-            no_error["status"] = "failed"
-            del no_error["data"]["error"]
-            with self.assertRaises(jsonschema.ValidationError):
-                jsonschema.validate(no_error, schema)
+                # 失败状态 + 缺少 error 必须被拒绝
+                no_error = copy.deepcopy(success)
+                no_error["status"] = "failed"
+                del no_error["data"]["error"]
+                with self.assertRaises(ValidationError):
+                    success_model.model_validate(no_error)
 
     def test_tool_descriptions_cover_required_elements(self) -> None:
         for name in ("engineering_facts", "report_prepare", "report_finalize"):

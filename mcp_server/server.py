@@ -6,10 +6,12 @@
     2. ``report_prepare``    -- 报告准备，基于工程事实生成章节工作包。
     3. ``report_finalize``   -- 报告定稿，合并 Agent 工作结果并导出报告。
 
-三个 Tool 均返回统一信封 ``{status, data, warnings}``，并通过显式
-``output_schema`` 暴露由 Pydantic 模型合成的成功/失败判别联合 Schema。
-完整工程事实与 Markdown 不进入模型上下文，只通过 progress 通知中的
-``uiEvent.final_result`` 提供给宿主 UI；本 Server 不提供任何文件读取 Tool。
+三个 Tool 均返回统一信封 ``{status, data, warnings}``。信封契约由 Pydantic
+模型在组装时强制；受中转层 outputSchema 校验器不支持 ``oneOf`` 联合形态的
+限制（校验失败会以 MCP -32602 拒绝合法的错误信封），Tool 不再显式声明
+``output_schema``。完整工程事实与 Markdown 不进入模型上下文，只通过 progress
+通知中的 ``uiEvent.final_result`` 提供给宿主 UI；本 Server 不提供任何文件读取
+Tool。
 """
 
 from __future__ import annotations
@@ -561,40 +563,6 @@ class ReportFinalizeError(BaseModel):
     warnings: list[WarningItem] = Field(default_factory=list)
 
 
-def _envelope_output_schema(*branches: type[BaseModel]) -> dict[str, Any]:
-    """由三态信封模型合成顶层为 object 的判别联合 outputSchema。
-
-    MCP 规范要求 outputSchema 顶层必须是 object，因此把完整信封模型
-    放入顶层 ``oneOf`` 并显式声明 ``type: object``。分支内部通过 ``status``
-    常量与各自的 data 结构互相排斥，可拒绝 success+error、failed+产物 等
-    交叉组合。
-    """
-    branch_schemas: list[dict[str, Any]] = []
-    defs: dict[str, Any] = {}
-    for model in branches:
-        schema = model.model_json_schema(ref_template="#/$defs/{model}")
-        defs.update(schema.pop("$defs", {}))
-        branch_schemas.append(schema)
-    return {"type": "object", "oneOf": branch_schemas, "$defs": defs}
-
-
-_ENGINEERING_FACTS_OUTPUT_SCHEMA = _envelope_output_schema(
-    EngineeringFactsSuccess,
-    EngineeringFactsFailure,
-    EngineeringFactsError,
-)
-_REPORT_PREPARE_OUTPUT_SCHEMA = _envelope_output_schema(
-    ReportPrepareSuccess,
-    ReportPrepareFailure,
-    ReportPrepareError,
-)
-_REPORT_FINALIZE_OUTPUT_SCHEMA = _envelope_output_schema(
-    ReportFinalizeSuccess,
-    ReportFinalizeFailure,
-    ReportFinalizeError,
-)
-
-
 # ---------------------------------------------------------------------------
 # 信封组装：核心原始返回 -> {status, data, warnings}
 # ---------------------------------------------------------------------------
@@ -882,7 +850,6 @@ async def _run_with_cancellation(
 # ---------------------------------------------------------------------------
 @mcp.tool(
     app=AppConfig(resource_uri="ui://mcp-app-ui/engineering_facts/index.html"),
-    output_schema=_ENGINEERING_FACTS_OUTPUT_SCHEMA,
     description=(
         "工程事实整理：将工程或算法结果整理为可研编制使用的工程事实文件。"
         "输入文件均为可选文件，文件存在时读取对应信息，不存在时跳过。当前支持设备级、装置级改造结果，后续可扩展支持系统级、全厂级改造结果、其他设备计算结果、投资概算结果等。"
@@ -954,7 +921,6 @@ async def engineering_facts(
 
 
 @mcp.tool(
-    output_schema=_REPORT_PREPARE_OUTPUT_SCHEMA,
     description=(
     "报告准备：基于工程事实文件生成可研报告章节工作包。"
     "【职责】将 engineering_facts.json 转换为可研报告的章节结构、确定性内容块和编制任务包，并生成 work_package.json。"
@@ -1018,7 +984,6 @@ async def report_prepare(
 
 @mcp.tool(
     app=AppConfig(resource_uri="ui://mcp-app-ui/report_finalize/index.html"),
-    output_schema=_REPORT_FINALIZE_OUTPUT_SCHEMA,
     description=(
     "报告定稿：基于报告工作包和章节工作结果导出可研报告文件。"
     "【职责】将 work_package.json 和可选 work_results.json 合成为可行性研究报告，并生成 DOCX、Markdown 和报告清单。"
