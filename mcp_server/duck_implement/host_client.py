@@ -167,7 +167,7 @@ class MCPHostClient:
         kind: str = "auto",
     ) -> None:
         platform = self._platform_headers is not None
-        method = "PUT" if platform else "POST"
+        method = "POST"
         headers = None
         if platform:
             headers = dict(self._platform_headers)

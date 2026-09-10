@@ -3,11 +3,13 @@
 from __future__ import annotations
 
 import asyncio
+import base64
 import io
 import logging
 import threading
 import time
 import unittest
+from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -15,12 +17,14 @@ import jsonschema
 
 from mcp_server.server import (
     ReportFinalizeInput,
+    ReportPrepareInput,
     SourceLocation,
     _run_with_cancellation,
     engineering_facts,
     main,
     mcp,
     report_finalize,
+    report_prepare,
     setup_logging,
 )
 from mcp_server.duck_implement import _send_progress_with_data
@@ -41,6 +45,20 @@ def _tool(name: str):
         if tool.name == name:
             return tool
     raise AssertionError(f"tool {name} not found")
+
+
+def _platform_ctx(capability: str):
+    return SimpleNamespace(
+        request_context=SimpleNamespace(
+            meta=SimpleNamespace(
+                model_extra={
+                    "io.industrial.platform": {
+                        "capability": capability,
+                    }
+                }
+            )
+        )
+    )
 
 
 class FakeCtx:
@@ -210,6 +228,36 @@ class MCPServerContractTests(unittest.TestCase):
 
         self.assertEqual(run.call_args.kwargs["uvicorn_config"], {"log_config": None})
 
+    def test_platform_host_client_reads_and_saves_workspace_files(self) -> None:
+        requests: list[httpx.Request] = []
+
+        def handler(request: httpx.Request) -> httpx.Response:
+            requests.append(request)
+            if request.method == "GET":
+                return httpx.Response(200, content=b'{"ok": true}')
+            return httpx.Response(201, text="created")
+
+        client = MCPHostClient(
+            base_url="http://host",
+            client=httpx.Client(transport=httpx.MockTransport(handler)),
+            ctx=_platform_ctx("cap-token"),
+        )
+        logical_path = "runs/engineering_facts/run-1/engineering_facts.json"
+        client.save_file(logical_path, {"ok": True})
+        payload = client.get_file(logical_path, kind="bytes")
+
+        self.assertEqual(payload, b'{"ok": true}')
+        self.assertEqual(len(requests), 2)
+        expected_path = base64.urlsafe_b64encode(logical_path.encode("utf-8"))
+        expected_path = expected_path.rstrip(b"=").decode("ascii")
+        for request, method in zip(requests, ("POST", "GET")):
+            self.assertEqual(request.method, method)
+            self.assertEqual(
+                str(request.url),
+                f"http://host/internal/platform/workspace/files/{expected_path}",
+            )
+            self.assertEqual(request.headers["Authorization"], "Bearer cap-token")
+
     def test_progress_with_data_keeps_related_request_id(self) -> None:
         ctx = FakeProgressCtx()
 
@@ -298,6 +346,40 @@ class MCPServerContractTests(unittest.TestCase):
             final_result = args[4]["final_result"]
             self.assertEqual(final_result["engineering_facts"], {"unit": {"name": "测试装置"}})
             self.assertEqual(final_result["artifact"]["uri"], "runs/engineering_facts/engineering_facts.json")
+
+        _run(scenario())
+
+    def test_report_prepare_uses_host_client_and_returns_envelope(self) -> None:
+        core_result = {
+            "status": "prepared",
+            "artifact": {
+                "path": "runs/report_prepare/work_package.json",
+                "media_type": "application/json",
+                "schema_version": "1.0",
+            },
+            "summary": _report_prepare_success_envelope()["data"]["summary"],
+            "diagnostics": [],
+        }
+
+        async def scenario() -> None:
+            host_client = object()
+            make_client = patch("mcp_server.server.make_host_client", return_value=host_client)
+            run_core = patch(
+                "mcp_server.server._run_with_cancellation",
+                new=AsyncMock(return_value=core_result),
+            )
+            with make_client as make_host_client, run_core as run_with_cancellation:
+                tool_result = await report_prepare(
+                    FakeCtx(),
+                    ReportPrepareInput(
+                        engineering_facts_path="runs/engineering_facts/engineering_facts.json"
+                    ),
+                )
+            self.assertEqual(tool_result.structured_content, _report_prepare_success_envelope())
+            self.assertIsNone(tool_result.meta)
+            make_host_client.assert_called_once()
+            run_args = run_with_cancellation.await_args.args
+            self.assertEqual(run_args[2], "report_prepare")
 
         _run(scenario())
 
