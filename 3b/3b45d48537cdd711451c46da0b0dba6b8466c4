@@ -1,0 +1,42 @@
+src/engineering_facts/core.py
+  s_9c5fe6c5dc50b3::t_97fd3bac3859bb 2536-2542
+tests/test_engineering_facts_tool.py
+  s_9c5fe6c5dc50b3::t_aa589af6d26581 144
+  s_9c5fe6c5dc50b3::t_576b0343e2bf74 575
+mcp_server/duck_implement/host_client.py
+  s_9c5fe6c5dc50b3::t_b2bd34b9d3cde2 117-127
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "3b3b45d48537cdd711451c46da0b0dba6b8466c4",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_9c5fe6c5dc50b3": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa2a20f96e973c4987a9887",
+        "model": "deepseek_v4_flash_official__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "external_session_id": "6aa2a20f96e973c4987a9887",
+        "operation_id": "6aa2abf596e973c4987a9aeb",
+        "edit_kind": "file_edit",
+        "tool_use_id": "6aa2abf596e973c4987a9aeb",
+        "session_id": "6aa2a20f96e973c4987a9887",
+        "source_scene": "unknown",
+        "client_type": "ide",
+        "tool_type": "agent",
+        "dedupe_key": "6aa2a20f96e973c4987a9887:6aa2abf596e973c4987a9aeb:afterEdit:821a5d28",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_id": "Edit"
+      }
+    }
+  }
+}
