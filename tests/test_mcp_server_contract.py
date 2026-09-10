@@ -265,15 +265,23 @@ class MCPServerContractTests(unittest.TestCase):
 
         self.assertEqual(payload, b'{"ok": true}')
         self.assertEqual(len(requests), 2)
-        expected_path = base64.urlsafe_b64encode(logical_path.encode("utf-8"))
-        expected_path = expected_path.rstrip(b"=").decode("ascii")
-        for request, method in zip(requests, ("POST", "GET")):
-            self.assertEqual(request.method, method)
-            self.assertEqual(
-                str(request.url),
-                f"http://host/internal/platform/workspace/files/{expected_path}",
-            )
-            self.assertEqual(request.headers["Authorization"], "Bearer cap-token")
+        encoded_path = base64.urlsafe_b64encode(logical_path.encode("utf-8"))
+        encoded_path = encoded_path.rstrip(b"=").decode("ascii")
+        # 写操作走普通 /files/ 端点（平台工作区 API 不支持创建新文件）
+        save_req, get_req = requests
+        self.assertEqual(save_req.method, "POST")
+        self.assertEqual(
+            str(save_req.url),
+            "http://host/files/runs/engineering_facts/run-1/engineering_facts.json",
+        )
+        self.assertEqual(save_req.headers["Authorization"], "Bearer cap-token")
+        # 读操作仍走平台工作区 API
+        self.assertEqual(get_req.method, "GET")
+        self.assertEqual(
+            str(get_req.url),
+            f"http://host/internal/platform/workspace/files/{encoded_path}",
+        )
+        self.assertEqual(get_req.headers["Authorization"], "Bearer cap-token")
 
     def test_progress_with_data_keeps_related_request_id(self) -> None:
         ctx = FakeProgressCtx()

@@ -140,9 +140,11 @@ class MCPHostClient:
         headers: Optional[dict] = None,
         json: Optional[dict] = None,
         content: Optional[bytes] = None,
+        url: Optional[str] = None,
     ) -> httpx.Response:
         """Retry transient transport failures for idempotent workspace I/O."""
-        url = self._url(path)
+        if url is None:
+            url = self._url(path)
         last_exc: Exception | None = None
         for attempt in range(3):
             try:
@@ -195,6 +197,15 @@ class MCPHostClient:
                     f"save_file 不支持的数据类型: {type(data).__name__}，可选 dict / str / bytes"
                 )
 
+        # 平台工作区 API (/internal/platform/workspace/files/) 不支持创建新
+        # 文件（POST 返回 404），写操作统一走普通 /files/ 端点。读操作仍走
+        # 平台工作区 API（get_file 已验证可用）。
+        write_url = (
+            f"{self._base_url}/files/{quote(path.lstrip('/'), safe='/')}"
+            if platform
+            else None
+        )
+
         if kind == "json":
             if not isinstance(data, dict):
                 raise TypeError(f"kind='json' 需要 dict，得到 {type(data).__name__}")
@@ -203,6 +214,7 @@ class MCPHostClient:
                 path,
                 json=data,
                 headers=headers or {"Content-Type": "application/json"},
+                url=write_url,
             )
         elif kind == "text":
             if isinstance(data, str):
@@ -216,16 +228,17 @@ class MCPHostClient:
                 path,
                 content=payload,
                 headers=headers or {"Content-Type": "text/plain; charset=utf-8"},
+                url=write_url,
             )
         elif kind == "bytes":
             if not isinstance(data, (bytes, bytearray)):
                 raise TypeError(f"kind='bytes' 需要 bytes，得到 {type(data).__name__}")
-            resp = self._request(method, path, content=bytes(data), headers=headers)
+            resp = self._request(method, path, content=bytes(data), headers=headers, url=write_url)
         else:
             raise ValueError(f"不支持的 kind: {kind}，可选值: json / text / bytes / auto")
 
         self._raise_for_status(resp, path, "save_file")
-        logger.info("MCPHostClient 保存文件: %s (kind=%s)", self._url(path), kind)
+        logger.info("MCPHostClient 保存文件: %s (kind=%s)", write_url or self._url(path), kind)
 
     def get_file(
         self,
