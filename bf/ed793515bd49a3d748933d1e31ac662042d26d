@@ -1,0 +1,45 @@
+mcp_server/server.py
+  s_9c5fe6c5dc50b3::t_7c052162765aca 9-14
+tests/test_mcp_server_contract.py
+  s_9c5fe6c5dc50b3::t_14df2579ba170d 16,19-20,22-24,26-28,30
+  s_9c5fe6c5dc50b3::t_d77fcd4f514bae 444
+  s_9c5fe6c5dc50b3::t_47d435d26cd6fc 776-780,782-805,807-818,820-831,833,836,840,845-872
+  s_9c5fe6c5dc50b3::t_a78282faf73ae9 468,470
+  s_9c5fe6c5dc50b3::t_eb2e8d60f16c00 806,837-839,843-844
+  s_9c5fe6c5dc50b3::t_dfb79e1fc87c23 366
+  s_9c5fe6c5dc50b3::t_fec2db25dd9ec1 439
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "bfed793515bd49a3d748933d1e31ac662042d26d",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_9c5fe6c5dc50b3": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa2a20f96e973c4987a9887",
+        "model": "glm-5.3__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "client_type": "ide",
+        "runtime_client": "trae-tob-git-ai",
+        "dedupe_key": "6aa2a20f96e973c4987a9887:6aa2a6c296e973c4987a9a22:afterEdit:4e5d82cb",
+        "session_id": "6aa2a20f96e973c4987a9887",
+        "source_scene": "unknown",
+        "tool_type": "agent",
+        "tool_id": "Edit",
+        "edit_kind": "file_edit",
+        "external_session_id": "6aa2a20f96e973c4987a9887",
+        "tool_use_id": "6aa2a6c296e973c4987a9a22",
+        "operation_id": "6aa2a6c296e973c4987a9a22"
+      }
+    }
+  }
+}
