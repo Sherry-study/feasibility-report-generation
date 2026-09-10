@@ -267,14 +267,15 @@ class MCPServerContractTests(unittest.TestCase):
         self.assertEqual(len(requests), 2)
         encoded_path = base64.urlsafe_b64encode(logical_path.encode("utf-8"))
         encoded_path = encoded_path.rstrip(b"=").decode("ascii")
-        # 写操作走本地文件服务 127.0.0.1:8200（平台工作区 API 不支持创建新文件）
+        # 写操作走 /files/ 端点，不带平台专用 Content-Type（平台工作区 API 不支持创建新文件）
         save_req, get_req = requests
         self.assertEqual(save_req.method, "POST")
         self.assertEqual(
             str(save_req.url),
-            "http://127.0.0.1:8200/files/runs/engineering_facts/run-1/engineering_facts.json",
+            "http://host/files/runs/engineering_facts/run-1/engineering_facts.json",
         )
-        self.assertEqual(save_req.headers["Authorization"], "Bearer cap-token")
+        self.assertNotIn("Authorization", save_req.headers)
+        self.assertEqual(save_req.headers["Content-Type"], "application/json")
         # 读操作仍走平台工作区 API
         self.assertEqual(get_req.method, "GET")
         self.assertEqual(

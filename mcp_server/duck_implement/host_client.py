@@ -180,10 +180,6 @@ class MCPHostClient:
     ) -> None:
         platform = self._platform_headers is not None
         method = "POST"
-        headers = None
-        if platform:
-            headers = dict(self._platform_headers)
-            headers["Content-Type"] = WORKSPACE_CONTENT_TYPE
 
         if kind == "auto":
             if isinstance(data, (bytes, bytearray)):
@@ -197,11 +193,10 @@ class MCPHostClient:
                     f"save_file 不支持的数据类型: {type(data).__name__}，可选 dict / str / bytes"
                 )
 
-        # 平台工作区 API (/internal/platform/workspace/files/) 和平台 /files/
-        # 端点均不支持创建新文件（POST 返回 404）。写操作改用本地文件服务
-        # 127.0.0.1:8200，读操作仍走平台工作区 API（get_file 已验证可用）。
+        # 平台工作区 API 不支持创建新文件。写操作走普通 /files/ 端点，
+        # 不带平台专用 Content-Type，使用标准 application/json。
         write_url = (
-            f"http://127.0.0.1:8200/files/{quote(path.lstrip('/'), safe='/')}"
+            f"{self._base_url}/files/{quote(path.lstrip('/'), safe='/')}"
             if platform
             else None
         )
@@ -213,7 +208,7 @@ class MCPHostClient:
                 method,
                 path,
                 json=data,
-                headers=headers or {"Content-Type": "application/json"},
+                headers={"Content-Type": "application/json"},
                 url=write_url,
             )
         elif kind == "text":
@@ -227,13 +222,13 @@ class MCPHostClient:
                 method,
                 path,
                 content=payload,
-                headers=headers or {"Content-Type": "text/plain; charset=utf-8"},
+                headers={"Content-Type": "text/plain; charset=utf-8"},
                 url=write_url,
             )
         elif kind == "bytes":
             if not isinstance(data, (bytes, bytearray)):
                 raise TypeError(f"kind='bytes' 需要 bytes，得到 {type(data).__name__}")
-            resp = self._request(method, path, content=bytes(data), headers=headers, url=write_url)
+            resp = self._request(method, path, content=bytes(data), url=write_url)
         else:
             raise ValueError(f"不支持的 kind: {kind}，可选值: json / text / bytes / auto")
 
