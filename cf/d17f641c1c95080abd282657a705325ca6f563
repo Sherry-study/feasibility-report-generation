@@ -1,0 +1,51 @@
+tests/test_mcp_server_contract.py
+  s_26381ea0c6919d::t_a6dcbf3af114b0 736-737,743-747
+  s_26381ea0c6919d::t_e429883cd0a75c 469-580
+  s_26381ea0c6919d::t_329fc5b8aa1ae8 682-687,706,708-710,715-719
+  s_26381ea0c6919d::t_71f5a2a0dfa712 22
+  s_26381ea0c6919d::t_925c08cbd847f1 748
+  s_26381ea0c6919d::t_30a0bf05c5d050 707
+  s_26381ea0c6919d::t_ee33df5794f226 688
+  s_26381ea0c6919d::t_2a85ccf52eec92 720
+  s_26381ea0c6919d::t_7c97cf1180c0e9 43-49
+mcp_server/server.py
+  s_26381ea0c6919d::t_88364babda66ad 166,216-247
+  s_26381ea0c6919d::t_93d40a58756b7f 969-971,973-992
+  s_26381ea0c6919d::t_55f20753e12c47 1033-1035,1037-1048
+  s_26381ea0c6919d::t_a0e66b85a1263a 898-900,902-916
+  s_26381ea0c6919d::t_848d4d503a3a39 248-250
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "cfd17f641c1c95080abd282657a705325ca6f563",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_26381ea0c6919d": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa28ffe96e973c4987a96e4",
+        "model": "glm-5.3__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "source_scene": "unknown",
+        "external_session_id": "6aa28ffe96e973c4987a96e4",
+        "client_type": "ide",
+        "runtime_client": "trae-tob-git-ai",
+        "tool_use_id": "6aa2a0b396e973c4987a985e",
+        "edit_kind": "file_edit",
+        "dedupe_key": "6aa28ffe96e973c4987a96e4:6aa2a0b396e973c4987a985e:afterEdit:5fd798b1",
+        "operation_id": "6aa2a0b396e973c4987a985e",
+        "tool_type": "agent",
+        "session_id": "6aa28ffe96e973c4987a96e4",
+        "tool_id": "Write"
+      }
+    }
+  }
+}
