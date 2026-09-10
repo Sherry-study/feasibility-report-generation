@@ -19,6 +19,7 @@ from mcp_server.server import (
     EngineeringFactsInput,
     ReportFinalizeInput,
     ReportPrepareInput,
+    SourceLocationParam,
     _run_with_cancellation,
     engineering_facts,
     main,
@@ -37,6 +38,13 @@ from tests.fakes import FakeContent
 
 def _run(awaitable):
     return asyncio.run(awaitable)
+
+
+def _unwrap_optional(param_schema: dict) -> dict:
+    """解包可选参数的 anyOf: [schema, null] 形态，返回真实模型 schema。"""
+    if "anyOf" in param_schema and "properties" not in param_schema:
+        return param_schema["anyOf"][0]
+    return param_schema
 
 
 def _tool(name: str):
@@ -458,6 +466,118 @@ class MCPServerContractTests(unittest.TestCase):
 
         _run(scenario())
 
+    def test_engineering_facts_accepts_legacy_top_level_source_location(self) -> None:
+        """中转层旧声明形态：顶层 source_location + construction_unit。"""
+        core_result = {
+            "status": "completed",
+            "artifact": {
+                "path": "runs/engineering_facts/engineering_facts.json",
+                "media_type": "application/json",
+                "schema_version": "2.0",
+            },
+            "summary": _engineering_facts_success_envelope()["data"]["summary"],
+            "diagnostics": [],
+        }
+
+        async def scenario() -> None:
+            ctx = FakeCtx()
+            with (
+                patch("mcp_server.server.make_host_client", return_value=object()),
+                patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
+                patch("mcp_server.server._send_progress_with_data", new=AsyncMock()),
+            ):
+                tool_result = await engineering_facts(
+                    ctx,
+                    source_location=SourceLocationParam(
+                        provider="local_directory", location="inputs"
+                    ),
+                    construction_unit="测试建设单位",
+                )
+            self.assertEqual(
+                tool_result.structured_content, _engineering_facts_success_envelope()
+            )
+            # 归一化后进入核心的 provider/root 与顶层 source_location 一致
+            self.assertIn(
+                "engineering_facts start: local_directory:inputs", ctx.messages
+            )
+
+        _run(scenario())
+
+    def test_source_location_param_unwraps_nested_input(self) -> None:
+        """Agent 双侧妥协产生的 {input: {...}} 混合嵌套也能归一化。"""
+        param = SourceLocationParam.model_validate(
+            {"input": {"provider": "local_directory", "location": "."}}
+        )
+        self.assertEqual(param.provider, "local_directory")
+        self.assertEqual(param.location, ".")
+
+    def test_report_prepare_accepts_legacy_top_level_params(self) -> None:
+        core_result = {
+            "status": "prepared",
+            "artifact": {
+                "path": "runs/report_prepare/work_package.json",
+                "media_type": "application/json",
+                "schema_version": "1.0",
+            },
+            "summary": _report_prepare_success_envelope()["data"]["summary"],
+            "diagnostics": [],
+        }
+
+        async def scenario() -> None:
+            with (
+                patch("mcp_server.server.make_host_client", return_value=object()),
+                patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
+            ):
+                tool_result = await report_prepare(
+                    FakeCtx(),
+                    engineering_facts_path="runs/engineering_facts/engineering_facts.json",
+                    project_name="测试项目",
+                )
+            self.assertEqual(
+                tool_result.structured_content, _report_prepare_success_envelope()
+            )
+
+        _run(scenario())
+
+    def test_report_finalize_accepts_legacy_top_level_params(self) -> None:
+        core_result = {
+            "status": "completed",
+            "artifacts": {
+                "docx_path": "runs/report_finalize/report.docx",
+                "docx_media_type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                "markdown_path": "runs/report_finalize/report.md",
+                "markdown_media_type": "text/markdown; charset=utf-8",
+            },
+            "manifest_path": "runs/report_finalize/report_manifest.json",
+            "markdown_content": "# 报告",
+            "summary": _report_finalize_success_envelope()["data"]["summary"],
+            "diagnostics": [],
+        }
+
+        async def scenario() -> None:
+            with (
+                patch("mcp_server.server.make_host_client", return_value=object()),
+                patch("mcp_server.server._run_with_cancellation", new=AsyncMock(return_value=core_result)),
+                patch("mcp_server.server._send_progress_with_data", new=AsyncMock()),
+            ):
+                tool_result = await report_finalize(
+                    FakeCtx(),
+                    work_package_path="runs/report_prepare/work_package.json",
+                )
+            self.assertEqual(
+                tool_result.structured_content, _report_finalize_success_envelope()
+            )
+
+        _run(scenario())
+
+    def test_tools_raise_clear_error_when_no_input_provided(self) -> None:
+        async def scenario() -> None:
+            for tool in (engineering_facts, report_prepare, report_finalize):
+                with self.assertRaises(ValueError):
+                    await tool(FakeCtx())
+
+        _run(scenario())
+
     def test_unexpected_internal_error_is_translated_to_error_result(self) -> None:
         def fail() -> dict:
             raise RuntimeError("algorithm bug")
@@ -559,9 +679,13 @@ class MCPServerContractTests(unittest.TestCase):
     def test_engineering_facts_input_schema(self) -> None:
         schema = _tool("engineering_facts").parameters
         self.assertFalse(schema.get("additionalProperties", True))
-        self.assertEqual(schema["required"], ["input"])
-        self.assertEqual(set(schema["properties"]), {"input"})
-        tool_input = schema["properties"]["input"]
+        # input 与旧版顶层参数（中转层声明形态）并存，均非必填
+        self.assertEqual(set(schema.get("required", [])), set())
+        self.assertEqual(
+            set(schema["properties"]),
+            {"input", "source_location", "construction_unit"},
+        )
+        tool_input = _unwrap_optional(schema["properties"]["input"])
         # extra="ignore" allows legacy format (source_location) to pass through
         self.assertTrue(tool_input.get("additionalProperties", True))
         # provider and root now have defaults (for legacy format compatibility)
@@ -579,13 +703,21 @@ class MCPServerContractTests(unittest.TestCase):
         self.assertFalse(overrides.get("additionalProperties", True))
         self.assertIn("scheme_path", overrides["properties"])
         self.assertIn("plant_result_path", overrides["properties"])
+        # 旧版顶层 source_location 参数保持同名结构
+        legacy = _unwrap_optional(schema["properties"]["source_location"])
+        self.assertEqual(
+            set(legacy["properties"]), {"provider", "location", "file_overrides"}
+        )
 
     def test_report_prepare_input_schema(self) -> None:
         schema = _tool("report_prepare").parameters
         self.assertFalse(schema.get("additionalProperties", True))
-        self.assertEqual(schema["required"], ["input"])
-        self.assertEqual(set(schema["properties"]), {"input"})
-        prepare_input = schema["properties"]["input"]
+        self.assertEqual(set(schema.get("required", [])), set())
+        self.assertEqual(
+            set(schema["properties"]),
+            {"input", "engineering_facts_path", "project_name"},
+        )
+        prepare_input = _unwrap_optional(schema["properties"]["input"])
         self.assertFalse(prepare_input.get("additionalProperties", True))
         self.assertEqual(prepare_input["required"], ["engineering_facts_path"])
         self.assertEqual(
@@ -601,15 +733,19 @@ class MCPServerContractTests(unittest.TestCase):
         report_context = prepare_input["properties"]["report_context"]["anyOf"][0]
         self.assertFalse(report_context.get("additionalProperties", True))
         self.assertEqual(set(report_context["properties"]), {"project_name"})
-        self.assertNotIn("project_name", schema["properties"])
+        # project_name 现以顶层旧版参数形式并存（中转层兼容）
+        self.assertIn("project_name", schema["properties"])
         self.assertNotIn("work_results", prepare_input["properties"])
 
     def test_report_finalize_input_schema(self) -> None:
         schema = _tool("report_finalize").parameters
         self.assertFalse(schema.get("additionalProperties", True))
-        self.assertEqual(schema["required"], ["input"])
-        self.assertEqual(set(schema["properties"]), {"input"})
-        finalize_input = schema["properties"]["input"]
+        self.assertEqual(set(schema.get("required", [])), set())
+        self.assertEqual(
+            set(schema["properties"]),
+            {"input", "work_package_path", "work_results_path"},
+        )
+        finalize_input = _unwrap_optional(schema["properties"]["input"])
         self.assertFalse(finalize_input.get("additionalProperties", True))
         self.assertEqual(finalize_input["required"], ["work_package_path"])
         self.assertEqual(

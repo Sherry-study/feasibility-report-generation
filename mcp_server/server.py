@@ -163,7 +163,7 @@ class EngineeringSourceFileOverrides(BaseModel):
 
 
 class EngineeringFactsInput(BaseModel):
-    """工程事实整理输入。
+    """工程事实整理输入（嵌套 input 形态）。
 
     同时兼容新旧两种调用格式：
     - 新格式：{provider, root, file_overrides?, construction_unit?}
@@ -210,6 +210,41 @@ class EngineeringFactsInput(BaseModel):
                 data["root"] = sl.get("location", "")
             if "file_overrides" not in data and "file_overrides" in sl:
                 data["file_overrides"] = sl["file_overrides"]
+        return data
+
+
+class SourceLocationParam(BaseModel):
+    """旧版顶层 source_location 参数（中转层旧声明形态）。
+
+    平台中转层向 Agent 声明的工具 schema 可能停留在旧版顶层参数格式，
+    Agent 只能透传顶层 source_location；本模型用于接收该形态并归一化。
+    """
+
+    model_config = ConfigDict(extra="ignore")
+
+    provider: Literal["local_directory", "host_directory"] = Field(
+        default="local_directory",
+        description="来源类型，语义同 EngineeringFactsInput.provider。",
+    )
+    location: str = Field(
+        default="",
+        description="来源根路径，语义同 EngineeringFactsInput.root。",
+    )
+    file_overrides: EngineeringSourceFileOverrides | None = Field(
+        default=None,
+        description="可选文件名覆盖，语义同 EngineeringFactsInput.file_overrides。",
+    )
+
+    @model_validator(mode="before")
+    @classmethod
+    def _unwrap_nested_input(cls, data: Any) -> Any:
+        """兼容 {input: {...}} 混合嵌套形态（Agent 双侧妥协时可能产生）。"""
+        if isinstance(data, dict) and "location" not in data:
+            inner = data.get("input")
+            if isinstance(inner, dict):
+                merged = {k: v for k, v in data.items() if k != "input"}
+                merged.update(inner)
+                return merged
         return data
 
 
@@ -860,8 +895,25 @@ async def _run_with_cancellation(
 )
 async def engineering_facts(
     ctx: Context,
-    input: EngineeringFactsInput,
+    input: EngineeringFactsInput | None = None,
+    source_location: SourceLocationParam | None = None,
+    construction_unit: str | None = None,
 ) -> ToolResult:
+    """兼容两种入参形态：嵌套 input（新）与顶层 source_location + construction_unit（旧）。"""
+    if input is None:
+        if source_location is None:
+            raise ValueError(
+                "缺少入参：请传 input={provider, root}，"
+                "或顶层 source_location={provider, location}（可配 construction_unit）。"
+            )
+        input = EngineeringFactsInput(
+            provider=source_location.provider,
+            root=source_location.location,
+            file_overrides=source_location.file_overrides,
+            construction_unit=construction_unit,
+        )
+    elif construction_unit is not None and input.construction_unit is None:
+        input = input.model_copy(update={"construction_unit": construction_unit})
     await ctx.info(f"engineering_facts start: {input.provider}:{input.root}")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)
@@ -914,9 +966,30 @@ async def engineering_facts(
 )
 async def report_prepare(
     ctx: Context,
-    input: ReportPrepareInput,
-
+    input: ReportPrepareInput | None = None,
+    engineering_facts_path: str | None = None,
+    project_name: str | None = None,
 ) -> ToolResult:
+    """兼容两种入参形态：嵌套 input（新）与顶层 engineering_facts_path + project_name（旧）。"""
+    if input is None:
+        if not engineering_facts_path:
+            raise ValueError(
+                "缺少入参：请传 input={engineering_facts_path}，"
+                "或顶层 engineering_facts_path（可配 project_name）。"
+            )
+        input = ReportPrepareInput(
+            engineering_facts_path=engineering_facts_path,
+            report_context=ReportContext(project_name=project_name)
+            if project_name
+            else None,
+        )
+    elif project_name is not None and (
+        input.report_context is None or input.report_context.project_name is None
+    ):
+        merged_context = (input.report_context or ReportContext()).model_copy(
+            update={"project_name": project_name}
+        )
+        input = input.model_copy(update={"report_context": merged_context})
 
     await ctx.info("report_prepare start")
     loop = asyncio.get_running_loop()
@@ -957,8 +1030,22 @@ async def report_prepare(
 )
 async def report_finalize(
     ctx: Context,
-    input: ReportFinalizeInput,
+    input: ReportFinalizeInput | None = None,
+    work_package_path: str | None = None,
+    work_results_path: str | None = None,
 ) -> ToolResult:
+    """兼容两种入参形态：嵌套 input（新）与顶层 work_package_path + work_results_path（旧）。"""
+    if input is None:
+        if not work_package_path:
+            raise ValueError(
+                "缺少入参：请传 input={work_package_path}，"
+                "或顶层 work_package_path（可配 work_results_path）。"
+            )
+        input = ReportFinalizeInput(
+            work_package_path=work_package_path,
+            work_results_path=work_results_path,
+        )
+
     await ctx.info("report_finalize start")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)
