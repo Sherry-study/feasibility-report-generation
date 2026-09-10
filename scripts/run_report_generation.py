@@ -2,7 +2,7 @@
 
 只需要修改工程事实文件路径，然后执行：
 
-    python -B -X utf8 scripts/run_report_generation.py
+    python -B -X utf8 skills/feasibility-report-generation/scripts/run_report_generation.py
 
 默认先 prepare 生成 work_package.json，再不携带 Agent 工作结果直接 finalize，
 导出一份以模板 fallback 兜底的不完整初稿 Markdown 与 DOCX，用于本地验证完整链路。

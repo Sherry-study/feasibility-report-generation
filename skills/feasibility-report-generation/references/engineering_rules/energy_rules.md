@@ -1,6 +1,6 @@
 # 能耗规则
 
-以 `energy_conversion_rules.json` 作为唯一确定性折标系数库。
+以 `src/engineering_facts/rules/energy_conversion_rules.json` 作为唯一确定性折标系数库。
 
 ## 核算体系
 

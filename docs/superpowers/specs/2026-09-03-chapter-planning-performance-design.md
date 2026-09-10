@@ -1,5 +1,8 @@
 # Chapter Planning 章节草稿性能优化设计
 
+> 历史设计记录：本文档描述的是旧四阶段运行链路的性能优化设计，相关实现已随旧链路归档。
+> 其中引用的 `references/chapter_rules/` 目录已移除；正式章节规则以 `src/report_shared/rules/chapter_rules.json` 为准。
+
 ## 1. 目标
 
 在不减少章节、不缩短正文目标、不降低确认门、Evidence 校验、草稿校验和最终一致性门槛的前提下，降低 `chapter_planning -> needs_llm` 后的章节草稿生成时间。
@@ -41,7 +44,7 @@
 - 不修改 `needs_confirmation`、`needs_research`、`needs_llm`、`planning_ready` 状态语义；
 - 不移除 Evidence、allowed headings、生产安全或最终一致性校验；
 - 不增加第四个 Worker，不把任务拆成第二轮执行；
-- 不修改当前工作区已有的未提交 `SKILL.md` 和 `references/report_rules/writing_constraints.md`。
+- 不修改当前工作区已有的未提交 `SKILL.md` 和 `skills/feasibility-report-generation/references/report_rules/writing_constraints.md`。
 
 ## 4. 设计方案
 
@@ -240,11 +243,11 @@ python -X utf8 C:\Users\huangxiaoting\.codex\skills\.system\skill-creator\script
 明确不修改：
 
 - `SKILL.md`
-- `references/report_rules/writing_constraints.md`
+- `skills/feasibility-report-generation/references/report_rules/writing_constraints.md`
 - Schema 与状态码契约
 - 最终报告章节结构和正文预算
 
-实施开始前记录 `SKILL.md` 与 `references/report_rules/writing_constraints.md` 的 SHA-256；完成后再次计算并确认完全一致。若实施前相对 HEAD 已存在 diff，不要求该 diff 为空；只要求实施前后 SHA-256 完全相同，并确认这两个文件没有被 stage 或 commit。不得将两者纳入格式化、批量替换或提交范围。
+实施开始前记录 `SKILL.md` 与 `skills/feasibility-report-generation/references/report_rules/writing_constraints.md` 的 SHA-256；完成后再次计算并确认完全一致。若实施前相对 HEAD 已存在 diff，不要求该 diff 为空；只要求实施前后 SHA-256 完全相同，并确认这两个文件没有被 stage 或 commit。不得将两者纳入格式化、批量替换或提交范围。
 
 ## 9. 冷启动关键路径实验（第二轮）
 
@@ -323,7 +326,7 @@ early worker 的原始输出、submit 状态和 validated 文件全部留在 `dr
 - `needs_research` 必须执行 Tool 返回的合并 `host_workflow`，不得把 early-draft 另行串行化；
 - `needs_llm` collect 成功后直接调用 `report_generation`，由该 Tool 完成最终 Evidence/Draft 门禁。
 
-详细并发、复用和回退说明继续放在 `references/runtime_policy.md`，避免把 Skill 主体膨胀成 Workflow Runner。保留用户在 `SKILL.md` 中已有的未提交修改，只做上述定点增量。
+详细并发、复用和回退说明继续放在 `skills/feasibility-report-generation/references/runtime_policy.md`，避免把 Skill 主体膨胀成 Workflow Runner。保留用户在 `SKILL.md` 中已有的未提交修改，只做上述定点增量。
 
 ### 9.6 诊断指标与验收
 
@@ -351,7 +354,7 @@ early worker 的原始输出、submit 状态和 validated 文件全部留在 `dr
 ### 9.7 第二轮预期改动文件
 
 - `SKILL.md`（定点增量，保留现有未提交内容）
-- `references/runtime_policy.md`
+- `skills/feasibility-report-generation/references/runtime_policy.md`
 - `internal/planning/stage.py`
 - `internal/planning/draft_fragments.py`
 - `internal/planning/research_fragments.py` 或等价的轻量合并 workflow 生成位置
@@ -359,4 +362,4 @@ early worker 的原始输出、submit 状态和 validated 文件全部留在 `dr
 - 必要的 Tool/Workflow docstring（不得改变参数）
 - `tests/test_chapter_rules_runtime.py`
 
-第二轮不得修改 `references/report_rules/writing_constraints.md`、Schema、事实确认门、章节结构、正文预算和 Research 搜索预算。实施前后分别记录目标文件 SHA-256 和 diff；第二轮变更必须能与第一轮 pack/快照优化分开识别，便于 Trae 实测失败后按用户确认的范围回退。
+第二轮不得修改 `skills/feasibility-report-generation/references/report_rules/writing_constraints.md`、Schema、事实确认门、章节结构、正文预算和 Research 搜索预算。实施前后分别记录目标文件 SHA-256 和 diff；第二轮变更必须能与第一轮 pack/快照优化分开识别，便于 Trae 实测失败后按用户确认的范围回退。

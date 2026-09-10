@@ -628,8 +628,8 @@ src.report_finalize.core.execute(...)
 | `schemas/report_manifest.schema.json` | 新增 | 定义 manifest 的 `schema_version`、Markdown/DOCX 逻辑 path、sha256、size_bytes、media_type 和 summary |
 | `scripts/run_report_generation.py` | 改造 | 从旧 `src.report_generation.execute(operation=...)` 改为调用 `src.report_prepare` + `src.report_finalize`；默认仍允许不传 `work_results_path` 生成 fallback 草稿 |
 | `scripts/run_engineering_facts.py` | 改造 | 注入本地 `Content` / `HostClient` adapter，输出逻辑路径而非旧 artifact 引用字段 |
-| `scripts/validate_output.py` | 改造 | 从检查输出目录改为检查 `report_manifest.json` 指向的 Markdown/DOCX 逻辑路径 |
-| `scripts/package_result.py` | 改造 | 打包入口改为 manifest；不得把无 manifest 的孤儿文件打包为有效交付 |
+| `skills/feasibility-report-generation/scripts/validate_output.py` | 改造 | 从检查输出目录改为检查 `report_manifest.json` 指向的 Markdown/DOCX 逻辑路径 |
+| `skills/feasibility-report-generation/scripts/package_result.py` | 改造 | 打包入口改为 manifest；不得把无 manifest 的孤儿文件打包为有效交付 |
 | `scripts/local_adapters.py` | 新增 | 提供 CLI 用本地 `Content` 与本地 `HostClient` adapter，不放进业务 `src` |
 | `tests/fakes.py` | 新增 | 提供单测用 fake `Content` 与 fake `HostClient` adapter，不放进业务 `src` |
 | 工程事实 UI 的 `ui/src/core/mcpApp.ts` | 小改 | 解包信封并白名单读取 `progress.uiEvent.final_result.engineering_facts`；页面组件不改 |
@@ -686,7 +686,7 @@ src.report_finalize.core.execute(...)
 - 三个 Tool 的成功/失败联合输出能拒绝 `completed/prepared + error`、`failed + 产物` 等无效组合。
 - 每个 Tool description 包含职责、适用场景、返回关键字段、错误和不调用边界。
 - 每个生产 Tool 入口继续调用 `make_host_client(ctx)`，并把返回值传入对应 `src` 核心。
-- 全仓扫描旧公开字段：所有 `_uri` 后缀字段、旧 artifact 引用字段、旧 context 引用字段不得作为新 MCP/Schema/Skill/README/scripts/tests 契约残留；历史说明必须明确标注为改造前。
+- 全仓扫描旧公开字段：所有 `_uri` 后缀字段、旧 artifact 引用字段、旧 context 引用字段不得作为新 MCP/Schema/Skill/README/skills/feasibility-report-generation/scripts/tests 契约残留；历史说明必须明确标注为改造前。
 - 全仓扫描 `src.report_generation`、`src/report_generation`、旧 `operation` 路由字段和 `report_generation` 旧核心引用；迁移完成后，除历史说明外不得残留。
 
 ### 7.2 返回与错误
@@ -726,7 +726,7 @@ src.report_finalize.core.execute(...)
 - `schemas/report_work_package.schema.json` 使用 `engineering_facts.path` 和 `context_path` 后，prepare 产物与 schema 校验一致。
 - `report_prepare` 必须先保存全部 context，再保存并校验 `work_package.json`；验收必须检查工作包中的每个 `context_path` 都位于同一逻辑路径前缀下并能被 HostClient 读取。
 - 新增 `schemas/report_manifest.schema.json` 后，finalize manifest 产物与 schema、路径关联、hash 和 size 校验一致。
-- `scripts/run_report_generation.py` 走 `report_prepare` + `report_finalize` 双核心链路，并验证“无 `work_results_path` 时生成 fallback 草稿”的既有语义。
+- `scripts/run_report_generation.py` 走 `report_prepare` + `report_finalize` 双核心链路，并验证"无 `work_results_path` 时生成 fallback 草稿"的既有语义。
 - `scripts/run_engineering_facts.py` 使用本地 adapter 注入 `content` / `host_client`，不依赖 FastMCP。
 - `scripts/validate_output.py` 以 manifest 为有效性入口，并校验 manifest Schema、Markdown/DOCX 路径关联、hash 和 size；不按目录存在两个文件就判定有效。
 - `scripts/validate_output.py` 使用 HostClient 兼容的本地 adapter 回读 manifest 指向的 Markdown/DOCX，重新计算 sha256 和 size_bytes。

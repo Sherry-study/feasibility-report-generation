@@ -2,7 +2,7 @@
 
 只需要修改上游算法输出目录，然后执行：
 
-    python -B -X utf8 scripts/run_engineering_facts.py
+    python -B -X utf8 skills/feasibility-report-generation/scripts/run_engineering_facts.py
 """
 
 from __future__ import annotations
@@ -34,10 +34,8 @@ def main() -> int:
     """执行算法并打印 Tool 返回结果。"""
     result = execute(
         {
-            "source_location": {
-                "provider": "local_directory",
-                "location": SOURCE_LOCATION,
-            },
+            "provider": "local_directory",
+            "root": SOURCE_LOCATION,
             "construction_unit": CONSTRUCTION_UNIT,
         },
         content=ConsoleContent(),

@@ -158,6 +158,21 @@ class EngineeringFactsToolTests(unittest.TestCase):
                 )
             )
 
+    def test_new_local_directory_input_reads_bundle_without_file_list(self) -> None:
+        result = execute(
+            {
+                "provider": "local_directory",
+                "root": str(self.bundle),
+                "construction_unit": "测试建设单位",
+            },
+            self.artifact_dir,
+        )
+
+        self.assertEqual(result["status"], "completed")
+        facts = self.read_facts()
+        self.assertEqual(facts["basic_info"], {"construction_unit": "测试建设单位"})
+        self.assertGreaterEqual(result["summary"]["source_count"], 1)
+
     def test_host_file_source_reads_upstream_file_through_host_client(self) -> None:
         source_payload = json.loads(self.scheme_path.read_text(encoding="utf-8"))
         host = FakeHostClient()
@@ -188,6 +203,74 @@ class EngineeringFactsToolTests(unittest.TestCase):
             ],
         )
         self.assertIn(result["artifact"]["path"], host.files)
+
+    def test_host_directory_reads_standard_source_files(self) -> None:
+        source_payload = json.loads(self.scheme_path.read_text(encoding="utf-8"))
+        host = FakeHostClient()
+        host.save_file("inputs/upstream/scheme.json", source_payload)
+
+        result = facts_core.execute(
+            {
+                "provider": "host_directory",
+                "root": "inputs/upstream",
+                "construction_unit": "测试建设单位",
+            },
+            content=FakeContent(),
+            host_client=host,
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(
+            result["engineering_facts"]["sources"],
+            [
+                {
+                    "source_id": "scheme",
+                    "source_type": "scheme",
+                    "location": "inputs/upstream/scheme.json",
+                    "schema_version": "topology_retrofit_v1",
+                }
+            ],
+        )
+        self.assertIn(result["artifact"]["path"], host.files)
+
+    def test_host_directory_reads_file_overrides(self) -> None:
+        source_payload = json.loads(self.scheme_path.read_text(encoding="utf-8"))
+        host = FakeHostClient()
+        host.save_file("inputs/upstream/custom/scheme_custom.json", source_payload)
+
+        result = facts_core.execute(
+            {
+                "provider": "host_directory",
+                "root": "inputs/upstream",
+                "file_overrides": {
+                    "scheme_path": "custom/scheme_custom.json",
+                },
+            },
+            content=FakeContent(),
+            host_client=host,
+        )
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(
+            result["engineering_facts"]["sources"][0]["location"],
+            "inputs/upstream/custom/scheme_custom.json",
+        )
+
+    def test_host_directory_rejects_override_outside_root(self) -> None:
+        result = facts_core.execute(
+            {
+                "provider": "host_directory",
+                "root": "inputs/upstream",
+                "file_overrides": {
+                    "scheme_path": "../scheme.json",
+                },
+            },
+            content=FakeContent(),
+            host_client=FakeHostClient(),
+        )
+
+        self.assertEqual(result["status"], "failed")
+        self.assertEqual(result["diagnostics"][0]["code"], "INVALID_SOURCE_FILE_PATH")
 
     def test_missing_host_file_source_is_business_failure(self) -> None:
         result = facts_core.execute(

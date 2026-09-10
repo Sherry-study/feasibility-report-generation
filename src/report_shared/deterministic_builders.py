@@ -470,7 +470,7 @@ def _equipment_items(facts: dict[str, Any]) -> list[dict[str, Any]]:
 def _reportable_equipment_actions(facts: dict[str, Any]) -> dict[str, list[dict[str, str]]]:
     """解析 4.2.4 三张设备动作表的数据行。
 
-    分类语义遵守 references/engineering_rules/equipment_rules.md：
+    分类语义遵守 skills/feasibility-report-generation/references/engineering_rules/equipment_rules.md：
     新增、利旧、改造进入正式表；无变化设备不列入。
     """
     object_map = {str(item.get("id")): item for item in _equipment_items(facts) if item.get("id") is not None}

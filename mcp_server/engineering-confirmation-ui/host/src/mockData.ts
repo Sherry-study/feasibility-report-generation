@@ -249,7 +249,7 @@ function engineeringFactsCompletedScenario(): MockScenario {
   return engineeringFactsScenario(
     'completed',
     '正常:整理完成',
-    { source_location: { provider: 'local_directory', location: SOURCE_DIR }, construction_unit: '测试建设单位' },
+    { input: { provider: 'local_directory', root: SOURCE_DIR, construction_unit: '测试建设单位' } },
     engineeringFactsCompletedResult(),
     true,
   );
@@ -259,7 +259,7 @@ function engineeringFactsNoEconomicsScenario(): MockScenario {
   return engineeringFactsScenario(
     'economics-pending',
     '边界:经济指标待计算',
-    { source_location: { provider: 'local_directory', location: SOURCE_DIR } },
+    { input: { provider: 'local_directory', root: SOURCE_DIR } },
     engineeringFactsCompletedResult(),
     false,
   );
@@ -269,7 +269,7 @@ function engineeringFactsSourceErrorScenario(): MockScenario {
   return engineeringFactsScenario(
     'source-json-invalid',
     '异常:来源 JSON 损坏',
-    { source_location: { provider: 'local_directory', location: SOURCE_DIR } },
+    { input: { provider: 'local_directory', root: SOURCE_DIR } },
     engineeringFactsFailedResult(),
   );
 }
@@ -277,12 +277,12 @@ function engineeringFactsSourceErrorScenario(): MockScenario {
 function engineeringFactsMissingLocationScenario(): MockScenario {
   return {
     id: 'missing-location',
-    label: '异常:缺少 location',
+    label: '异常:缺少 root',
     toolName: 'engineering_facts',
-    args: { source_location: { provider: 'local_directory' } },
+    args: { input: { provider: 'local_directory' } },
     steps: engineeringFactsProgressSteps(),
     errorResult: {
-      content: [{ type: 'text', text: 'source_location.location is required.' }],
+      content: [{ type: 'text', text: 'input.root is required.' }],
     },
   };
 }

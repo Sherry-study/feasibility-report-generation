@@ -7,12 +7,14 @@
 ## 架构
 
 ```text
-SKILL.md
-references/
+skills/feasibility-report-generation/
+  SKILL.md
+  references/
+  prompts/
+  scripts/
+  assets/
 src/
 schemas/
-prompts/
-scripts/
 tests/
 ```
 
@@ -27,7 +29,7 @@ tests/
 - `report_prepare`：基于工程事实生成章节工作包（不绑定 UI，对话流文本卡片展示摘要）
 - `report_finalize`：合并 Agent 工作结果并导出 DOCX/Markdown（绑定 report-generation-ui）
 
-三个公开 Tool 分别由 `src/engineering_facts/`、`src/report_prepare/`、`src/report_finalize/` 提供独立核心入口；报告共用算法、规则和模板位于 `src/report_shared/`。`schemas/`、`prompts/`、`references/` 是共享契约与规则来源。本 Server 不公开 `read_file` / `read_artifact` Tool；跨 Tool 产物均通过宿主存储中的逻辑 `*_path` 交换。
+三个公开 Tool 分别由 `src/engineering_facts/`、`src/report_prepare/`、`src/report_finalize/` 提供独立核心入口；报告共用算法、规则和模板位于 `src/report_shared/`。`schemas/`、`skills/feasibility-report-generation/prompts/`、`skills/feasibility-report-generation/references/` 是共享契约与规则来源。本 Server 不公开 `read_file` / `read_artifact` Tool；跨 Tool 产物均通过宿主存储中的逻辑 `*_path` 交换。
 
 ## 使用方式
 
@@ -40,7 +42,7 @@ engineering_facts
 → report_finalize
 ```
 
-`engineering_facts` 输入只接受 `source_location` 和可选 `construction_unit`（未提供时按空值处理，不自动推断）。`source_location.provider` 支持 `local_directory` 与 `host_file`：`local_directory` 仅用于在用户明确传入的本地根目录内枚举、读取受支持的工程输入文件；`host_file` 把 `location` 作为宿主存储逻辑文件路径，并通过 `HostClient.get_file()` 读取单个上游算法文件。产出的 Engineering Facts 始终保存到宿主逻辑路径。`report_prepare` 接收 `input.engineering_facts_path` 和可选 `input.report_context.project_name`，适配层将 `input` 转换为核心的 `report_context`；核心先生成并完整校验工作包，再保存全部章节 context，最后保存 `work_package.json` 作为提交标志。`report_finalize` 接收必填 `input.work_package_path` 和可选 `input.work_results_path`，不接受 inline `work_results`；未提供工作结果时仍生成由模板 fallback 兜底的未闭合草稿。
+`engineering_facts` 公开输入只接受一个顶层 `input` 对象，避免来源文件参数散落在顶层。`input.provider` 支持 `local_directory` 与 `host_directory`：本地调试时传 `{"provider": "local_directory", "root": "本地目录"}`，核心会递归扫描并识别受支持的工程输入文件；正式部署或平台上传文件时传 `{"provider": "host_directory", "root": "宿主逻辑目录"}`，核心会通过 `HostClient.get_file()` 按默认文件名尝试读取 `plant_reactor_result.json`、`retrofit_tower_equipment.json`、`scheme.json`、`plant_info.json`、`plant_diagnosis_report.md`、`new_device_params.json`、`retrofit_equipment.json`、`retrofit_topology.json`、`plant_level_result.json`。非标准文件名放在 `input.file_overrides` 中按角色覆盖。可选 `input.construction_unit` 未提供时按空值处理，不自动推断。产出的 Engineering Facts 始终保存到宿主逻辑路径。`report_prepare` 接收 `input.engineering_facts_path` 和可选 `input.report_context.project_name`，其中 `engineering_facts_path` 必须是 `engineering_facts` 上一步返回的 `artifact.path` 宿主逻辑路径；核心先生成并完整校验工作包，再保存全部章节 context，最后保存 `work_package.json` 作为提交标志。`report_finalize` 接收必填 `input.work_package_path` 和可选 `input.work_results_path`，其中 `work_package_path` 必须是 `report_prepare` 上一步返回的 `artifact.path` 宿主逻辑路径，`work_results_path` 是宿主 Agent 保存章节结果后的逻辑路径；不接受 inline `work_results`，未提供工作结果时仍生成由模板 fallback 兜底的未闭合草稿。本地测试 `report_prepare` / `report_finalize` 时由 `LocalHostClient` 把这些逻辑路径映射到本地目录，不额外暴露 `local_directory` 参数。
 
 `report_finalize` 先在本地临时目录生成并校验 Markdown/DOCX，再保存到宿主逻辑路径并通过 HostClient 回读核对哈希和大小，最后保存通过 Schema 校验的 `report_manifest.json`。manifest 是有效交付的提交标志；没有 manifest 不得把本次调用视为 `success`。
 
@@ -50,20 +52,23 @@ engineering_facts
 
 ## 参考规范
 
-- `references/chapter_rules/`: 旧四阶段规则保留参考；正式报告 Tool 运行使用 `src/report_shared/rules/`。
-- `references/engineering_rules/`: 算法字段语义、字段映射、设备分类、能耗折标、计算口径。
-- `references/report_rules/`: 报告正文写作边界、内部词屏蔽、生产安全约束。
-- `references/runtime_policy.md`: worker、cache、运行时 artifact 等宿主运行策略。
+- `skills/feasibility-report-generation/references/engineering_rules/`: 算法字段语义、设备分类、能耗折标、计算口径。
+- `skills/feasibility-report-generation/references/report_rules/`: 报告正文写作边界、内部词屏蔽、生产安全约束。
+- `skills/feasibility-report-generation/references/runtime_policy.md`: worker、cache、运行时 artifact 等宿主运行策略。
 
 ## 辅助脚本
 
-`scripts/` 只放确定性辅助动作，不接管 Agent 研究和写作：
+`skills/feasibility-report-generation/scripts/` 放 skill 交付相关的确定性动作：
+
+- `skills/feasibility-report-generation/scripts/validate_output.py`: 检查报告输出目录中的关键交付物和 manifest 校验。
+- `skills/feasibility-report-generation/scripts/package_result.py`: 将报告交付物和可复用证据文件打包为 zip。
+
+仓库根 `scripts/` 放本地开发与 CI 工具，不接管 Agent 研究和写作：
 
 - `scripts/run_engineering_facts.py`: 本地手动运行工程事实整理。
 - `scripts/run_report_generation.py`: 本地手动运行 prepare/finalize 链路。
 - `scripts/validate_schema.py`: 校验 JSON/YAML 文件可解析，并在可用时用 `jsonschema` 校验实例。
-- `scripts/validate_output.py`: 检查报告输出目录中的关键交付物和 JSON 文件。
-- `scripts/package_result.py`: 将报告交付物和可复用证据文件打包为 zip。
+- `scripts/local_adapters.py`: CLI 用本地 `Content` 与 `HostClient` adapter。
 
 ## 验证
 

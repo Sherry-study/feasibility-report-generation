@@ -16,9 +16,9 @@ import httpx
 import jsonschema
 
 from mcp_server.server import (
+    EngineeringFactsInput,
     ReportFinalizeInput,
     ReportPrepareInput,
-    SourceLocation,
     _run_with_cancellation,
     engineering_facts,
     main,
@@ -338,7 +338,7 @@ class MCPServerContractTests(unittest.TestCase):
             ):
                 tool_result = await engineering_facts(
                     FakeCtx(),
-                    SourceLocation(provider="local_directory", location="inputs"),
+                    EngineeringFactsInput(provider="local_directory", root="inputs"),
                 )
             self.assertEqual(tool_result.structured_content, _engineering_facts_success_envelope())
             self.assertIsNone(tool_result.meta)
@@ -448,7 +448,7 @@ class MCPServerContractTests(unittest.TestCase):
             ):
                 tool_result = await engineering_facts(
                     FakeCtx(),
-                    SourceLocation(provider="local_directory", location="inputs"),
+                    EngineeringFactsInput(provider="local_directory", root="inputs"),
                 )
             jsonschema.validate(tool_result.structured_content, schema)
             ui_event = progress.await_args.args[4]
@@ -559,18 +559,24 @@ class MCPServerContractTests(unittest.TestCase):
     def test_engineering_facts_input_schema(self) -> None:
         schema = _tool("engineering_facts").parameters
         self.assertFalse(schema.get("additionalProperties", True))
-        self.assertEqual(schema["required"], ["source_location"])
+        self.assertEqual(schema["required"], ["input"])
+        self.assertEqual(set(schema["properties"]), {"input"})
+        tool_input = schema["properties"]["input"]
+        self.assertFalse(tool_input.get("additionalProperties", True))
+        self.assertEqual(set(tool_input["required"]), {"provider", "root"})
         self.assertEqual(
-            set(schema["properties"]), {"source_location", "construction_unit"}
+            set(tool_input["properties"]),
+            {"provider", "root", "file_overrides", "construction_unit"},
         )
-        self.assertIn("description", schema["properties"]["construction_unit"])
-        source = schema["properties"]["source_location"]
-        self.assertFalse(source.get("additionalProperties", True))
-        self.assertEqual(set(source["required"]), {"provider", "location"})
-        provider_values = source["properties"]["provider"].get("enum") or [
-            source["properties"]["provider"].get("const")
+        self.assertIn("description", tool_input["properties"]["construction_unit"])
+        provider_values = tool_input["properties"]["provider"].get("enum") or [
+            tool_input["properties"]["provider"].get("const")
         ]
-        self.assertEqual(set(provider_values), {"local_directory", "host_file"})
+        self.assertEqual(set(provider_values), {"local_directory", "host_directory"})
+        overrides = tool_input["properties"]["file_overrides"]["anyOf"][0]
+        self.assertFalse(overrides.get("additionalProperties", True))
+        self.assertIn("scheme_path", overrides["properties"])
+        self.assertIn("plant_result_path", overrides["properties"])
 
     def test_report_prepare_input_schema(self) -> None:
         schema = _tool("report_prepare").parameters
@@ -584,6 +590,12 @@ class MCPServerContractTests(unittest.TestCase):
             set(prepare_input["properties"]),
             {"engineering_facts_path", "report_context"},
         )
+        facts_path_description = prepare_input["properties"][
+            "engineering_facts_path"
+        ]["description"]
+        self.assertIn("artifact.path", facts_path_description)
+        self.assertIn("宿主逻辑路径", facts_path_description)
+        self.assertIn("不能填写本地文件系统路径", facts_path_description)
         report_context = prepare_input["properties"]["report_context"]["anyOf"][0]
         self.assertFalse(report_context.get("additionalProperties", True))
         self.assertEqual(set(report_context["properties"]), {"project_name"})
@@ -602,6 +614,17 @@ class MCPServerContractTests(unittest.TestCase):
             set(finalize_input["properties"]),
             {"work_package_path", "work_results_path"},
         )
+        package_path_description = finalize_input["properties"][
+            "work_package_path"
+        ]["description"]
+        results_path_description = finalize_input["properties"][
+            "work_results_path"
+        ]["description"]
+        self.assertIn("artifact.path", package_path_description)
+        self.assertIn("宿主逻辑路径", package_path_description)
+        self.assertIn("不能填写本地文件系统路径", package_path_description)
+        self.assertIn("章节 Agent 工作结果", results_path_description)
+        self.assertIn("宿主逻辑路径", results_path_description)
         # MCP 层不再公开 inline work_results 对象，只接受逻辑路径字符串
         self.assertNotIn("work_results", finalize_input["properties"])
 

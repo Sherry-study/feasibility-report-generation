@@ -119,22 +119,73 @@ def get_report_finalize_ui_html() -> str:
 # ---------------------------------------------------------------------------
 # 输入模型
 # ---------------------------------------------------------------------------
-class SourceLocation(BaseModel):
-    """工程事实来源位置。"""
+class EngineeringSourceFileOverrides(BaseModel):
+    """工程事实来源文件名覆盖。"""
 
     model_config = ConfigDict(extra="forbid")
 
-    provider: Literal["local_directory", "host_file"] = Field(
+    reactor_result_path: str | None = Field(
+        default=None,
+        description="反应器改造结果输出文件路径；不填时按默认文件名 plant_reactor_result.json 尝试读取。",
+    )
+    tower_result_path: str | None = Field(
+        default=None,
+        description="塔器改造结果输出文件路径；不填时按默认文件名 retrofit_tower_equipment.json 尝试读取。",
+    )
+    scheme_path: str | None = Field(
+        default=None,
+        description="改造方案结果文件路径；不填时按默认文件名 scheme.json 尝试读取，用于获取方案信息。",
+    )
+    plant_info_path: str | None = Field(
+        default=None,
+        description="装置信息文件路径；不填时按默认文件名 plant_info.json 尝试读取，用于获取装置基础信息。",
+    )
+    diagnosis_report_path: str | None = Field(
+        default=None,
+        description="装置诊断报告文件路径；不填时按默认文件名 plant_diagnosis_report.md 尝试读取，用于获取诊断结论。",
+    )
+    new_device_params_path: str | None = Field(
+        default=None,
+        description="新增设备参数文件路径；不填时按默认文件名 new_device_params.json 尝试读取。",
+    )
+    retrofit_equipment_path: str | None = Field(
+        default=None,
+        description="改造设备清单文件路径；不填时按默认文件名 retrofit_equipment.json 尝试读取。",
+    )
+    retrofit_topology_path: str | None = Field(
+        default=None,
+        description="改造拓扑关系文件路径；不填时按默认文件名 retrofit_topology.json 尝试读取。",
+    )
+    plant_result_path: str | None = Field(
+        default=None,
+        description="装置级改造结果文件路径；不填时按默认文件名 plant_level_result.json 尝试读取。",
+    )
+
+
+class EngineeringFactsInput(BaseModel):
+    """工程事实整理输入。"""
+
+    model_config = ConfigDict(extra="forbid")
+
+    provider: Literal["local_directory", "host_directory"] = Field(
         description=(
-            "工程事实来源提供方；local_directory 读取本地目录，"
-            "host_file 通过 HostClient 读取宿主逻辑文件。"
+            "来源类型。正式部署、平台上传文件、HostClient 逻辑目录必须使用 host_directory；"
+            "只有本地调试且 MCP Server 进程能直接读取真实目录时，才使用 local_directory。"
         )
     )
-    location: str = Field(
+    root: str = Field(
         description=(
-            "上游工程或算法产物位置；provider=local_directory 时为本地目录路径，"
-            "provider=host_file 时为宿主存储逻辑文件路径。"
+            "来源根路径。provider=local_directory 时填写服务端可直接读取的本地目录；"
+            "provider=host_directory 时填写宿主文件服务中的逻辑目录前缀。"
         )
+    )
+    file_overrides: EngineeringSourceFileOverrides | None = Field(
+        default=None,
+        description="可选文件名覆盖；本地目录测试通常不需要填写，只有 Host 目录或非标准文件名时才填写。",
+    )
+    construction_unit: str | None = Field(
+        default=None,
+        description="可选建设单位名称；未提供时按空值处理，不自动推断。",
     )
 
 
@@ -155,7 +206,10 @@ class ReportPrepareInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     engineering_facts_path: str = Field(
-        description="engineering_facts.json 在宿主存储中的逻辑路径，通常来自工程事实整理产物。"
+        description=(
+            "engineering_facts 产出的 engineering_facts.json 宿主逻辑路径；"
+            "必须来自上一步工程事实整理 Tool 的 artifact.path，不能填写本地文件系统路径。"
+        )
     )
     report_context: ReportContext | None = Field(
         default=None,
@@ -169,11 +223,17 @@ class ReportFinalizeInput(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     work_package_path: str = Field(
-        description="report_prepare 生成的 work_package.json 宿主逻辑路径。"
+        description=(
+            "report_prepare 产出的 work_package.json 宿主逻辑路径；"
+            "必须来自上一步报告准备 Tool 的 artifact.path，不能填写本地文件系统路径。"
+        )
     )
     work_results_path: str | None = Field(
         default=None,
-        description="可选章节工作结果 JSON 的宿主逻辑路径；未提供时生成带 fallback 标记的未闭合草稿。",
+        description=(
+            "可选章节 Agent 工作结果 work_results.json 的宿主逻辑路径；"
+            "由宿主 Agent 保存章节结果后传入，未提供时生成带 fallback 标记的未闭合草稿。"
+        ),
     )
 
 
@@ -764,38 +824,28 @@ async def _run_with_cancellation(
 @mcp.tool(
     app=AppConfig(resource_uri="ui://mcp-app-ui/engineering_facts/index.html"),
     output_schema=_ENGINEERING_FACTS_OUTPUT_SCHEMA,
+    description=(
+        "工程事实整理：将工程或算法结果整理为可研编制使用的工程事实文件。"
+        "输入文件均为可选文件，文件存在时读取对应信息，不存在时跳过。当前支持设备级、装置级改造结果，后续可扩展支持系统级、全厂级改造结果、其他设备计算结果、投资概算结果等。"
+        "【职责】识别受支持的工程输入，整理设备、物料、能耗、方案等可复核事实，并生成结构化 engineering_facts.json。"
+        "【适用场景】已有本地目录或宿主逻辑目录形式的上游工程结果，需要形成统一工程事实产物时调用。"
+        "【返回】成功时返回工程事实文件路径、来源/设备/方案/派生事实摘要和非致命告警；失败时返回错误代码、失败原因和是否可重试。"
+        "【失败情况】来源位置无效、来源 JSON 损坏、输入文件无法识别或必需工程事实缺失时返回失败结果。"
+        "【不适用】不用于编写报告正文、拆解章节任务、导出报告文件或推算投资收益。"
+    )
 )
 async def engineering_facts(
     ctx: Context,
-    source_location: SourceLocation,
-    construction_unit: str | None = Field(
-        default=None,
-        description="可选建设单位名称；未提供时按空值处理，不自动推断。",
-    ),
+    input: EngineeringFactsInput,
 ) -> ToolResult:
-    """工程事实整理：将工程或算法结果整理为可研编制使用的工程事实文件。
-
-    【职责】识别受支持的工程输入，整理设备、物料、能耗、方案等可复核事实，
-    并生成结构化 engineering_facts.json。
-    【适用场景】已有本地目录或宿主逻辑文件形式的上游工程结果，需要形成统一
-    工程事实产物时调用。
-    【返回】成功时返回工程事实文件路径、来源/设备/方案/派生事实摘要和非致命
-    告警；失败时返回错误代码、失败原因和是否可重试。
-    【失败情况】来源位置无效、来源 JSON 损坏、输入文件无法识别或必需工程事实
-    缺失时返回失败结果。
-    【不适用】不用于编写报告正文、拆解章节任务、导出报告文件或推算投资收益。
-    """
-    await ctx.info(f"engineering_facts start: {source_location.location}")
+    await ctx.info(f"engineering_facts start: {input.provider}:{input.root}")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)
     host_client = make_host_client(
         ctx,
         base_url=os.getenv("MCP_HOST_URL", "http://127.0.0.1:8200"),
     )
-    request = {
-        "source_location": source_location.model_dump(),
-        "construction_unit": construction_unit,
-    }
+    request = input.model_dump(exclude_none=True)
     cancel_event = threading.Event()
 
     def _run() -> dict[str, Any]:
@@ -827,23 +877,23 @@ async def engineering_facts(
     return ToolResult(structured_content=envelope)
 
 
-@mcp.tool(output_schema=_REPORT_PREPARE_OUTPUT_SCHEMA)
+@mcp.tool(
+    output_schema=_REPORT_PREPARE_OUTPUT_SCHEMA,
+    description=(
+    "报告准备：基于工程事实文件生成可研报告章节工作包。"
+    "【职责】将 engineering_facts.json 转换为可研报告的章节结构、确定性内容块和编制任务包，并生成 work_package.json。"
+    "【适用场景】已有结构化工程事实文件，需要拆解报告编制任务、明确章节素材和写作工作边界时调用。"
+    "【返回】成功时返回工作包文件路径，以及研究任务、写作任务、确定性摘要和综合任务数量；失败时返回错误代码、失败原因和是否可重试。"
+    "【失败情况】工程事实路径无效、工程事实 JSON 损坏、工程事实根结构不符合契约或缺少生成工作包所需事实时返回失败结果。"
+    "【不适用】不用于整理工程事实、撰写章节正文、导出最终报告或修正源数据。"
+    )
+)
 async def report_prepare(
     ctx: Context,
     input: ReportPrepareInput,
-) -> ToolResult:
-    """报告准备：基于工程事实文件生成可研报告章节工作包。
 
-    【职责】将 engineering_facts.json 转换为可研报告的章节结构、确定性内容块
-    和编制任务包，并生成 work_package.json。
-    【适用场景】已有结构化工程事实文件，需要拆解报告编制任务、明确章节素材
-    和写作工作边界时调用。
-    【返回】成功时返回工作包文件路径，以及研究任务、写作任务、确定性摘要和
-    综合任务数量；失败时返回错误代码、失败原因和是否可重试。
-    【失败情况】工程事实路径无效、工程事实 JSON 损坏、工程事实根结构不符合
-    契约或缺少生成工作包所需事实时返回失败结果。
-    【不适用】不用于整理工程事实、撰写章节正文、导出最终报告或修正源数据。
-    """
+) -> ToolResult:
+
     await ctx.info("report_prepare start")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)
@@ -872,23 +922,19 @@ async def report_prepare(
 @mcp.tool(
     app=AppConfig(resource_uri="ui://mcp-app-ui/report_finalize/index.html"),
     output_schema=_REPORT_FINALIZE_OUTPUT_SCHEMA,
+    description=(
+    "报告定稿：基于报告工作包和章节工作结果导出可研报告文件。"
+    "【职责】将 work_package.json 和可选 work_results.json 合成为可行性研究报告，并生成 DOCX、Markdown 和报告清单。"
+    "【适用场景】已有章节工作包，需要输出可交付报告文件时调用；章节工作结果缺失时可生成带 fallback 标记的未闭合草稿。"
+    "【返回】成功时返回 DOCX/Markdown 文件路径、报告清单路径、章节数量和fallback 章节数量；失败时返回错误代码、失败原因和是否可重试。"
+    "【失败情况】工作包路径无效、工作包 JSON 损坏、章节工作结果不符合契约或报告产物校验失败时返回失败结果。"
+    "【不适用】不用于修改章节结构、补充工程事实、重新拆解任务或替代专业校核。"
+    )
 )
 async def report_finalize(
     ctx: Context,
     input: ReportFinalizeInput,
 ) -> ToolResult:
-    """报告定稿：基于报告工作包和章节工作结果导出可研报告文件。
-
-    【职责】将 work_package.json 和可选 work_results.json 合成为可行性研究
-    报告，并生成 DOCX、Markdown 和报告清单。
-    【适用场景】已有章节工作包，需要输出可交付报告文件时调用；章节工作结果
-    缺失时可生成带 fallback 标记的未闭合草稿。
-    【返回】成功时返回 DOCX/Markdown 文件路径、报告清单路径、章节数量和
-    fallback 章节数量；失败时返回错误代码、失败原因和是否可重试。
-    【失败情况】工作包路径无效、工作包 JSON 损坏、章节工作结果不符合契约或
-    报告产物校验失败时返回失败结果。
-    【不适用】不用于修改章节结构、补充工程事实、重新拆解任务或替代专业校核。
-    """
     await ctx.info("report_finalize start")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)
