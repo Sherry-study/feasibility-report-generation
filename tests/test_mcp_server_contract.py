@@ -3,13 +3,11 @@
 from __future__ import annotations
 
 import asyncio
-import base64
 import io
 import logging
 import threading
 import time
 import unittest
-from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 import httpx
@@ -62,20 +60,6 @@ def _tool(name: str):
         if tool.name == name:
             return tool
     raise AssertionError(f"tool {name} not found")
-
-
-def _platform_ctx(capability: str):
-    return SimpleNamespace(
-        request_context=SimpleNamespace(
-            meta=SimpleNamespace(
-                model_extra={
-                    "io.industrial.platform": {
-                        "capability": capability,
-                    }
-                }
-            )
-        )
-    )
 
 
 class FakeCtx:
@@ -245,7 +229,7 @@ class MCPServerContractTests(unittest.TestCase):
 
         self.assertEqual(run.call_args.kwargs["uvicorn_config"], {"log_config": None})
 
-    def test_platform_host_client_reads_and_saves_workspace_files(self) -> None:
+    def test_host_client_reads_and_saves_files_via_file_service(self) -> None:
         requests: list[httpx.Request] = []
 
         def handler(request: httpx.Request) -> httpx.Response:
@@ -257,7 +241,6 @@ class MCPServerContractTests(unittest.TestCase):
         client = MCPHostClient(
             base_url="http://host",
             client=httpx.Client(transport=httpx.MockTransport(handler)),
-            ctx=_platform_ctx("cap-token"),
         )
         logical_path = "runs/engineering_facts/run-1/engineering_facts.json"
         client.save_file(logical_path, {"ok": True})
@@ -265,9 +248,8 @@ class MCPServerContractTests(unittest.TestCase):
 
         self.assertEqual(payload, b'{"ok": true}')
         self.assertEqual(len(requests), 2)
-        encoded_path = base64.urlsafe_b64encode(logical_path.encode("utf-8"))
-        encoded_path = encoded_path.rstrip(b"=").decode("ascii")
-        # 写操作走 /files/ 端点，不带平台专用 Content-Type（平台工作区 API 不支持创建新文件）
+        # 读写统一走普通文件服务 /files/ 端点（对齐装置级已验证方式），
+        # 不依赖平台工作区接口（该接口只读、不支持创建新文件）
         save_req, get_req = requests
         self.assertEqual(save_req.method, "POST")
         self.assertEqual(
@@ -276,13 +258,12 @@ class MCPServerContractTests(unittest.TestCase):
         )
         self.assertNotIn("Authorization", save_req.headers)
         self.assertEqual(save_req.headers["Content-Type"], "application/json")
-        # 读操作仍走平台工作区 API
         self.assertEqual(get_req.method, "GET")
         self.assertEqual(
             str(get_req.url),
-            f"http://host/internal/platform/workspace/files/{encoded_path}",
+            "http://host/files/runs/engineering_facts/run-1/engineering_facts.json",
         )
-        self.assertEqual(get_req.headers["Authorization"], "Bearer cap-token")
+        self.assertNotIn("Authorization", get_req.headers)
 
     def test_progress_with_data_keeps_related_request_id(self) -> None:
         ctx = FakeProgressCtx()

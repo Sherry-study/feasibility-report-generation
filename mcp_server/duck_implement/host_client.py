@@ -1,21 +1,20 @@
 """MCPHostClient：``duck.host_client.HostClient`` 协议的 HTTP 实现。
 
-单 URL 设计：所有请求统一打到 ``base_url``。
-- 构造时从 ``ctx``（fastmcp ``Context``）提取平台工作区凭证（capability）。
-  有平台凭证时走平台工作区接口
-  ``{base_url}/internal/platform/workspace/files/{base64_path}``，带 Bearer 认证；
-- 无平台上下文时走原文件服务接口 ``{base_url}/files/{path}``。
+单 URL 设计：所有请求统一打到 ``base_url`` 的普通文件服务接口
+``{base_url}/files/{path}``（对齐装置级 server 已验证的保存方式）：
 
-每次 tool 调用创建独立实例，构造时即从 ``ctx`` 捕获平台参数、不持有 ``ctx``，
-因此调用者在线程池线程内也能安全使用本客户端。
+- ``save_file``:   POST   ``{base_url}/files/{path}``
+- ``get_file``:    GET    ``{base_url}/files/{path}``
+
+文件服务（如 ``mock_file_server``）支持 POST 创建文件、GET 读取文件。
+不依赖平台工作区接口（``/internal/platform/workspace/files/`` 只读、不支持
+创建新文件，实测 POST 返回 404）。``ctx`` 参数仅为兼容保留，不提取平台凭证。
 """
 
 from __future__ import annotations
 
-import base64
 import logging
 import time
-import unicodedata
 from typing import Optional, Union
 from urllib.parse import quote
 
@@ -23,9 +22,6 @@ import httpx
 from fastmcp import Context
 
 logger = logging.getLogger(__name__)
-
-PLATFORM_META_KEY = "io.industrial.platform"
-WORKSPACE_CONTENT_TYPE = "application/vnd.industrial.platform-workspace-file"
 
 
 class MCPHostError(RuntimeError):
@@ -51,34 +47,14 @@ class MCPHostClient:
     def __init__(
         self,
         *,
-        base_url: str = "http://10.30.70.120:8200",
+        base_url: str = "http://127.0.0.1:8200",
         timeout: float = 30.0,
         client: Optional[httpx.Client] = None,
-        ctx: Optional[Context] = None,
+        ctx: Optional[Context] = None,  # noqa: ARG002 - 兼容保留，不提取平台凭证
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._client = client or httpx.Client(timeout=timeout)
         self._owns_client = client is None
-        self._platform_headers = self._extract_platform_headers(ctx)
-
-    @staticmethod
-    def _extract_platform_headers(ctx: Optional[Context]) -> Optional[dict[str, str]]:
-        if ctx is None:
-            return None
-        request_context = getattr(ctx, "request_context", None)
-        if request_context is None:
-            return None
-        meta = getattr(request_context, "meta", None)
-        if meta is None:
-            return None
-        extras = getattr(meta, "model_extra", None)
-        platform_meta = (extras or {}).get(PLATFORM_META_KEY)
-        if not isinstance(platform_meta, dict):
-            return None
-        capability = platform_meta.get("capability")
-        if not isinstance(capability, str) or not capability:
-            return None
-        return {"Authorization": f"Bearer {capability}"}
 
     def close(self) -> None:
         if self._owns_client:
@@ -91,14 +67,6 @@ class MCPHostClient:
         self.close()
 
     def _url(self, path: str) -> str:
-        if self._platform_headers is not None:
-            logical_path = unicodedata.normalize("NFC", path.replace("\\", "/"))
-            encoded_path = base64.urlsafe_b64encode(logical_path.encode("utf-8"))
-            encoded_path = encoded_path.rstrip(b"=").decode("ascii")
-            return (
-                f"{self._base_url}/internal/platform/workspace/files/"
-                f"{encoded_path}"
-            )
         return f"{self._base_url}/files/{quote(path.lstrip('/'), safe='/')}"
 
     def _raise_for_status(self, resp: httpx.Response, path: Optional[str], op: str) -> None:
@@ -186,8 +154,8 @@ class MCPHostClient:
         *,
         kind: str = "auto",
     ) -> None:
-        platform = self._platform_headers is not None
         method = "POST"
+        write_url = self._url(path)
 
         if kind == "auto":
             if isinstance(data, (bytes, bytearray)):
@@ -200,14 +168,6 @@ class MCPHostClient:
                 raise TypeError(
                     f"save_file 不支持的数据类型: {type(data).__name__}，可选 dict / str / bytes"
                 )
-
-        # 平台工作区 API 不支持创建新文件。写操作走普通 /files/ 端点，
-        # 不带平台专用 Content-Type，使用标准 application/json。
-        write_url = (
-            f"{self._base_url}/files/{quote(path.lstrip('/'), safe='/')}"
-            if platform
-            else None
-        )
 
         if kind == "json":
             if not isinstance(data, dict):
@@ -241,7 +201,7 @@ class MCPHostClient:
             raise ValueError(f"不支持的 kind: {kind}，可选值: json / text / bytes / auto")
 
         self._raise_for_status(resp, path, "save_file")
-        logger.info("MCPHostClient 保存文件: %s (kind=%s)", write_url or self._url(path), kind)
+        logger.info("MCPHostClient 保存文件: %s (kind=%s)", write_url, kind)
 
     def get_file(
         self,
@@ -250,7 +210,7 @@ class MCPHostClient:
         kind: str = "auto",
     ) -> Union[dict, str, bytes]:
         url = self._url(path)
-        resp = self._request("GET", path, headers=self._platform_headers)
+        resp = self._request("GET", path)
         if resp.status_code == 404:
             raise FileNotFoundError(f"MCPHostClient.get_file: {url} 不存在")
         self._raise_for_status(resp, path, "get_file")
@@ -292,5 +252,10 @@ _shared_http_client = httpx.Client(timeout=30.0)
 
 
 def make_host_client(ctx: Context, base_url: str = "http://localhost:8200") -> MCPHostClient:
-    """为每次 tool 调用创建 HostClient，构造时从 ctx 捕获平台凭证。"""
+    """为每次 tool 调用创建 HostClient。
+
+    对齐装置级本地模式：读写统一走 ``{base_url}/files/{path}``，不依赖平台
+    工作区接口。``ctx`` 仅保留签名兼容，不提取平台凭证。``base_url`` 应指向
+    支持 POST 创建文件的文件服务（如 ``mock_file_server``）。
+    """
     return MCPHostClient(base_url=base_url, client=_shared_http_client, ctx=ctx)
