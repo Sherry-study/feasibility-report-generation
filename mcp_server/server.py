@@ -2,7 +2,7 @@
 
 公开 Tool 清单：
 
-    1. ``engineering_facts`` -- 工程事实整理，读取本地上游算法产物目录。
+    1. ``engineering_facts`` -- 工程事实整理，经宿主文件服务读取上游算法产物目录。
     2. ``report_prepare``    -- 报告准备，基于工程事实生成章节工作包。
     3. ``report_finalize``   -- 报告定稿，合并 Agent 工作结果并导出报告。
 
@@ -27,7 +27,7 @@ from typing import Any, Literal
 from fastmcp import Context, FastMCP
 from fastmcp.apps import AppConfig
 from fastmcp.tools import ToolResult
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field
 from starlette.middleware import Middleware
 from starlette.middleware.cors import CORSMiddleware
 
@@ -128,126 +128,61 @@ class EngineeringSourceFileOverrides(BaseModel):
 
     reactor_result_path: str | None = Field(
         default=None,
-        description="反应器改造结果输出文件路径；不填时按默认文件名 plant_reactor_result.json 尝试读取。",
+        description="反应器改造结果文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 plant_reactor_result.json 尝试读取。",
     )
     tower_result_path: str | None = Field(
         default=None,
-        description="塔器改造结果输出文件路径；不填时按默认文件名 retrofit_tower_equipment.json 尝试读取。",
+        description="塔器改造结果文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 retrofit_tower_equipment.json 尝试读取。",
     )
     scheme_path: str | None = Field(
         default=None,
-        description="改造方案结果文件路径；不填时按默认文件名 scheme.json 尝试读取，用于获取方案信息。",
+        description="改造方案结果文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 scheme.json 尝试读取，用于获取方案信息。",
     )
     plant_info_path: str | None = Field(
         default=None,
-        description="装置信息文件路径；不填时按默认文件名 plant_info.json 尝试读取，用于获取装置基础信息。",
+        description="装置信息文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 plant_info.json 尝试读取，用于获取装置基础信息。",
     )
     diagnosis_report_path: str | None = Field(
         default=None,
-        description="装置诊断报告文件路径；不填时按默认文件名 plant_diagnosis_report.md 尝试读取，用于获取诊断结论。",
+        description="装置诊断报告文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 plant_diagnosis_report.md 尝试读取，用于获取诊断结论。",
     )
     new_device_params_path: str | None = Field(
         default=None,
-        description="新增设备参数文件路径；不填时按默认文件名 new_device_params.json 尝试读取。",
+        description="新增设备参数文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 new_device_params.json 尝试读取。",
     )
     retrofit_equipment_path: str | None = Field(
         default=None,
-        description="改造设备清单文件路径；不填时按默认文件名 retrofit_equipment.json 尝试读取。",
+        description="改造设备清单文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 retrofit_equipment.json 尝试读取。",
     )
     retrofit_topology_path: str | None = Field(
         default=None,
-        description="改造拓扑关系文件路径；不填时按默认文件名 retrofit_topology.json 尝试读取。",
+        description="改造拓扑关系文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 retrofit_topology.json 尝试读取。",
     )
     plant_result_path: str | None = Field(
         default=None,
-        description="装置级改造结果文件路径；不填时按默认文件名 plant_level_result.json 尝试读取。",
+        description="装置级改造结果文件路径（相对 root 的宿主逻辑路径）；不填时按默认文件名 plant_level_result.json 尝试读取。",
     )
 
 
 class EngineeringFactsInput(BaseModel):
-    """工程事实整理输入（嵌套 input 形态）。
+    """工程事实整理输入：宿主逻辑目录 + 可选文件名覆盖。"""
 
-    同时兼容新旧两种调用格式：
-    - 新格式：{provider, root, file_overrides?, construction_unit?}
-    - 旧格式：{source_location: {provider, location, file_overrides?}, construction_unit?}
-    旧格式的 source_location.location 会被自动映射为 root。
-    """
+    model_config = ConfigDict(extra="forbid")
 
-    model_config = ConfigDict(extra="ignore")
-
-    provider: Literal["local_directory", "host_directory"] = Field(
-        default="local_directory",
-        description=(
-            "来源类型。正式部署、平台上传文件、HostClient 逻辑目录必须使用 host_directory；"
-            "只有本地调试且 MCP Server 进程能直接读取真实目录时，才使用 local_directory。"
-        )
-    )
     root: str = Field(
-        default="",
         description=(
-            "来源根路径。provider=local_directory 时填写服务端可直接读取的本地目录；"
-            "provider=host_directory 时填写宿主文件服务中的逻辑目录前缀。"
+            "宿主文件服务中的来源逻辑目录前缀；"
+            "上游算法产物文件应位于该目录下。"
         )
     )
     file_overrides: EngineeringSourceFileOverrides | None = Field(
         default=None,
-        description="可选文件名覆盖；本地目录测试通常不需要填写，只有 Host 目录或非标准文件名时才填写。",
+        description="可选文件名覆盖；仅当来源文件不使用标准文件名时填写，值为相对 root 的宿主逻辑路径。",
     )
     construction_unit: str | None = Field(
         default=None,
         description="可选建设单位名称；未提供时按空值处理，不自动推断。",
     )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _normalize_legacy_format(cls, data: Any) -> Any:
-        """将旧格式 {source_location: {provider, location, ...}} 归一化为新格式。"""
-        if not isinstance(data, dict):
-            return data
-        sl = data.get("source_location")
-        if isinstance(sl, dict):
-            if "provider" not in data:
-                data["provider"] = sl.get("provider", "local_directory")
-            if "root" not in data:
-                data["root"] = sl.get("location", "")
-            if "file_overrides" not in data and "file_overrides" in sl:
-                data["file_overrides"] = sl["file_overrides"]
-        return data
-
-
-class SourceLocationParam(BaseModel):
-    """旧版顶层 source_location 参数（中转层旧声明形态）。
-
-    平台中转层向 Agent 声明的工具 schema 可能停留在旧版顶层参数格式，
-    Agent 只能透传顶层 source_location；本模型用于接收该形态并归一化。
-    """
-
-    model_config = ConfigDict(extra="ignore")
-
-    provider: Literal["local_directory", "host_directory"] = Field(
-        default="local_directory",
-        description="来源类型，语义同 EngineeringFactsInput.provider。",
-    )
-    location: str = Field(
-        default="",
-        description="来源根路径，语义同 EngineeringFactsInput.root。",
-    )
-    file_overrides: EngineeringSourceFileOverrides | None = Field(
-        default=None,
-        description="可选文件名覆盖，语义同 EngineeringFactsInput.file_overrides。",
-    )
-
-    @model_validator(mode="before")
-    @classmethod
-    def _unwrap_nested_input(cls, data: Any) -> Any:
-        """兼容 {input: {...}} 混合嵌套形态（Agent 双侧妥协时可能产生）。"""
-        if isinstance(data, dict) and "location" not in data:
-            inner = data.get("input")
-            if isinstance(inner, dict):
-                merged = {k: v for k, v in data.items() if k != "input"}
-                merged.update(inner)
-                return merged
-        return data
 
 
 class ReportContext(BaseModel):
@@ -851,12 +786,17 @@ async def _run_with_cancellation(
 # 公开 Tool 定义
 # ---------------------------------------------------------------------------
 @mcp.tool(
+    meta={
+        "workbench": {
+            "stage_id": "可研资料交付"
+        }
+    },
     app=AppConfig(resource_uri="ui://mcp-app-ui/engineering_facts/index.html"),
     description=(
         "工程事实整理：将工程或算法结果整理为可研编制使用的工程事实文件。"
         "输入文件均为可选文件，文件存在时读取对应信息，不存在时跳过。当前支持设备级、装置级改造结果，后续可扩展支持系统级、全厂级改造结果、其他设备计算结果、投资概算结果等。"
         "【职责】识别受支持的工程输入，整理设备、物料、能耗、方案等可复核事实，并生成结构化 engineering_facts.json。"
-        "【适用场景】已有本地目录或宿主逻辑目录形式的上游工程结果，需要形成统一工程事实产物时调用。"
+        "【适用场景】已有宿主逻辑目录形式的上游工程结果，需要形成统一工程事实产物时调用。"
         "【返回】成功时返回工程事实文件路径、来源/设备/方案/派生事实摘要和非致命告警；失败时返回错误代码、失败原因和是否可重试。"
         "【失败情况】来源位置无效、来源 JSON 损坏、输入文件无法识别或必需工程事实缺失时返回失败结果。"
         "【不适用】不用于编写报告正文、拆解章节任务、导出报告文件或推算投资收益。"
@@ -864,26 +804,10 @@ async def _run_with_cancellation(
 )
 async def engineering_facts(
     ctx: Context,
-    input: EngineeringFactsInput | None = None,
-    source_location: SourceLocationParam | None = None,
-    construction_unit: str | None = None,
+    input: EngineeringFactsInput,
 ) -> ToolResult:
-    """兼容两种入参形态：嵌套 input（新）与顶层 source_location + construction_unit（旧）。"""
-    if input is None:
-        if source_location is None:
-            raise ValueError(
-                "缺少入参：请传 input={provider, root}，"
-                "或顶层 source_location={provider, location}（可配 construction_unit）。"
-            )
-        input = EngineeringFactsInput(
-            provider=source_location.provider,
-            root=source_location.location,
-            file_overrides=source_location.file_overrides,
-            construction_unit=construction_unit,
-        )
-    elif construction_unit is not None and input.construction_unit is None:
-        input = input.model_copy(update={"construction_unit": construction_unit})
-    await ctx.info(f"engineering_facts start: {input.provider}:{input.root}")
+    """工程事实整理：经宿主文件服务按来源清单读取上游算法产物。"""
+    await ctx.info(f"engineering_facts start: {input.root}")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)
     host_client = make_host_client(
@@ -923,8 +847,12 @@ async def engineering_facts(
 
 
 @mcp.tool(
+    meta={
+        "workbench": {
+            "stage_id": "可研资料交付"
+        }
+    },
     description=(
-    "报告准备：基于工程事实文件生成可研报告章节工作包。"
     "【职责】将 engineering_facts.json 转换为可研报告的章节结构、确定性内容块和编制任务包，并生成 work_package.json。"
     "【适用场景】已有结构化工程事实文件，需要拆解报告编制任务、明确章节素材和写作工作边界时调用。"
     "【返回】成功时返回工作包文件路径，以及研究任务、写作任务、确定性摘要和综合任务数量；失败时返回错误代码、失败原因和是否可重试。"
@@ -934,31 +862,9 @@ async def engineering_facts(
 )
 async def report_prepare(
     ctx: Context,
-    input: ReportPrepareInput | None = None,
-    engineering_facts_path: str | None = None,
-    project_name: str | None = None,
+    input: ReportPrepareInput,
 ) -> ToolResult:
-    """兼容两种入参形态：嵌套 input（新）与顶层 engineering_facts_path + project_name（旧）。"""
-    if input is None:
-        if not engineering_facts_path:
-            raise ValueError(
-                "缺少入参：请传 input={engineering_facts_path}，"
-                "或顶层 engineering_facts_path（可配 project_name）。"
-            )
-        input = ReportPrepareInput(
-            engineering_facts_path=engineering_facts_path,
-            report_context=ReportContext(project_name=project_name)
-            if project_name
-            else None,
-        )
-    elif project_name is not None and (
-        input.report_context is None or input.report_context.project_name is None
-    ):
-        merged_context = (input.report_context or ReportContext()).model_copy(
-            update={"project_name": project_name}
-        )
-        input = input.model_copy(update={"report_context": merged_context})
-
+    """报告准备：基于工程事实生成章节工作包。"""
     await ctx.info("report_prepare start")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)
@@ -985,6 +891,11 @@ async def report_prepare(
 
 
 @mcp.tool(
+    meta={
+        "workbench": {
+            "stage_id": "可研资料交付"
+        }
+    },
     app=AppConfig(resource_uri="ui://mcp-app-ui/report_finalize/index.html"),
     description=(
     "报告定稿：基于报告工作包和章节工作结果导出可研报告文件。"
@@ -997,22 +908,9 @@ async def report_prepare(
 )
 async def report_finalize(
     ctx: Context,
-    input: ReportFinalizeInput | None = None,
-    work_package_path: str | None = None,
-    work_results_path: str | None = None,
+    input: ReportFinalizeInput,
 ) -> ToolResult:
-    """兼容两种入参形态：嵌套 input（新）与顶层 work_package_path + work_results_path（旧）。"""
-    if input is None:
-        if not work_package_path:
-            raise ValueError(
-                "缺少入参：请传 input={work_package_path}，"
-                "或顶层 work_package_path（可配 work_results_path）。"
-            )
-        input = ReportFinalizeInput(
-            work_package_path=work_package_path,
-            work_results_path=work_results_path,
-        )
-
+    """报告定稿：基于报告工作包和章节工作结果导出可研报告文件。"""
     await ctx.info("report_finalize start")
     loop = asyncio.get_running_loop()
     content = MCPContent(ctx, loop)

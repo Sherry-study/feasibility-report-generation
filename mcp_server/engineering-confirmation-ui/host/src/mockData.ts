@@ -249,7 +249,7 @@ function engineeringFactsCompletedScenario(): MockScenario {
   return engineeringFactsScenario(
     'completed',
     '正常:整理完成',
-    { input: { provider: 'local_directory', root: SOURCE_DIR, construction_unit: '测试建设单位' } },
+    { input: { root: SOURCE_DIR, construction_unit: '测试建设单位' } },
     engineeringFactsCompletedResult(),
     true,
   );
@@ -259,7 +259,7 @@ function engineeringFactsNoEconomicsScenario(): MockScenario {
   return engineeringFactsScenario(
     'economics-pending',
     '边界:经济指标待计算',
-    { input: { provider: 'local_directory', root: SOURCE_DIR } },
+    { input: { root: SOURCE_DIR } },
     engineeringFactsCompletedResult(),
     false,
   );
@@ -269,7 +269,7 @@ function engineeringFactsSourceErrorScenario(): MockScenario {
   return engineeringFactsScenario(
     'source-json-invalid',
     '异常:来源 JSON 损坏',
-    { input: { provider: 'local_directory', root: SOURCE_DIR } },
+    { input: { root: SOURCE_DIR } },
     engineeringFactsFailedResult(),
   );
 }
@@ -279,7 +279,7 @@ function engineeringFactsMissingLocationScenario(): MockScenario {
     id: 'missing-location',
     label: '异常:缺少 root',
     toolName: 'engineering_facts',
-    args: { input: { provider: 'local_directory' } },
+    args: { input: {} },
     steps: engineeringFactsProgressSteps(),
     errorResult: {
       content: [{ type: 'text', text: 'input.root is required.' }],

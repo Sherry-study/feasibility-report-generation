@@ -6,7 +6,7 @@
 
 ## 输入契约（engineering_facts 入口）
 
-入参为单个 `input` 对象：`input.provider`（`local_directory` / `host_directory`）、`input.root`（本地目录或宿主逻辑目录前缀）、`input.file_overrides`（非标准文件名覆盖）、`input.construction_unit`（建设单位，可选，不自动推断）。
+入参为单个 `input` 对象：`input.root`（必填，宿主文件服务中的来源逻辑目录前缀）、`input.file_overrides`（可选，非标准文件名覆盖，值为相对 root 的宿主逻辑路径）、`input.construction_unit`（建设单位，可选，不自动推断）。来源文件统一经宿主文件服务按默认文件名清单读取。
 
 | 输入文件（默认名） | 来源 | 必填性 | 缺失时行为 |
 |---|---|---|---|
@@ -20,7 +20,7 @@
 | `retrofit_topology.json` | 拓扑生成 | 可选 | 改造工况沿用 plant_level 自带拓扑 |
 | `plant_level_result.json` | 装置级衡算 | 可选 | `process` 段为空 |
 
-- 输入文件均为可选，但**至少须识别出一个来源**（按内容签名识别，不依赖文件名），否则 fatal `NO_RECOGNIZED_SOURCES`。
+- 输入文件均为可选，但**至少须识别出一个来源**（按标准文件名清单 + 内容签名校验，非标准文件名需经 `file_overrides` 指定），否则 fatal `NO_RECOGNIZED_SOURCES`。
 - 来源识别与字段语义见 `references/engineering_rules/algorithm_output_semantics.md`。
 
 ## 阶段间交接契约

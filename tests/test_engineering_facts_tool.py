@@ -59,14 +59,38 @@ FORBIDDEN_KEYS = {
 }
 
 
+# fixture 目录中未使用标准文件名的来源文件，需通过 file_overrides 指向
+BUNDLE_FILE_OVERRIDES = {
+    "reactor_result_path": "plant_reactor_result(2).json",
+    "tower_result_path": "example_result_all_v3(1).json",
+    "plant_result_path": "plant_level_result_v3.json",
+    "retrofit_topology_path": "retrofit_topology(1).json",
+}
+
+
+def seed_directory_files(source_dir: str | Path, prefix: str = "sources") -> dict[str, bytes]:
+    """把本地目录中的文件拍平为宿主逻辑路径 -> 字节的映射。"""
+    return {
+        f"{prefix}/{path.name}": path.read_bytes()
+        for path in Path(source_dir).rglob("*")
+        if path.is_file()
+    }
+
+
 def execute(
     request: dict,
     artifact_dir: str | Path | None = None,
     cancel_event: threading.Event | None = None,
+    source_files: dict[str, dict | bytes | str] | None = None,
 ) -> dict:
-    """Run the core with a local HostClient adapter for fixture-based tests."""
+    """Run the core with a local HostClient adapter for fixture-based tests.
+
+    source_files 先写入宿主逻辑路径，模拟上游算法产物已上传到文件服务。
+    """
     root = Path(artifact_dir) if artifact_dir is not None else TEST_DEFAULT_ARTIFACT_DIR
     host_client = LocalHostClient(root)
+    for logical_path, data in (source_files or {}).items():
+        host_client.save_file(logical_path, data)
     result = facts_core.execute(
         request,
         content=FakeContent(),
@@ -113,16 +137,15 @@ class EngineeringFactsToolTests(unittest.TestCase):
         self.artifact_dir = self.root / "artifacts"
 
     def execute(self, construction_unit: str = "测试建设单位") -> dict:
-        """以统一业务输入执行 Tool。"""
+        """以统一业务输入执行 Tool：宿主逻辑目录 + fixture 文件覆盖。"""
         return execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(self.bundle),
-                },
+                "root": "sources",
+                "file_overrides": BUNDLE_FILE_OVERRIDES,
                 "construction_unit": construction_unit,
             },
             self.artifact_dir,
+            source_files=seed_directory_files(self.bundle),
         )
 
     def read_facts(self) -> dict:
@@ -158,52 +181,6 @@ class EngineeringFactsToolTests(unittest.TestCase):
                 )
             )
 
-    def test_new_local_directory_input_reads_bundle_without_file_list(self) -> None:
-        result = execute(
-            {
-                "provider": "local_directory",
-                "root": str(self.bundle),
-                "construction_unit": "测试建设单位",
-            },
-            self.artifact_dir,
-        )
-
-        self.assertEqual(result["status"], "completed")
-        facts = self.read_facts()
-        self.assertEqual(facts["basic_info"], {"construction_unit": "测试建设单位"})
-        self.assertGreaterEqual(result["summary"]["source_count"], 1)
-
-    def test_host_file_source_reads_upstream_file_through_host_client(self) -> None:
-        source_payload = json.loads(self.scheme_path.read_text(encoding="utf-8"))
-        host = FakeHostClient()
-        host.save_file("inputs/upstream/scheme.json", source_payload)
-
-        result = facts_core.execute(
-            {
-                "source_location": {
-                    "provider": "host_file",
-                    "location": "inputs/upstream/scheme.json",
-                },
-                "construction_unit": "测试建设单位",
-            },
-            content=FakeContent(),
-            host_client=host,
-        )
-
-        self.assertEqual(result["status"], "completed")
-        self.assertEqual(
-            result["engineering_facts"]["sources"],
-            [
-                {
-                    "source_id": "scheme",
-                    "source_type": "scheme",
-                    "location": "inputs/upstream/scheme.json",
-                    "schema_version": "topology_retrofit_v1",
-                }
-            ],
-        )
-        self.assertIn(result["artifact"]["path"], host.files)
-
     def test_host_directory_reads_standard_source_files(self) -> None:
         source_payload = json.loads(self.scheme_path.read_text(encoding="utf-8"))
         host = FakeHostClient()
@@ -211,7 +188,6 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = facts_core.execute(
             {
-                "provider": "host_directory",
                 "root": "inputs/upstream",
                 "construction_unit": "测试建设单位",
             },
@@ -240,7 +216,6 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = facts_core.execute(
             {
-                "provider": "host_directory",
                 "root": "inputs/upstream",
                 "file_overrides": {
                     "scheme_path": "custom/scheme_custom.json",
@@ -259,7 +234,6 @@ class EngineeringFactsToolTests(unittest.TestCase):
     def test_host_directory_rejects_override_outside_root(self) -> None:
         result = facts_core.execute(
             {
-                "provider": "host_directory",
                 "root": "inputs/upstream",
                 "file_overrides": {
                     "scheme_path": "../scheme.json",
@@ -271,22 +245,6 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         self.assertEqual(result["status"], "failed")
         self.assertEqual(result["diagnostics"][0]["code"], "INVALID_SOURCE_FILE_PATH")
-
-    def test_missing_host_file_source_is_business_failure(self) -> None:
-        result = facts_core.execute(
-            {
-                "source_location": {
-                    "provider": "host_file",
-                    "location": "inputs/missing.json",
-                }
-            },
-            content=FakeContent(),
-            host_client=FakeHostClient(),
-        )
-
-        self.assertEqual(result["status"], "failed")
-        self.assertIsNone(result["artifact"])
-        self.assertEqual(result["diagnostics"][0]["code"], "SOURCE_LOCATION_NOT_FOUND")
 
     def test_latest_scheme_drives_adopted_scheme(self) -> None:
         result = self.execute()
@@ -425,25 +383,16 @@ class EngineeringFactsToolTests(unittest.TestCase):
         self.assertEqual(facts["unit"], {})
 
     def test_single_recognized_source_generates_partial_facts(self) -> None:
-        source_dir = self.root / "single_source"
-        source_dir.mkdir()
-        (source_dir / "equipment.json").write_text(
-            json.dumps(
-                {"equipment": [{"id": "E-1", "name": "测试设备"}]},
-                ensure_ascii=False,
-            ),
-            encoding="utf-8",
-        )
         artifact_dir = self.root / "single_source_artifacts"
 
         result = execute(
-            {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
-            },
+            {"root": "sources"},
             artifact_dir,
+            source_files={
+                "sources/retrofit_equipment.json": {
+                    "equipment": [{"id": "E-1", "name": "测试设备"}]
+                },
+            },
         )
 
         self.assertEqual(result["status"], "completed")
@@ -458,17 +407,10 @@ class EngineeringFactsToolTests(unittest.TestCase):
         self.assertEqual(result["summary"]["source_count"], 1)
 
     def test_no_recognized_source_fails_without_artifact(self) -> None:
-        source_dir = self.root / "empty_source"
-        source_dir.mkdir()
         artifact_dir = self.root / "empty_source_artifacts"
 
         result = execute(
-            {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
-            },
+            {"root": "sources"},
             artifact_dir,
         )
 
@@ -507,12 +449,24 @@ class EngineeringFactsToolTests(unittest.TestCase):
         self.assertTrue(facts["scheme_analysis"]["candidates"])
         self.assertEqual(facts["adopted_scheme"], {})
 
-    def test_duplicate_source_role_is_fatal(self) -> None:
-        shutil.copy2(self.scheme_path, self.bundle / "duplicate_scheme.json")
-        result = self.execute()
+    def test_source_role_mismatch_is_fatal(self) -> None:
+        source_files = seed_directory_files(self.bundle)
+        # 把 scheme 内容放进塔器槽位：期望 tower_result 却识别为 scheme
+        source_files["sources/duplicate_scheme.json"] = source_files["sources/scheme.json"]
+        result = execute(
+            {
+                "root": "sources",
+                "file_overrides": {
+                    **BUNDLE_FILE_OVERRIDES,
+                    "tower_result_path": "duplicate_scheme.json",
+                },
+            },
+            self.artifact_dir,
+            source_files=source_files,
+        )
         self.assertEqual(result["status"], "failed")
         self.assertIn(
-            "AMBIGUOUS_SOURCE_ROLE",
+            "SOURCE_ROLE_MISMATCH",
             {item["code"] for item in result["diagnostics"]},
         )
 
@@ -525,12 +479,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
     def test_missing_construction_unit_is_allowed(self) -> None:
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(self.bundle),
-                }
+                "root": "sources",
+                "file_overrides": BUNDLE_FILE_OVERRIDES,
             },
             self.artifact_dir,
+            source_files=seed_directory_files(self.bundle),
         )
         self.assertEqual(result["status"], "completed")
         facts = self.read_facts()
@@ -539,10 +492,7 @@ class EngineeringFactsToolTests(unittest.TestCase):
     def test_non_string_construction_unit_is_fatal(self) -> None:
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(self.bundle),
-                },
+                "root": "sources",
                 "construction_unit": 123,
             },
             self.artifact_dir,
@@ -563,11 +513,10 @@ class EngineeringFactsToolTests(unittest.TestCase):
         ):
             result = execute(
                 {
-                    "source_location": {
-                        "provider": "local_directory",
-                        "location": str(self.bundle),
-                    }
-                }
+                    "root": "sources",
+                    "file_overrides": BUNDLE_FILE_OVERRIDES,
+                },
+                source_files=seed_directory_files(self.bundle),
             )
 
         self.assertEqual(result["status"], "completed")
@@ -577,11 +526,8 @@ class EngineeringFactsToolTests(unittest.TestCase):
     def test_business_input_rejects_undeclared_fields(self) -> None:
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(self.bundle),
-                    "manifest": [],
-                },
+                "root": "sources",
+                "file_overrides": {"unknown_override": "x.json"},
                 "construction_unit": "测试建设单位",
                 "project_name": "不应进入本阶段",
             },
@@ -590,7 +536,7 @@ class EngineeringFactsToolTests(unittest.TestCase):
         self.assertEqual(result["status"], "failed")
         codes = {item["code"] for item in result["diagnostics"]}
         self.assertIn("UNSUPPORTED_REQUEST_FIELD", codes)
-        self.assertIn("UNSUPPORTED_SOURCE_LOCATION_FIELD", codes)
+        self.assertIn("UNSUPPORTED_SOURCE_FILE_FIELD", codes)
 
     def test_unknown_selected_scheme_is_fatal(self) -> None:
         scheme = json.loads(self.scheme_path.read_text(encoding="utf-8"))
@@ -688,12 +634,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"reactor_result_path": "reactor_result.json"},
             },
             self.root / "utility_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -746,12 +691,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"reactor_result_path": "reactor_result.json"},
             },
             self.root / "negative_note_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -803,12 +747,13 @@ class EngineeringFactsToolTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 execute(
                     {
-                        "source_location": {
-                            "provider": "local_directory",
-                            "location": str(source_dir),
-                        }
+                        "root": "sources",
+                        "file_overrides": {
+                            "reactor_result_path": "reactor_result.json"
+                        },
                     },
                     self.root / "missing_rules_artifacts",
+                    source_files=seed_directory_files(source_dir),
                 )
 
     def test_selected_reactor_scheme_only_counts_adopted_candidate(self) -> None:
@@ -874,12 +819,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"reactor_result_path": "reactor_result.json"},
             },
             self.root / "selected_candidate_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -924,12 +868,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"reactor_result_path": "reactor_result.json"},
             },
             self.root / "utility_medium_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -972,12 +915,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"retrofit_equipment_path": "equipment.json"},
             },
             self.root / "object_catalog_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -1044,12 +986,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"reactor_result_path": "reactor_result.json"},
             },
             self.root / "utility_duty_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -1101,12 +1042,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"retrofit_equipment_path": "equipment.json"},
             },
             self.root / "subpath_utility_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -1162,12 +1102,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"retrofit_equipment_path": "equipment.json"},
             },
             self.root / "condition_total_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -1209,12 +1148,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"reactor_result_path": "reactor_result.json"},
             },
             self.root / "duty_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -1297,12 +1235,11 @@ class EngineeringFactsToolTests(unittest.TestCase):
 
         result = execute(
             {
-                "source_location": {
-                    "provider": "local_directory",
-                    "location": str(source_dir),
-                }
+                "root": "sources",
+                "file_overrides": {"reactor_result_path": "reactor_result.json"},
             },
             self.root / "standard_oil_artifacts",
+            source_files=seed_directory_files(source_dir),
         )
 
         self.assertEqual(result["status"], "completed")
@@ -1341,12 +1278,20 @@ class EngineeringFactsCancellationTests(unittest.TestCase):
         shutil.copytree(SOURCE_DATA, self.bundle)
         self.artifact_dir = self.root / "artifacts"
         self.request = {
-            "source_location": {
-                "provider": "local_directory",
-                "location": str(self.bundle),
-            },
+            "root": "sources",
+            "file_overrides": BUNDLE_FILE_OVERRIDES,
             "construction_unit": "测试建设单位",
         }
+        self.source_files = seed_directory_files(self.bundle)
+
+    def execute_host(self, cancel_event: threading.Event | None = None) -> dict:
+        """以 host_directory 模式执行核心（来源文件预置到模拟文件服务）。"""
+        return execute(
+            self.request,
+            self.artifact_dir,
+            cancel_event,
+            source_files=self.source_files,
+        )
 
     def assert_no_artifacts(self) -> None:
         self.assertFalse((self.artifact_dir / "engineering_facts.json").exists())
@@ -1355,50 +1300,56 @@ class EngineeringFactsCancellationTests(unittest.TestCase):
             if self.artifact_dir.exists()
             else []
         )
-        self.assertEqual(files, [])
+        # 预置的 sources/ 来源文件不算业务产物
+        leftovers = [
+            path
+            for path in files
+            if path.relative_to(self.artifact_dir).parts[0] != "sources"
+        ]
+        self.assertEqual(leftovers, [])
 
     def test_cancelled_before_start_raises_and_publishes_nothing(self) -> None:
         cancel_event = threading.Event()
         cancel_event.set()
 
         with self.assertRaises(OperationCancelled):
-            execute(self.request, self.artifact_dir, cancel_event)
+            self.execute_host(cancel_event)
 
         self.assert_no_artifacts()
 
-    def test_cancelled_during_discovery_raises_and_publishes_nothing(self) -> None:
+    def test_cancelled_during_source_load_raises_and_publishes_nothing(self) -> None:
         cancel_event = threading.Event()
-        real_discover = facts_core._discover_sources
+        real_load = facts_core._load_host_directory_sources
 
-        def discover_then_cancel(source_root, diagnostics, event=None):
-            # 模拟客户端在来源发现期间发起取消
-            cancel_event.set()
-            return real_discover(source_root, diagnostics, event)
-
-        with patch(
-            "src.engineering_facts.core._discover_sources",
-            side_effect=discover_then_cancel,
-        ):
-            with self.assertRaises(OperationCancelled):
-                execute(self.request, self.artifact_dir, cancel_event)
-
-        self.assert_no_artifacts()
-
-    def test_cancelled_after_load_raises_and_publishes_nothing(self) -> None:
-        cancel_event = threading.Event()
-        real_load = facts_core._load_payloads
-
-        def load_then_cancel(sources, diagnostics, event=None):
+        def load_then_cancel(*args, **kwargs):
             # 模拟客户端在来源读取期间发起取消
             cancel_event.set()
-            return real_load(sources, diagnostics, event)
+            return real_load(*args, **kwargs)
 
         with patch(
-            "src.engineering_facts.core._load_payloads",
+            "src.engineering_facts.core._load_host_directory_sources",
             side_effect=load_then_cancel,
         ):
             with self.assertRaises(OperationCancelled):
-                execute(self.request, self.artifact_dir, cancel_event)
+                self.execute_host(cancel_event)
+
+        self.assert_no_artifacts()
+
+    def test_cancelled_after_assembly_raises_and_publishes_nothing(self) -> None:
+        cancel_event = threading.Event()
+        real_build = facts_core._build_facts
+
+        def build_then_cancel(*args, **kwargs):
+            # 模拟客户端在事实组装期间发起取消
+            cancel_event.set()
+            return real_build(*args, **kwargs)
+
+        with patch(
+            "src.engineering_facts.core._build_facts",
+            side_effect=build_then_cancel,
+        ):
+            with self.assertRaises(OperationCancelled):
+                self.execute_host(cancel_event)
 
         self.assert_no_artifacts()
 
@@ -1411,18 +1362,22 @@ class EngineeringFactsCancellationTests(unittest.TestCase):
                 if progress == 90:
                     cancel_event.set()
 
+        host_client = LocalHostClient(self.artifact_dir)
+        for logical_path, data in self.source_files.items():
+            host_client.save_file(logical_path, data)
+
         with self.assertRaises(OperationCancelled):
             facts_core.execute(
                 self.request,
                 content=CancellingContent(),
-                host_client=LocalHostClient(self.artifact_dir),
+                host_client=host_client,
                 cancel_event=cancel_event,
             )
 
         self.assert_no_artifacts()
 
     def test_without_cancel_event_completes_normally(self) -> None:
-        result = execute(self.request, self.artifact_dir)
+        result = self.execute_host()
         self.assertEqual(result["status"], "completed")
         self.assertTrue((self.artifact_dir / "engineering_facts.json").is_file())
 
@@ -1432,7 +1387,7 @@ class EngineeringFactsCancellationTests(unittest.TestCase):
             side_effect=RuntimeError("unexpected algorithm bug"),
         ):
             with self.assertRaisesRegex(RuntimeError, "unexpected algorithm bug"):
-                execute(self.request, self.artifact_dir)
+                self.execute_host()
         self.assert_no_artifacts()
 
 

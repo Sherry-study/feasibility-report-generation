@@ -2,7 +2,7 @@
 
 本模块只做确定性整理：
 
-* 自动发现并识别上游算法固定结构文件；
+* 经宿主文件服务按标准文件清单读取上游算法固定结构文件；
 * 按来源优先级映射工程事实；
 * 解析用户在 scheme.json 中已选择的最终采用方案；
 * 计算可复算的年化流股量与原辅料消耗。
@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import copy
 import json
-import os
 import re
 import threading
 from dataclasses import dataclass
@@ -53,17 +52,13 @@ TOP_LEVEL_KEYS = [
 ]
 
 ENGINEERING_INPUT_FIELDS = {
-    "provider",
     "root",
     "file_overrides",
     "construction_unit",
 }
-LEGACY_REQUEST_FIELDS = {"source_location", "construction_unit"}
-SOURCE_LOCATION_FIELDS = {"provider", "location", "file_overrides"}
-SOURCE_PROVIDERS = {"local_directory", "host_directory", "host_file"}
 
-# HostClient 目前只支持按逻辑路径读文件，不支持枚举目录。host_directory
-# 因此按这份清单尝试读取标准文件名；file_overrides 可覆盖单个文件名。
+# HostClient 只支持按逻辑路径读文件，不支持枚举目录；因此按这份清单
+# 尝试读取标准文件名；file_overrides 可覆盖单个文件名。
 HOST_DIRECTORY_SOURCE_FILES: dict[str, tuple[str, str]] = {
     "reactor_result_path": ("reactor_result", "plant_reactor_result.json"),
     "tower_result_path": ("tower_result", "retrofit_tower_equipment.json"),
@@ -143,25 +138,15 @@ class Source:
 
     source_id: str
     source_type: str
-    path: Path
     schema_version: str | None = None
     logical_location: str | None = None
 
-    def location(self, source_root: Path) -> str:
-        """返回相对来源根目录的 POSIX 风格路径，无法相对时回退绝对路径。"""
-        if self.logical_location is not None:
-            return self.logical_location
-        try:
-            return self.path.relative_to(source_root).as_posix()
-        except ValueError:
-            return str(self.path)
-
-    def as_fact_source(self, source_root: Path) -> dict[str, Any]:
+    def as_fact_source(self) -> dict[str, Any]:
         """序列化为 sources 清单中的一条，仅保留来源元信息。"""
         data: dict[str, Any] = {
             "source_id": self.source_id,
             "source_type": self.source_type,
-            "location": self.location(source_root),
+            "location": self.logical_location,
         }
         if self.schema_version:
             data["schema_version"] = self.schema_version
@@ -185,10 +170,10 @@ def execute(
     """执行业务 Tool。
 
     Args:
-        request: 业务输入。正式入口使用 provider/root/file_overrides 分组；
-            旧 source_location 结构仅作为核心层兼容输入保留。
+        request: 业务输入，使用 root/file_overrides/construction_unit 分组；
+            来源文件统一经 HostClient 从宿主文件服务读取。
         content: 进度通知适配器。
-        host_client: 宿主逻辑文件读写适配器，最终产物经它保存。
+        host_client: 宿主逻辑文件读写适配器，来源读取与最终产物保存都经它。
         cancel_event: 可选协作式取消信号；已设置时核心在检查点抛出
             OperationCancelled，不返回业务失败信封。不传时行为与旧版一致。
 
@@ -200,44 +185,25 @@ def execute(
     """
     diagnostics: list[Diagnostic] = []
     _check_cancel(cancel_event)
-    request = _normalize_request(request, diagnostics)
-    if _has_fatal(diagnostics):
+    if _validate_request(request, diagnostics):
         return _failed_response(diagnostics)
 
-    fatal = _validate_request(request, diagnostics)
-    if fatal:
-        return _failed_response(diagnostics)
-
-    source_location = request["source_location"]
-    source_root = _source_root_for_facts(source_location)
+    root = request["root"]
     construction_unit = _construction_unit(request)
 
-    _check_cancel(cancel_event)  # 来源发现前
+    _check_cancel(cancel_event)  # 来源读取前
     content.report_progress(0, 100, "扫描工程输入来源")
-    if source_location["provider"] == "host_file":
-        content.report_progress(35, 100, "读取工程输入来源")
-        sources, payloads = _load_host_file_source(
-            source_location["location"],
-            host_client,
-            diagnostics,
-            cancel_event,
-        )
-    elif source_location["provider"] == "host_directory":
-        content.report_progress(35, 100, "读取工程输入来源")
-        sources, payloads = _load_host_directory_sources(
-            source_location["location"],
-            source_location.get("file_overrides"),
-            host_client,
-            diagnostics,
-            cancel_event,
-        )
-    else:
-        sources = _discover_sources(source_root, diagnostics, cancel_event)
-        content.report_progress(35, 100, "读取工程输入来源")
-        payloads = _load_payloads(sources, diagnostics, cancel_event)
-    _check_cancel(cancel_event)  # 来源发现后
-    _validate_source_set(sources, diagnostics)
+    content.report_progress(35, 100, "读取工程输入来源")
+    sources, payloads = _load_host_directory_sources(
+        root,
+        request.get("file_overrides"),
+        host_client,
+        diagnostics,
+        cancel_event,
+    )
     _check_cancel(cancel_event)  # 来源读取后
+    _validate_source_set(sources, diagnostics)
+    _check_cancel(cancel_event)
     _warn_related_source_gaps(payloads, diagnostics)
 
     if _has_fatal(diagnostics):
@@ -248,7 +214,6 @@ def execute(
     facts = _build_facts(
         payloads=payloads,
         sources=sources,
-        source_root=source_root,
         construction_unit=construction_unit,
         diagnostics=diagnostics,
     )
@@ -270,19 +235,15 @@ def execute(
     }
 
 
-def _normalize_request(
-    request: dict[str, Any],
-    diagnostics: list[Diagnostic],
-) -> dict[str, Any]:
-    """把 MCP 新入参归一为核心内部 source_location 结构。
+def _validate_request(request: dict[str, Any], diagnostics: list[Diagnostic]) -> bool:
+    """校验业务输入结构，返回是否存在致命错误。
 
-    新公开契约使用 provider/root/file_overrides 分组，避免顶层参数过多；
-    旧 source_location 结构用于既有本地测试与少量内部调用兼容。
+    业务输入只接受 root 与可选 file_overrides/construction_unit；
+    逐一校验各字段，不合法项以 fatal 诊断追加到 diagnostics。
     """
     if not isinstance(request, dict):
-        return request
-    if "source_location" in request:
-        return request
+        diagnostics.append(Diagnostic("fatal", "INVALID_REQUEST", "request must be an object."))
+        return True
 
     extra = sorted(set(request) - ENGINEERING_INPUT_FIELDS)
     if extra:
@@ -294,97 +255,16 @@ def _normalize_request(
             )
         )
 
-    source_location: dict[str, Any] = {
-        "provider": request.get("provider"),
-        "location": request.get("root"),
-    }
-    if "file_overrides" in request:
-        source_location["file_overrides"] = request.get("file_overrides")
-
-    normalized: dict[str, Any] = {"source_location": source_location}
-    if "construction_unit" in request:
-        normalized["construction_unit"] = request.get("construction_unit")
-    return normalized
-
-
-def _validate_request(request: dict[str, Any], diagnostics: list[Diagnostic]) -> bool:
-    """校验业务输入结构，返回是否存在致命错误。
-
-    核心内部只接受 source_location 与可选 construction_unit 两个业务字段；
-    逐一校验 source_location 的 provider/location/file_overrides，并在
-    construction_unit 传入时校验其类型。
-    不合法项以 fatal 诊断追加到 diagnostics。
-    """
-    if not isinstance(request, dict):
-        diagnostics.append(Diagnostic("fatal", "INVALID_REQUEST", "request must be an object."))
-        return True
-
-    extra = sorted(set(request) - LEGACY_REQUEST_FIELDS)
-    if extra:
-        diagnostics.append(
-            Diagnostic(
-                "fatal",
-                "UNSUPPORTED_REQUEST_FIELD",
-                f"unsupported request fields: {extra}",
-            )
-        )
-
-    source_location = request.get("source_location")
-    if not isinstance(source_location, dict):
+    root = request.get("root")
+    if not isinstance(root, str) or not root.strip():
         diagnostics.append(
             Diagnostic(
                 "fatal",
                 "INVALID_SOURCE_LOCATION",
-                "source_location must be an object.",
+                "root is required.",
             )
         )
-    else:
-        extra_location_fields = sorted(
-            set(source_location) - SOURCE_LOCATION_FIELDS
-        )
-        if extra_location_fields:
-            diagnostics.append(
-                Diagnostic(
-                    "fatal",
-                    "UNSUPPORTED_SOURCE_LOCATION_FIELD",
-                    (
-                        "unsupported source_location fields: "
-                        f"{extra_location_fields}"
-                    ),
-                )
-            )
-
-    if isinstance(source_location, dict) and (
-        source_location.get("provider") not in SOURCE_PROVIDERS
-    ):
-        diagnostics.append(
-            Diagnostic(
-                "fatal",
-                "UNSUPPORTED_SOURCE_PROVIDER",
-                f"unsupported source_location.provider: {source_location.get('provider')}",
-            )
-        )
-    elif isinstance(source_location, dict):
-        location = source_location.get("location")
-        if not isinstance(location, str) or not location.strip():
-            diagnostics.append(
-                Diagnostic(
-                    "fatal",
-                    "INVALID_SOURCE_LOCATION",
-                    "source_location.location is required.",
-                )
-            )
-        elif source_location.get("provider") == "local_directory" and (
-            not Path(location).exists() or not Path(location).is_dir()
-        ):
-            diagnostics.append(
-                Diagnostic(
-                    "fatal",
-                    "SOURCE_LOCATION_NOT_FOUND",
-                    f"source directory not found: {location}",
-                )
-            )
-        _validate_file_overrides(source_location.get("file_overrides"), diagnostics)
+    _validate_file_overrides(request.get("file_overrides"), diagnostics)
 
     construction_unit = request.get("construction_unit")
     if construction_unit is not None and not isinstance(construction_unit, str):
@@ -474,23 +354,6 @@ def _has_fatal(diagnostics: list[Diagnostic]) -> bool:
     return any(item.level == "fatal" for item in diagnostics)
 
 
-def _source_root_for_facts(source_location: dict[str, Any]) -> Path:
-    """返回用于 facts.sources 相对路径计算的来源根。"""
-    if source_location["provider"] == "local_directory":
-        return Path(source_location["location"]).resolve()
-    return Path(source_location["location"])
-
-
-def _read_json(path: Path) -> Any:
-    """读取 JSON 文件，兼容 UTF-8 BOM 前缀。"""
-    return json.loads(path.read_text(encoding="utf-8-sig"))
-
-
-def _read_text(path: Path) -> str:
-    """读取文本文件，编码错误用替换符兜底。"""
-    return path.read_text(encoding="utf-8-sig", errors="replace")
-
-
 def _classify_json(data: Any) -> tuple[str | None, str | None]:
     """按内容签名识别 JSON 的角色，返回 (role, schema_version)。
 
@@ -527,176 +390,6 @@ def _classify_json(data: Any) -> tuple[str | None, str | None]:
     if "reactors" in keys and "separators" in keys:
         return "new_device_params", schema_version
     return None, schema_version
-
-
-def _classify_path(
-    path: Path,
-    source_root: Path,
-    diagnostics: list[Diagnostic],
-) -> tuple[str | None, str | None]:
-    """按扩展名分派到 JSON 或 Markdown 识别；无法识别返回 (None, None)。"""
-    suffix = path.suffix.lower()
-    if suffix in {".json", ".jsonc"}:
-        try:
-            return _classify_json(_read_json(path))
-        except json.JSONDecodeError as exc:
-            diagnostics.append(
-                Diagnostic(
-                    "fatal",
-                    "SOURCE_JSON_INVALID",
-                    f"{_relative_location(path, source_root)} is not valid JSON: {exc.msg}",
-                )
-            )
-            return None, None
-        except Exception as exc:
-            diagnostics.append(
-                Diagnostic(
-                    "fatal",
-                    "SOURCE_READ_FAILED",
-                    f"{_relative_location(path, source_root)}: {exc}",
-                )
-            )
-            return None, None
-    if suffix in {".md", ".txt"}:
-        # scheme_report.md 只是 scheme.json 的展示版，不重复采集
-        if path.name == "scheme_report.md":
-            return None, None
-        text = _read_text(path)[:20000]
-        if text.lstrip().startswith("# 工艺诊断报告") or (
-            "## 一、装置总体指标" in text
-            and "## 三、关键瓶颈分析" in text
-        ):
-            return "plant_diagnosis", None
-        if "diagnosis" in path.name.lower() or "诊断" in path.name:
-            return "plant_diagnosis", None
-    return None, None
-
-
-def _discover_sources(
-    source_root: Path,
-    diagnostics: list[Diagnostic],
-    cancel_event: threading.Event | None = None,
-) -> dict[str, Source]:
-    """递归扫描来源目录，识别并按角色归并来源文件。
-
-    同一角色匹配到多个文件时记为致命诊断（来源歧义），不返回该角色。
-    每个文件识别前后检查取消信号，保证长目录扫描可被协作取消。
-    """
-    candidates: dict[str, list[Source]] = {}
-    resolved_root = source_root.resolve()
-    for path in source_root.rglob("*"):
-        if not path.is_file():
-            continue
-        resolved_path = path.resolve()
-        if not _is_relative_to(resolved_path, resolved_root):
-            diagnostics.append(
-                Diagnostic(
-                    "warning",
-                    "SOURCE_OUTSIDE_ROOT_SKIPPED",
-                    f"source outside declared root skipped: {path}",
-                )
-            )
-            continue
-        _check_cancel(cancel_event)  # 单个来源文件读取前
-        source_type, schema_version = _classify_path(resolved_path, resolved_root, diagnostics)
-        if not source_type:
-            continue
-        source = Source(
-            source_id=source_type,
-            source_type=source_type,
-            path=resolved_path,
-            schema_version=schema_version,
-        )
-        candidates.setdefault(source_type, []).append(source)
-
-    selected: dict[str, Source] = {}
-    for source_type, items in candidates.items():
-        if len(items) > 1:
-            locations = [item.location(source_root) for item in items]
-            diagnostics.append(
-                Diagnostic(
-                    "fatal",
-                    "AMBIGUOUS_SOURCE_ROLE",
-                    f"role {source_type} matched multiple files: {locations}",
-                )
-            )
-        else:
-            selected[source_type] = items[0]
-    return selected
-
-
-def _is_relative_to(path: Path, root: Path) -> bool:
-    try:
-        path.relative_to(root)
-        return True
-    except ValueError:
-        return False
-
-
-def _load_payloads(
-    sources: dict[str, Source],
-    diagnostics: list[Diagnostic],
-    cancel_event: threading.Event | None = None,
-) -> dict[str, Any]:
-    """读取各来源文件内容；Markdown/文本按文本读，其余按 JSON 读。
-
-    每个来源文件读取前检查取消信号；取消异常不会被逐文件异常边界吞掉。
-    """
-    payloads: dict[str, Any] = {}
-    for source_type, source in sources.items():
-        _check_cancel(cancel_event)  # 单个来源文件读取前
-        try:
-            if source.path.suffix.lower() in {".md", ".txt"}:
-                payloads[source_type] = _read_text(source.path)
-            else:
-                payloads[source_type] = _read_json(source.path)
-        except Exception as exc:
-            diagnostics.append(Diagnostic("fatal", "SOURCE_READ_FAILED", f"{source_type}: {exc}"))
-    return payloads
-
-
-def _load_host_file_source(
-    logical_path: str,
-    host_client: HostClient,
-    diagnostics: list[Diagnostic],
-    cancel_event: threading.Event | None = None,
-) -> tuple[dict[str, Source], dict[str, Any]]:
-    """通过 HostClient 读取一个宿主逻辑文件，并识别为上游来源。"""
-    _check_cancel(cancel_event)
-    try:
-        payload = host_client.get_file(logical_path, kind="bytes")
-    except FileNotFoundError:
-        diagnostics.append(
-            Diagnostic(
-                "fatal",
-                "SOURCE_LOCATION_NOT_FOUND",
-                f"source file not found: {logical_path}",
-            )
-        )
-        return {}, {}
-    except Exception as exc:  # noqa: BLE001 - storage adapter boundary
-        raise HostStorageError(
-            f"HostClient failed to read engineering source file: {logical_path}. Cause: {exc}",
-            code="ENGINEERING_FACTS_HOST_STORAGE_ERROR",
-        ) from exc
-
-    _check_cancel(cancel_event)
-    source_type, schema_version, decoded = _classify_host_file_payload(
-        logical_path,
-        payload,
-        diagnostics,
-    )
-    if not source_type:
-        return {}, {}
-
-    source = Source(
-        source_id=source_type,
-        source_type=source_type,
-        path=Path(logical_path),
-        schema_version=schema_version,
-        logical_location=logical_path,
-    )
-    return {source_type: source}, {source_type: decoded}
 
 
 def _load_host_directory_sources(
@@ -767,20 +460,10 @@ def _load_host_directory_sources(
                 )
             )
             continue
-        if source_type in sources:
-            diagnostics.append(
-                Diagnostic(
-                    "fatal",
-                    "AMBIGUOUS_SOURCE_ROLE",
-                    f"role {source_type} matched multiple host files.",
-                )
-            )
-            continue
 
         source = Source(
             source_id=source_type,
             source_type=source_type,
-            path=Path(logical_path),
             schema_version=schema_version,
             logical_location=logical_path,
         )
@@ -944,7 +627,6 @@ def _build_facts(
     *,
     payloads: dict[str, Any],
     sources: dict[str, Source],
-    source_root: Path,
     construction_unit: str,
     diagnostics: list[Diagnostic],
 ) -> dict[str, Any]:
@@ -975,7 +657,7 @@ def _build_facts(
             "schema_version": SCHEMA_VERSION,
             "generated_at": datetime.now(timezone.utc).isoformat(),
         },
-        "sources": [sources[key].as_fact_source(source_root) for key in sorted(sources)],
+        "sources": [sources[key].as_fact_source() for key in sorted(sources)],
         "basic_info": {"construction_unit": construction_unit},
         "unit": unit,
         "component_catalog": _clean(copy.deepcopy(plant_level.get("components") or [])),
@@ -2552,20 +2234,6 @@ def _write_artifact(facts: dict[str, Any], host_client: HostClient) -> dict[str,
         "schema_version": SCHEMA_VERSION,
         "media_type": MEDIA_TYPE,
     }
-
-
-def _write_json_atomic(path: Path, payload: dict[str, Any]) -> None:
-    """原子写 JSON，避免长任务中断留下半截产物。"""
-    tmp_path = path.with_name(f"{path.name}.tmp")
-    tmp_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    os.replace(tmp_path, path)
-
-
-def _relative_location(path: Path, source_root: Path) -> str:
-    try:
-        return path.resolve().relative_to(source_root).as_posix()
-    except ValueError:
-        return str(path)
 
 
 def _summary(facts: dict[str, Any]) -> dict[str, Any]:
