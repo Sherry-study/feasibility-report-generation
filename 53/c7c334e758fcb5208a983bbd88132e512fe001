@@ -1,0 +1,141 @@
+README.md
+  s_1ab02faa984612::t_08c0dfca27a1fd 45
+tests/test_mcp_server_contract.py
+  s_1ab02faa984612::t_72b730ff0608c9 575-577,579-580,583
+  s_1ab02faa984612::t_021f2b32ea47c7 468
+  s_1ab02faa984612::t_aa546bac241d08 617-618
+  s_1ab02faa984612::t_49b41907713108 594-595
+  s_1ab02faa984612::t_25add3e0171b36 455
+  s_1ab02faa984612::t_d15488e8398fc1 346
+scripts/run_engineering_facts.py
+  s_1ab02faa984612::t_e2f13177afb5fb 32-33,45-54,57-58,62
+  s_1ab02faa984612::t_184a885908f4fd 34-40
+  s_1ab02faa984612::t_c35a87546c64b0 41
+mcp_server/engineering-confirmation-ui/host/src/mockData.ts
+  s_1ab02faa984612::t_bcf7c22cb8037d 252
+  s_1ab02faa984612::t_818a844ae71d3f 272
+  s_1ab02faa984612::t_b5e48b3bd5120c 282
+  s_1ab02faa984612::t_84bfe0b014281d 262
+skills/feasibility-report-generation/references/io-contract.md
+  s_1ab02faa984612::t_acc84e5a3537ed 23
+  s_1ab02faa984612::t_615018fc7366ad 9
+docs/guides/工程事实整理代码解读指南.md
+  s_1ab02faa984612::t_9f011484ff8d65 415-416,419
+  s_1ab02faa984612::t_f278da991d06a5 143,145,147-148
+  s_1ab02faa984612::t_6cdba138a75eed 340,345
+  s_1ab02faa984612::t_042910d8d1d035 369
+  s_1ab02faa984612::t_03ed0485c7ac80 53-55
+src/engineering_facts/core.py
+  s_1ab02faa984612::t_a3ca788ba3d034 5
+  s_1ab02faa984612::t_00a6f3d701411b 241-242,248,258-259,264,267
+  s_1ab02faa984612::t_f0afc545447a07 660
+  s_1ab02faa984612::t_c6f40580b9d203 60-61
+  s_1ab02faa984612::t_fbf88ec26c9efa 144,149
+  s_1ab02faa984612::t_0feb84c1bea568 173-174,176,188,191,194,196-203,205-206
+pyproject.toml
+  s_54d171cbf9d560::t_a586c3d5f6b4da 7
+  s_54d171cbf9d560::t_15315891678fd5 8-12
+  s_54d171cbf9d560::t_79749246c8dc79 17-19
+mcp_server/server.py
+  s_1ab02faa984612::t_9f8e9566e755c0 799,807,809-810
+  s_97528b6ae6ea3b::t_28c5ae5c8f9558 789-793
+  s_1ab02faa984612::t_3dc12b44e4a624 131,135,139,143,147,151,155,159,163,168,170,174-175,180
+  s_97528b6ae6ea3b::t_a8b1eb64c42a65 894-898
+  s_1ab02faa984612::t_82a701f702ab0b 911,913
+  s_97528b6ae6ea3b::t_9e0cb5c148673b 850-854
+  s_1ab02faa984612::t_ee34f198928a28 5
+  s_1ab02faa984612::t_b894da854e5013 30
+  s_1ab02faa984612::t_42ac6c0a07ce78 865,867
+tests/test_engineering_facts_tool.py
+  s_1ab02faa984612::t_b99510ef4c01c9 750-753,756
+  s_1ab02faa984612::t_c511bbd2f59c0b 452-466,469,482-483,486,495,516-519,529-530,539
+  s_1ab02faa984612::t_7aa813d411c425 389,391-395,413
+  s_1ab02faa984612::t_f1b6614468699e 637-638,641
+  s_1ab02faa984612::t_f2211d010296be 1045-1046,1049
+  s_1ab02faa984612::t_2bee13fe48ea11 1281-1282,1285-1294,1303-1309,1316,1320,1322,1324-1325,1327,1330-1331,1334,1338,1340,1342-1343,1345,1348-1349,1352,1365-1368,1373,1380,1390
+  s_1ab02faa984612::t_eb2d79b2dfe54a 140,143-144,148
+  s_1ab02faa984612::t_449420d3a93226 1238-1239,1242
+  s_1ab02faa984612::t_b2a93a495b63e1 918-919,922
+  s_1ab02faa984612::t_46413d27600b3e 989-990,993
+  s_1ab02faa984612::t_3307d9fb5a1558 1105-1106,1109
+  s_1ab02faa984612::t_8878c5b0a5c39c 1151-1152,1155
+  s_1ab02faa984612::t_96e3c0b59e2390 871-872,875
+  s_1ab02faa984612::t_31f8bb6d48aa58 822-823,826
+  s_1ab02faa984612::t_7beb5f18f03390 694-695,698
+  s_1ab02faa984612::t_89f1a83c29564e 62-79,84,86-89,92-93
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "53c7c334e758fcb5208a983bbd88132e512fe001",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_1ab02faa984612": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa35e6b19d9d1e045e8a9d8",
+        "model": "DeepSeek-V4-Pro-Official__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "tool_id": "Write",
+        "tool_type": "agent",
+        "dedupe_key": "6aa35e6b19d9d1e045e8a9d8:6aa3751e19d9d1e045e8acce:afterEdit:b374c568",
+        "client_type": "ide",
+        "external_session_id": "6aa35e6b19d9d1e045e8a9d8",
+        "edit_kind": "file_edit",
+        "operation_id": "6aa3751e19d9d1e045e8acce",
+        "session_id": "6aa35e6b19d9d1e045e8a9d8",
+        "tool_use_id": "6aa3751e19d9d1e045e8acce",
+        "source_scene": "unknown",
+        "runtime_client": "trae-tob-git-ai"
+      }
+    },
+    "s_54d171cbf9d560": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa365c419d9d1e045e8ab56",
+        "model": "deepseek-V4-Pro__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "edit_kind": "file_edit",
+        "client_type": "ide",
+        "external_session_id": "6aa365c419d9d1e045e8ab56",
+        "tool_name": "Edit",
+        "display_model_name": "DeepSeek-V4-Pro",
+        "tool_use_id": "6aa369d019d9d1e045e8abb4",
+        "source_scene": "agent",
+        "runtime_client": "trae-tob-git-ai",
+        "session_id": "6aa365c419d9d1e045e8ab56",
+        "operation_id": "6aa369d019d9d1e045e8abb4"
+      }
+    },
+    "s_97528b6ae6ea3b": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa36ad519d9d1e045e8abcf",
+        "model": "deepseek-V4-Pro__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "tool_type": "agent",
+        "operation_id": "6aa36b1c19d9d1e045e8abe6",
+        "edit_kind": "file_edit",
+        "client_type": "ide",
+        "runtime_client": "trae-tob-git-ai",
+        "external_session_id": "6aa36ad519d9d1e045e8abcf",
+        "dedupe_key": "6aa36ad519d9d1e045e8abcf:6aa36b1c19d9d1e045e8abe6:afterEdit:918badf5",
+        "session_id": "6aa36ad519d9d1e045e8abcf",
+        "source_scene": "unknown",
+        "tool_id": "Edit",
+        "tool_use_id": "6aa36b1c19d9d1e045e8abe6"
+      }
+    }
+  }
+}
