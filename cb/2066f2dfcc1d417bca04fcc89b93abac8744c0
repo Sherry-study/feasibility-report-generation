@@ -1,0 +1,43 @@
+mcp_server/duck_implement/host_client.py
+  s_9c5fe6c5dc50b3::t_1016ccdf8d8966 158,204
+  s_9c5fe6c5dc50b3::t_78da15c4d6a99e 213
+  s_9c5fe6c5dc50b3::t_768d19eac2c43a 53
+  h_c47bb0c7223297 50
+  s_9c5fe6c5dc50b3::t_bb2d6ae1cb6224 255-260
+  s_9c5fe6c5dc50b3::t_80430c389b063a 3-4,6-11
+tests/test_mcp_server_contract.py
+  s_9c5fe6c5dc50b3::t_8b7e63049ec4bb 232,251-252,264,266
+---
+{
+  "schema_version": "authorship/3.0.0",
+  "git_ai_version": "1.6.2",
+  "base_commit_sha": "cb2066f2dfcc1d417bca04fcc89b93abac8744c0",
+  "prompts": {},
+  "humans": {
+    "h_c47bb0c7223297": {
+      "author": "Xiaoting <huangxiaoting@supcon.com>"
+    }
+  },
+  "sessions": {
+    "s_9c5fe6c5dc50b3": {
+      "agent_id": {
+        "tool": "trae",
+        "id": "6aa2a20f96e973c4987a9887",
+        "model": "deepseek_v4_flash_official__dev"
+      },
+      "human_author": "Xiaoting <huangxiaoting@supcon.com>",
+      "custom_attributes": {
+        "tool_name": "RunCommand",
+        "source_scene": "agent",
+        "client_type": "ide",
+        "tool_use_id": "6aa3578c19d9d1e045e8a8cb",
+        "external_session_id": "6aa2a20f96e973c4987a9887",
+        "edit_kind": "bash",
+        "operation_id": "6aa3578c19d9d1e045e8a8cb",
+        "session_id": "6aa2a20f96e973c4987a9887",
+        "display_model_name": "DeepSeek-V4-Flash 正式版",
+        "runtime_client": "trae-tob-git-ai"
+      }
+    }
+  }
+}
